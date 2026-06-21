@@ -1,36 +1,38 @@
-// The canonical benchmark result record: one task attempt, end to end.
+// The benchmark task attempt: one DeepSWE task driven through plurnk to a verdict.
+//
+// This is the ONE concept the daemon's DB + bin/digest.ts do NOT model: it binds a
+// benchmark task to the plurnk run that attempted it and to the benchmark oracle's
+// score. Forensics are not reimplemented here — `run` is the drill-down handle into
+// the service's existing digest (`digest <dbPath>`); token/cost rollups live in that
+// DB, never re-summed in JS. (Provisional shape — id types + oracle fields firm up
+// once the Pier driver contract and the client's programmatic run API land.)
 //
 // Two orthogonal verdicts, never conflated:
-//   - `status` is plurnk's own terminal — the loop's final SEND code (200 ok,
-//     499 cancelled, 4xx/5xx failed). It says how the AGENT LOOP ended.
-//   - `outcome` is the HARNESS's score — did the task's own oracle (DeepSWE: do
-//     the repo's tests pass against the produced patch?) accept the result. A
-//     loop can terminate 200 and still fail the benchmark's oracle, and vice
-//     versa. The harness owns this column; the loop status never sets it.
-//
-// JSON Schema is the contract elsewhere in the ecosystem; here a record is a
-// plain shape (no Zod, no class) so it serializes 1:1 to a store row / JSONL line.
+//   - `status`: plurnk's terminal SEND code — how the AGENT LOOP ended (200/499/4xx).
+//   - `outcome`/`reward`/`testPassFraction`: the Pier verifier's score — how the
+//     BENCHMARK graded the produced patch. A loop can end 200 and still fail the oracle.
 
 export type Outcome = "pass" | "fail" | "error" | "timeout" | "cancelled";
 
-export interface Usage {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
+// Handle into the daemon DB that holds the run, for `bin/digest.ts` forensics.
+export interface RunRef {
+    sessionId: number;          // plurnk session id (DB row)
+    runId: number;              // plurnk run id (DB row) — digest drill-down key
+    dbPath: string;             // daemon DB path — `digest <dbPath>` reconstructs the run
 }
 
 export interface BenchRecord {
-    harness: string;        // which harness produced this — "deepswe"
-    taskId: string;         // the benchmark's own task identifier
-    model: string;          // PLURNK_MODEL under test
-    startedAt: string;      // ISO 8601
-    finishedAt: string;     // ISO 8601
-    durationMs: number;     // wall-clock for the whole attempt
-    status: number;         // plurnk terminal SEND status (loop verdict)
-    outcome: Outcome;       // harness oracle verdict (benchmark verdict)
-    turns: number;          // loop turns consumed
-    usage: Usage;
-    sessionId?: string;     // plurnk session id, for forensic drill-down
-    runId?: string;         // plurnk run id, for forensic drill-down
-    error?: string;         // failure detail when outcome is error/timeout
+    harness: string;            // which harness produced this — "deepswe"
+    taskId: string;             // the benchmark's own task identifier
+    model: string;              // PLURNK_MODEL under test
+    startedAt: string;          // ISO 8601
+    finishedAt: string;         // ISO 8601
+    durationMs: number;         // wall-clock for the whole attempt
+    status: number;             // plurnk terminal SEND status (loop verdict)
+    outcome: Outcome;           // benchmark verdict — "pass" iff the oracle accepted
+    reward?: number;            // Pier verifier binary reward (0 | 1)
+    testPassFraction?: number;  // Pier verifier fraction of held-out tests passing
+    turns: number;              // loop turns consumed
+    run?: RunRef;               // digest drill-down handle (absent if the run never started)
+    error?: string;             // failure detail when outcome is error/timeout
 }
