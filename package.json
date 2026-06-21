@@ -1,0 +1,20 @@
+{
+    "name": "@plurnk/plurnk-bench",
+    "version": "0.1.0",
+    "description": "Benchmarking harnesses for the plurnk agent service — drive real benchmark task sets through @plurnk/plurnk, store/score/report the runs.",
+    "type": "module",
+    "private": true,
+    "license": "MIT",
+    "engines": {
+        "node": ">=25"
+    },
+    "scripts": {
+        "test:lint": "tsc --noEmit",
+        "test:unit": "node --test 'src/**/*.test.ts'",
+        "test": "npm run test:lint && npm run test:unit"
+    },
+    "devDependencies": {
+        "@types/node": "^25.8.0",
+        "typescript": "^6.0.3"
+    }
+}

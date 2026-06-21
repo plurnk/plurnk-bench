@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+AGENTS.md
+*.tsbuildinfo
+
+# SQLite working files (WAL mode) — bench result stores
+*.db
+*.db-shm
+*.db-wal
+
+# Benchmark run artifacts (results, reports, diagnostics) — regenerated on demand
+results/
+reports/
+
+# Downloaded benchmark task fixtures — fetched, not source
+.cache/
