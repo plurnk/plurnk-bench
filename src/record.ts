@@ -1,11 +1,10 @@
 // The benchmark task attempt: one DeepSWE task driven through plurnk to a verdict.
 //
-// This is the ONE concept the daemon's DB + bin/digest.ts do NOT model: it binds a
-// benchmark task to the plurnk run that attempted it and to the benchmark oracle's
-// score. Forensics are not reimplemented here — `run` is the drill-down handle into
-// the service's existing digest (`digest <dbPath>`); token/cost rollups live in that
-// DB, never re-summed in JS. (Provisional shape — id types + oracle fields firm up
-// once the Pier driver contract and the client's programmatic run API land.)
+// Shaped by the two real artifacts it joins (see ingest.ts): the loop side from the
+// plurnk client's `--json` document (finalStatus, runId, turnCount, wallMs, usage —
+// the daemon's own reported numbers, captured not re-summed), and the oracle side
+// from Pier's verifier `reward.json`. This is the one concept the daemon DB + digest
+// don't model; `run` is the drill-down handle back into digest.
 //
 // Two orthogonal verdicts, never conflated:
 //   - `status`: plurnk's terminal SEND code — how the AGENT LOOP ended (200/499/4xx).
@@ -13,6 +12,14 @@
 //     BENCHMARK graded the produced patch. A loop can end 200 and still fail the oracle.
 
 export type Outcome = "pass" | "fail" | "error" | "timeout" | "cancelled";
+
+// Token usage as the daemon reports it on the `--json` doc (authoritative snapshot).
+export interface Usage {
+    promptTokens: number;
+    completionTokens: number;
+    totalTokens: number;
+    costPico?: number;          // daemon's cost estimate in pico-dollars, when priced
+}
 
 // Handle into the daemon DB that holds the run, for `bin/digest.ts` forensics.
 export interface RunRef {
@@ -24,15 +31,16 @@ export interface RunRef {
 export interface BenchRecord {
     harness: string;            // which harness produced this — "deepswe"
     taskId: string;             // the benchmark's own task identifier
-    model: string;              // PLURNK_MODEL under test
-    startedAt: string;          // ISO 8601
-    finishedAt: string;         // ISO 8601
-    durationMs: number;         // wall-clock for the whole attempt
+    model: string;              // model under test (PLURNK_MODEL alias / record label)
+    durationMs: number;         // plurnk wallMs — agent-loop wall time
     status: number;             // plurnk terminal SEND status (loop verdict)
-    outcome: Outcome;           // benchmark verdict — "pass" iff the oracle accepted
+    outcome: Outcome;           // benchmark verdict — derived from the oracle / failure class
     reward?: number;            // Pier verifier binary reward (0 | 1)
-    testPassFraction?: number;  // Pier verifier fraction of held-out tests passing
-    turns: number;              // loop turns consumed
+    testPassFraction?: number;  // Pier verifier `partial` (held-out tests passing)
+    turns: number;              // plurnk turnCount — loop turns consumed
+    usage?: Usage;              // daemon-reported tokens, if the doc carried them
     run?: RunRef;               // digest drill-down handle (absent if the run never started)
+    startedAt?: string;         // ISO 8601, when available (Pier trial timing)
+    finishedAt?: string;        // ISO 8601
     error?: string;             // failure detail when outcome is error/timeout
 }
