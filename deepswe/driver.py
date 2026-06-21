@@ -60,8 +60,10 @@ class PlurnkAgent(BaseInstalledAgent):
     def name() -> str:
         return "plurnk"
 
-    def get_version_command(self) -> str | None:
-        return "plurnk --version 2>/dev/null || true"
+    # NB: the @plurnk CLIs lack `--version` and use strict parseArgs, so an unknown
+    # flag is a hard ERR_PARSE_ARGS_UNKNOWN_OPTION crash — we verify install by
+    # presence on PATH, not by invoking the arg parser. (Objective-2 finding: the
+    # CLIs should support `--version`; surfaced to the client/service.)
 
     # ---- install: Node + both @plurnk CLIs, baked into the task image ----
     def install_spec(self) -> AgentInstallSpec:
@@ -79,14 +81,14 @@ class PlurnkAgent(BaseInstalledAgent):
             "apt-get install -y nodejs\n"
             # global install needs root; the agent user runs the bins off PATH at runtime
             f"npm install -g {shlex.quote(service)} {shlex.quote(client)}\n"
-            "plurnk --version\n"
-            "plurnk-service --version\n"
+            "command -v plurnk\n"
+            "command -v plurnk-service\n"
         )
         return AgentInstallSpec(
             agent_name=self.name(),
             version=self._version,
             steps=[InstallStep(user="root", env={"DEBIAN_FRONTEND": "noninteractive"}, run=run)],
-            verification_command="plurnk --version && plurnk-service --version",
+            verification_command="command -v plurnk && command -v plurnk-service",
         )
 
     # ---- runtime egress: only the model endpoint the daemon calls ----

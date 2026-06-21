@@ -22,3 +22,6 @@ reports/
 
 # Downloaded benchmark task fixtures — fetched, not source
 .cache/
+
+# Pier run output (results never committed)
+jobs/
