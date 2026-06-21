@@ -1,0 +1,22 @@
+# Registers the plurnk driver with Pier (no Pier fork — import_path extension).
+#
+#   PYTHONPATH=<repo>/deepswe pier run -p deep-swe/tasks \
+#     --config <repo>/deepswe/job-config.yaml --n-tasks 1 --sample-seed 0 --env docker
+#
+# `${VAR}` is interpolated from the shell / --env-file by Pier. The PLURNK_* values
+# are the DAEMON's model config (the daemon, bundled in-container, resolves them):
+#   PLURNK_MODEL        active provider alias under test
+#   PLURNK_MODEL_<a>    alias → "<provider>/<model>" (e.g. openai/gemma)
+#   PLURNK_BASE_URL     endpoint that speaks the llama-server API; its host is the ONLY
+#                       domain the driver allowlists under air-gap. For local gemma point
+#                       at the host llama-server via the gateway, e.g.
+#                       http://host.docker.internal:11435/v1  (verify host-gateway on first run).
+agents:
+  - import_path: driver:PlurnkAgent
+    model_name: ${PLURNK_MODEL_NAME}        # record-keeping label, e.g. plurnk/gemma
+    env:
+      PLURNK_MODEL: ${PLURNK_MODEL}
+      PLURNK_MODEL_gemma: ${PLURNK_MODEL_gemma}
+      PLURNK_BASE_URL: ${PLURNK_BASE_URL}
+    kwargs:
+      client_timeout_sec: 1800

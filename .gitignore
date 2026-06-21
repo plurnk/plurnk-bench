@@ -1,5 +1,10 @@
 node_modules/
 dist/
+
+# Python (the deepswe Pier driver)
+__pycache__/
+*.pyc
+.venv/
 .env
 .env.*
 !.env.example
