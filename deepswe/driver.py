@@ -27,9 +27,9 @@ from pier.models.agent.install import AgentInstallSpec, InstallStep
 from pier.models.agent.network import NetworkAllowlist
 from pier.models.trial.paths import EnvironmentPaths
 
-# @plurnk/* require Node >= 25 (package.json engines). Installed from NodeSource on
+# @plurnk/* require Node >= 26 (package.json engines). Installed from NodeSource on
 # the BUILD network, which is available even for allow_internet=false tasks.
-NODE_MAJOR = "25"
+NODE_MAJOR = "26"
 # Seconds to wait for the daemon's WebSocket to accept client calls before driving.
 DAEMON_READY_TIMEOUT_S = 60
 # Default client wall-clock budget per task; override via the `client_timeout_sec` kwarg.
