@@ -8,6 +8,7 @@
 // real Pier `jobs/` tree at smoke time; the JOIN below is the grounded, tested core.
 
 import { readFileSync, readdirSync, existsSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import type { BenchRecord, Outcome, Usage } from "./record.ts";
 
@@ -109,6 +110,22 @@ export interface PierTrialResult {
 // Pier exception types that mean the budget ran out, not that the loop scored a fail.
 const TIMEOUT_EXCEPTIONS = new Set(["AgentTimeoutError", "VerifierTimeoutError"]);
 
+// The authoritative turn count. The client's `--json` doc reports `turnCount: 0` on
+// abnormal termination (timeout / 500 / crash) even when turns really ran — only the DB
+// is honest. A count(*), not forensics: digest still owns the DB→waterfall projection.
+const dbTurnCount = (dbPath: string): number | null => {
+    try {
+        const db = new DatabaseSync(dbPath, { readOnly: true });
+        try {
+            return (db.prepare("SELECT count(*) AS c FROM turns").get() as { c: number }).c;
+        } finally {
+            db.close();
+        }
+    } catch {
+        return null;
+    }
+};
+
 const readJson = <T>(path: string): T | null => {
     try {
         return JSON.parse(readFileSync(path, "utf8")) as T;
@@ -130,7 +147,11 @@ export const readTrial = (trialDir: string, meta: { harness: string; taskId: str
     const reward = readJson<RewardJson>(join(trialDir, "verifier", "reward.json"));
     const dbPath = join(trialDir, "agent", "plurnk.db");
     const record = joinRecord({ ...meta, doc, reward, dbPath });
-    if (record.run === undefined && existsSync(dbPath)) record.run = { dbPath };
+    if (existsSync(dbPath)) {
+        if (record.run === undefined) record.run = { dbPath };
+        const turns = dbTurnCount(dbPath);
+        if (turns !== null) record.turns = turns;   // DB wins over the doc's abnormal-termination 0
+    }
     // Did the model actually edit the repo? Pier extracts `git diff base..HEAD` here; an
     // empty patch = NO-ATTEMPT (the loop edited plurnk scratch, never `/app`).
     const patchPath = join(trialDir, "artifacts", "model.patch");

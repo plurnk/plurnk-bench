@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { deriveOutcome, joinRecord, readJob, readTrial, type PlurnkDoc, type RewardJson } from "./ingest.ts";
@@ -45,6 +46,23 @@ test("joinRecord maps loop side from the plurnk doc, oracle side from reward", (
     assert.equal(record.durationMs, 4200);
     assert.deepEqual(record.usage, { promptTokens: 800, completionTokens: 200, totalTokens: 1000, costPico: 0 });
     assert.deepEqual(record.run, { sessionId: 1, runId: 7, dbPath: "/jobs/t1/agent/plurnk.db" });
+});
+
+// turns comes from the DB, not the doc — doc.turnCount is 0 on abnormal termination.
+test("readTrial derives turns from the DB, overriding an abnormal doc turnCount=0", () => {
+    const trialDir = mkdtempSync(join(tmpdir(), "bench-turns-"));
+    try {
+        mkdirSync(join(trialDir, "agent"), { recursive: true });
+        // The 500/timeout-style doc: turnCount lies (0) though 9 turns really ran.
+        writeFileSync(join(trialDir, "agent", "plurnk.json"), JSON.stringify({ schemaVersion: 1, finalStatus: 500, turnCount: 0 }));
+        const db = new DatabaseSync(join(trialDir, "agent", "plurnk.db"));
+        db.exec("CREATE TABLE turns (id INTEGER PRIMARY KEY)");
+        db.exec("INSERT INTO turns (id) VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9)");
+        db.close();
+        assert.equal(readTrial(trialDir, { harness: "deepswe", taskId: "t", model: "m" }).turns, 9);
+    } finally {
+        rmSync(trialDir, { recursive: true, force: true });
+    }
 });
 
 // Failure-mode telemetry: a pass-to-pass regression means the patch broke the build.
