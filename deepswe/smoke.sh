@@ -38,11 +38,18 @@ for k in $(compgen -v | grep -E '^PLURNK_|_BASE_URL$|_API_KEY$'); do
   flags+=(--agent-env "$k=$v")
 done
 
-echo "smoke: model=$MODEL task=$TASK client_timeout=${CLIENT_TIMEOUT_SEC}s (benchmark agent budget ${AGENT_BUDGET:-?}s)" >&2
+# Set FORCE_BUILD=1 after a @plurnk version bump: Docker caches the agent-build layer
+# (which `npm i -g @plurnk/...@latest`s), so without --force-build a run reuses the old
+# daemon version. Skip it otherwise for fast cached builds.
+build=()
+[ -n "${FORCE_BUILD:-}" ] && build+=(--force-build)
+
+echo "smoke: model=$MODEL task=$TASK client_timeout=${CLIENT_TIMEOUT_SEC}s (benchmark agent budget ${AGENT_BUDGET:-?}s)${FORCE_BUILD:+ [force-build]}" >&2
 PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
   --agent-import-path driver:PlurnkAgent \
   --model "plurnk/$MODEL" \
   --agent-kwarg "client_timeout_sec=$CLIENT_TIMEOUT_SEC" \
+  "${build[@]}" \
   "${flags[@]}" \
   -i "$TASK" --n-tasks 1 --env docker
 
