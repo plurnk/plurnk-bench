@@ -45,14 +45,13 @@ build=()
 [ -n "${FORCE_BUILD:-}" ] && build+=(--force-build)
 
 echo "smoke: model=$MODEL task=$TASK client_timeout=${CLIENT_TIMEOUT_SEC}s (benchmark agent budget ${AGENT_BUDGET:-?}s)${FORCE_BUILD:+ [force-build]}" >&2
-# Foist the DEFAULT personality: the daemon seeds the shipped PLURNK_PERSONALITY.md to
-# ~/.plurnk/AGENTS.md on init, but headless it isn't picked up unless PLURNK_POLICY points
-# at it. We benchmark the real product, personality included. (~ expands in-container.)
+# The default personality ships on: the daemon seeds PLURNK_PERSONALITY.md to
+# ~/.plurnk/AGENTS.md and foists it headless (confirmed via digest, PLURNK_POLICY unset).
+# So we DON'T set PLURNK_POLICY — the benchmark gets the real product default as-is.
 PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
   --agent-import-path driver:PlurnkAgent \
   --model "plurnk/$MODEL" \
   --agent-kwarg "client_timeout_sec=$CLIENT_TIMEOUT_SEC" \
-  --agent-env "PLURNK_POLICY=~/.plurnk/AGENTS.md" \
   "${build[@]}" \
   "${flags[@]}" \
   -i "$TASK" --n-tasks 1 --env docker
