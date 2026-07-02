@@ -6,13 +6,12 @@ cloned repo at ``/app`` with the task instruction as the prompt, lets the model
 EDIT/EXEC, commits the result, and persists the client's ``--json`` record + the
 daemon DB for later ingest. Pier extracts the committed patch and grades it.
 
-Run it:
-    PYTHONPATH=<repo>/deepswe pier run -p deep-swe/tasks \
-        --config <repo>/deepswe/job-config.yaml --n-tasks 1 --sample-seed 0 --env docker
+Run it (deepswe/smoke.sh is the carry-manifest runner):
+    deepswe/smoke.sh <task-glob> <env-file>
 
-Validated against Pier 0.3.0's BaseInstalledAgent API. UNTESTED against a live task
-until the first smoke run — daemon lifecycle + container->host endpoint reachability
-are the things to confirm there.
+Config reaches the in-container daemon via ``--agent-env`` (Pier does NOT interpolate
+``${VAR}`` in ``--config`` — that resolver is dead code). Proven end-to-end against a
+live task: the daemon boots, drives a real multi-turn loop, commits, and grades.
 """
 
 from __future__ import annotations

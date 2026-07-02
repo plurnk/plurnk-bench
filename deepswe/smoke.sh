@@ -42,7 +42,7 @@ echo "smoke: model=$MODEL task=$TASK client_timeout=${CLIENT_TIMEOUT_SEC}s (benc
 PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
   --agent-import-path driver:PlurnkAgent \
   --model "plurnk/$MODEL" \
-  --agent-kwargs "client_timeout_sec=$CLIENT_TIMEOUT_SEC" \
+  --agent-kwarg "client_timeout_sec=$CLIENT_TIMEOUT_SEC" \
   "${flags[@]}" \
   -i "$TASK" --n-tasks 1 --env docker
 
