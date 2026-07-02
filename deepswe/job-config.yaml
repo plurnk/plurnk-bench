@@ -3,20 +3,30 @@
 #   PYTHONPATH=<repo>/deepswe pier run -p deep-swe/tasks \
 #     --config <repo>/deepswe/job-config.yaml --n-tasks 1 --sample-seed 0 --env docker
 #
-# `${VAR}` is interpolated from the shell / --env-file by Pier. The PLURNK_* values
-# are the DAEMON's model config (the daemon, bundled in-container, resolves them):
-#   PLURNK_MODEL        active provider alias under test
-#   PLURNK_MODEL_<a>    alias → "<provider>/<model>" (e.g. openai/gemma)
-#   PLURNK_BASE_URL     endpoint that speaks the llama-server API; its host is the ONLY
-#                       domain the driver allowlists under air-gap. For local gemma point
-#                       at the host llama-server via the gateway, e.g.
-#                       http://host.docker.internal:11435/v1  (verify host-gateway on first run).
+# `${VAR}` is interpolated from the shell / --env-file by Pier. These flow into the
+# in-container daemon's environment (the daemon resolves them). Aim the bench at ANY
+# alias by setting four knobs — the keys embed the alias name, so swapping models means
+# renaming the two `_turboderp` keys (Pier interpolates VALUES, not KEYS). Current
+# target: the local `turboderp` alias served by host llama-server.
+#   PLURNK_MODEL            active alias under test (e.g. turboderp)
+#   PLURNK_MODEL_<alias>    alias → "<provider>/<model>" (turboderp → openai/turboderp)
+#   PLURNK_BASEURL_<alias>  per-alias endpoint; the ONLY base-URL knob the openai provider
+#                           reads for an aliased model (NOT PLURNK_BASE_URL). Point at the
+#                           host llama-server reachable from the container, e.g.
+#                           http://host.docker.internal:11435/v1 (verify host-gateway first).
+#   PLURNK_PROVIDERS_GBNF   bare `plurnk.gbnf` → the official grammar shipped inside the
+#                           installed @plurnk/plurnk-grammar; non-optional for plurnk DSL.
+#                           Omitting it disables grammar constraint → invalid-DSL 0-token turns.
+# OPENAI_API_KEY is optional for llama-server (ignored), but the openai provider sends it
+# if present; a dummy keeps cloud-shaped configs uniform.
 agents:
   - import_path: driver:PlurnkAgent
-    model_name: ${PLURNK_MODEL_NAME}        # record-keeping label, e.g. plurnk/gemma
+    model_name: ${PLURNK_MODEL_NAME}        # record-keeping label, e.g. plurnk/turboderp
     env:
       PLURNK_MODEL: ${PLURNK_MODEL}
-      PLURNK_MODEL_gemma: ${PLURNK_MODEL_gemma}
-      PLURNK_BASE_URL: ${PLURNK_BASE_URL}
+      PLURNK_MODEL_turboderp: ${PLURNK_MODEL_turboderp}
+      PLURNK_BASEURL_turboderp: ${PLURNK_BASEURL_turboderp}
+      PLURNK_PROVIDERS_GBNF: ${PLURNK_PROVIDERS_GBNF}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
     kwargs:
       client_timeout_sec: 1800
