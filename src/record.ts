@@ -44,6 +44,15 @@ export interface BenchRecord {
     // cancelled the committed diff is often empty, so this is the BASE repo's grade
     // (its pass-to-pass tests), not progress. Always read it gated on `outcome`.
     testPassFraction?: number;
+    // Failure-mode telemetry — makes a 0-reward legible without opening the patch:
+    //   filesModified 0           → NO-ATTEMPT (no existing source touched — even if the patch
+    //                               is non-empty, e.g. a weak model dumping junk .txt into /app)
+    //   filesModified>0 + regress → BROKE-THE-BUILD (real source edit, broke existing / didn't compile)
+    //   filesModified>0, no regress, testPassFraction<1 → NEAR-MISS / FAIL
+    patchLines?: number;        // total lines in the graded patch (Pier `model.patch`)
+    filesModified?: number;     // EXISTING files the patch changes (excludes new-file additions) — the
+                                // real "did it edit the source?" signal; 0 = no genuine repo attempt
+    p2pRegressed?: boolean;     // a base pass-to-pass test now fails — the patch broke build/existing behavior
     turns: number;              // plurnk turnCount — loop turns consumed
     usage?: Usage;              // daemon-reported tokens, if the doc carried them
     run?: RunRef;               // digest drill-down handle (absent if the run never started)

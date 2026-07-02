@@ -82,6 +82,10 @@ export const joinRecord = ({ harness, taskId, model, doc, reward, dbPath }: Join
     if (reward !== null) {
         record.reward = reward.reward;
         if (reward.partial !== undefined) record.testPassFraction = reward.partial;
+        // Base pass-to-pass tests all pass on the pristine repo, so any p2p failure means
+        // the patch broke the build / existing behavior (the BROKE-THE-BUILD failure mode).
+        if (reward.p2p_total !== undefined && reward.p2p_passed !== undefined && reward.p2p_passed < reward.p2p_total)
+            record.p2pRegressed = true;
     }
     if (doc.session !== undefined && typeof doc.runId === "number") {
         record.run = { sessionId: doc.session.id, runId: doc.runId, dbPath };
@@ -127,6 +131,19 @@ export const readTrial = (trialDir: string, meta: { harness: string; taskId: str
     const dbPath = join(trialDir, "agent", "plurnk.db");
     const record = joinRecord({ ...meta, doc, reward, dbPath });
     if (record.run === undefined && existsSync(dbPath)) record.run = { dbPath };
+    // Did the model actually edit the repo? Pier extracts `git diff base..HEAD` here; an
+    // empty patch = NO-ATTEMPT (the loop edited plurnk scratch, never `/app`).
+    const patchPath = join(trialDir, "artifacts", "model.patch");
+    if (existsSync(patchPath)) {
+        const raw = readFileSync(patchPath, "utf8");
+        record.patchLines = raw === "" ? 0 : raw.replace(/\n+$/, "").split("\n").length;
+        // Existing files modified = total diffs minus new-file additions. A junk dump (a
+        // weak model writing dir_tree.txt etc. into /app) is all new files → 0 modified →
+        // still a no-attempt despite a non-empty patch.
+        const files = (raw.match(/^diff --git /gm) ?? []).length;
+        const newFiles = (raw.match(/^new file mode /gm) ?? []).length;
+        record.filesModified = files - newFiles;
+    }
     return record;
 };
 

@@ -47,6 +47,44 @@ test("joinRecord maps loop side from the plurnk doc, oracle side from reward", (
     assert.deepEqual(record.run, { sessionId: 1, runId: 7, dbPath: "/jobs/t1/agent/plurnk.db" });
 });
 
+// Failure-mode telemetry: a pass-to-pass regression means the patch broke the build.
+test("joinRecord flags p2pRegressed when a base pass-to-pass test fails", () => {
+    const broke = joinRecord({
+        harness: "deepswe", taskId: "t", model: "m", dbPath: "/x/plurnk.db",
+        doc: doc({ finalStatus: 200 }), reward: reward(0, { p2p_total: 3, p2p_passed: 0 }),
+    });
+    assert.equal(broke.p2pRegressed, true);
+    const clean = joinRecord({
+        harness: "deepswe", taskId: "t", model: "m", dbPath: "/x/plurnk.db",
+        doc: doc({ finalStatus: 200 }), reward: reward(0, { p2p_total: 3, p2p_passed: 3 }),
+    });
+    assert.equal(clean.p2pRegressed, undefined);
+});
+
+// readTrial reads the graded patch: patchLines (size) + filesModified (real source edits).
+// A junk dump (new .txt files) is non-empty but modifies 0 existing files → still no-attempt.
+test("readTrial records patchLines + filesModified, distinguishing junk dumps from real edits", () => {
+    const trialDir = mkdtempSync(join(tmpdir(), "bench-patch-"));
+    const read = () => readTrial(trialDir, { harness: "deepswe", taskId: "t", model: "m" });
+    const patch = join(trialDir, "artifacts", "model.patch");
+    try {
+        mkdirSync(join(trialDir, "agent"), { recursive: true });
+        mkdirSync(join(trialDir, "artifacts"), { recursive: true });
+        writeFileSync(join(trialDir, "agent", "plurnk.json"), JSON.stringify({ schemaVersion: 1, finalStatus: 200, session: { id: 1 }, runId: 2, turnCount: 3 }));
+
+        writeFileSync(patch, "");                                                    // empty → no-attempt
+        assert.deepEqual([read().patchLines, read().filesModified], [0, 0]);
+
+        writeFileSync(patch, "diff --git a/dir_tree.txt b/dir_tree.txt\nnew file mode 100644\n+junk\n");
+        assert.deepEqual([read().patchLines, read().filesModified], [3, 0]);          // junk dump → 0 modified
+
+        writeFileSync(patch, "diff --git a/src/x.go b/src/x.go\nindex 1..2 100644\n-old\n+new\n");
+        assert.deepEqual([read().patchLines, read().filesModified], [4, 1]);          // real source edit
+    } finally {
+        rmSync(trialDir, { recursive: true, force: true });
+    }
+});
+
 // A crashed loop emits an error doc with no session/runId, but the driver still copied
 // the daemon DB. Bench does NOT read that DB (digest owns DB→forensics) — it carries
 // the dbPath alone as the digest handle so the whole DB stays renderable.
