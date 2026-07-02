@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { nextRunNumber, publishRun, defaultBenchmarksDir } from "./publish.ts";
+import { writeFileSync } from "node:fs";
+import { nextRunNumber, publishRun, defaultBenchmarksDir, digestHasTurns } from "./publish.ts";
 import type { BenchRecord } from "./record.ts";
 
 // run<N> auto-increments off the highest existing run, ignoring non-run dirs.
@@ -28,6 +29,20 @@ test("publishRun returns null when the record has no run handle", () => {
         durationMs: 0, status: 0, outcome: "error", turns: 0,
     };
     assert.equal(publishRun(record, mkdtempSync(join(tmpdir(), "bench-pub-"))), null);
+});
+
+// An infra-failure run (turn-less DB) must not be published — gated on the digest.
+test("digestHasTurns is false for an absent or empty digest, true with turns", () => {
+    const dir = mkdtempSync(join(tmpdir(), "bench-dig-"));
+    try {
+        assert.equal(digestHasTurns(dir), false);                                   // no digest.json
+        writeFileSync(join(dir, "digest.json"), JSON.stringify({ turns: [] }));
+        assert.equal(digestHasTurns(dir), false);                                   // empty loop
+        writeFileSync(join(dir, "digest.json"), JSON.stringify({ turns: [{ sequence: 1 }] }));
+        assert.equal(digestHasTurns(dir), true);                                    // real loop
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
 });
 
 // The shared tree is a sibling of the bench repo.

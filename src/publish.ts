@@ -4,7 +4,7 @@
 // auto-increments. "check out run<N> with me" is the whole point: a stable handle outside
 // the gitignored jobs/ scratch.
 
-import { readdirSync, mkdirSync, copyFileSync, existsSync } from "node:fs";
+import { readdirSync, mkdirSync, copyFileSync, existsSync, readFileSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Digest from "@plurnk/plurnk-service/digest";
@@ -25,20 +25,37 @@ export const nextRunNumber = (benchmarksDir: string): number => {
     return ns.length > 0 ? Math.max(...ns) + 1 : 1;
 };
 
+// A published run must hold a real loop. An infra failure (daemon never looped) copies a
+// turn-less DB; the digest (bench's own artifact) confirms 0 turns → not worth the tree.
+export const digestHasTurns = (digestDir: string): boolean => {
+    try {
+        const { turns } = JSON.parse(readFileSync(join(digestDir, "digest.json"), "utf8"));
+        return Array.isArray(turns) && turns.length > 0;
+    } catch {
+        return false;
+    }
+};
+
 // Copy the run's DB + render its digest into benchmarks/run<N>/. The digest reads the
 // COPIED DB, so the run dir is self-contained. No run handle → nothing to publish (null).
+// A turn-less run (infra failure) is rolled back rather than published.
 export const publishRun = (record: BenchRecord, benchmarksDir: string): string | null => {
     if (record.run === undefined) return null;
     const runDir = join(benchmarksDir, `run${nextRunNumber(benchmarksDir)}`);
+    const digestDir = join(runDir, "digest");
     mkdirSync(runDir, { recursive: true });
     const db = join(runDir, "plurnk.db");
     copyFileSync(record.run.dbPath, db);
     Digest.run({
         dbPath: db,
-        digestDir: join(runDir, "digest"),
+        digestDir,
         ...(record.run.runId !== undefined ? { runId: record.run.runId } : {}),
         ...(record.run.sessionId !== undefined ? { sessionId: record.run.sessionId } : {}),
     });
+    if (!digestHasTurns(digestDir)) {
+        rmSync(runDir, { recursive: true, force: true });
+        return null;
+    }
     return runDir;
 };
 
