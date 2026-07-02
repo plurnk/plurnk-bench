@@ -39,7 +39,11 @@ export interface BenchRecord {
     status: number;             // plurnk terminal SEND status (loop verdict)
     outcome: Outcome;           // benchmark verdict — derived from the oracle / failure class
     reward?: number;            // Pier verifier binary reward (0 | 1)
-    testPassFraction?: number;  // Pier verifier `partial` (held-out tests passing)
+    // Pier verifier `partial` — fraction of all tests passing in the graded patch.
+    // ONLY meaningful once `outcome` says a loop ran (fail/pass): on error/timeout/
+    // cancelled the committed diff is often empty, so this is the BASE repo's grade
+    // (its pass-to-pass tests), not progress. Always read it gated on `outcome`.
+    testPassFraction?: number;
     turns: number;              // plurnk turnCount — loop turns consumed
     usage?: Usage;              // daemon-reported tokens, if the doc carried them
     run?: RunRef;               // digest drill-down handle (absent if the run never started)
