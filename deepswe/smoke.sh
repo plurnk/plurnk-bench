@@ -19,6 +19,14 @@ TASK="${1:-abs-module-cache-flags}"
 MODEL="${2:-${PLURNK_MODEL:?set PLURNK_MODEL in ~/.plurnk/.env or pass a model alias}}"
 LAN_IP="$(hostname -I | awk '{print $1}')"
 
+# Give the agent the BENCHMARK's own budget, not an arbitrary cap: read the task's
+# [agent] timeout_sec and use it minus headroom (daemon boot + commit + DB copy). A
+# shorter client --timeout would starve the model below the benchmark's intended
+# allowance and understate every result. Override with CLIENT_TIMEOUT_SEC for quick dev.
+TASKDIR="$(ls -d ".cache/deep-swe/tasks/$TASK"*/ 2>/dev/null | head -1)"
+AGENT_BUDGET="$(awk -F= '/^\[/{s=$0} s=="[agent]" && $1 ~ /timeout_sec/ {v=$2; gsub(/[^0-9.]/,"",v); printf "%d", v}' "${TASKDIR}task.toml" 2>/dev/null)"
+CLIENT_TIMEOUT_SEC="${CLIENT_TIMEOUT_SEC:-$(( ${AGENT_BUDGET:-1920} - 120 ))}"
+
 # Forward the config that already exists: every PLURNK_* (alias defs + GBNF) and each
 # provider *_BASE_URL / *_API_KEY that is set, rewriting host loopback → LAN for the
 # container. No hand-maintained manifest.
@@ -30,9 +38,11 @@ for k in $(compgen -v | grep -E '^PLURNK_|_BASE_URL$|_API_KEY$'); do
   flags+=(--agent-env "$k=$v")
 done
 
+echo "smoke: model=$MODEL task=$TASK client_timeout=${CLIENT_TIMEOUT_SEC}s (benchmark agent budget ${AGENT_BUDGET:-?}s)" >&2
 PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
   --agent-import-path driver:PlurnkAgent \
   --model "plurnk/$MODEL" \
+  --agent-kwargs "client_timeout_sec=$CLIENT_TIMEOUT_SEC" \
   "${flags[@]}" \
   -i "$TASK" --n-tasks 1 --env docker
 
