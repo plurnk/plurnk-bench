@@ -30,8 +30,12 @@ for k in $(compgen -v | grep -E '^PLURNK_|_BASE_URL$|_API_KEY$'); do
   flags+=(--agent-env "$k=$v")
 done
 
-PYTHONPATH=deepswe exec pier run -p .cache/deep-swe/tasks \
+PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
   --agent-import-path driver:PlurnkAgent \
   --model "plurnk/$MODEL" \
   "${flags[@]}" \
   -i "$TASK" --n-tasks 1 --env docker
+
+# Publish the run to the shared benchmarks tree (<plurnk>/benchmarks/run<N>) so it can be
+# referenced by name — "check out run<N> with me".
+node src/publish.ts "$(ls -dt jobs/*/ | head -1)"
