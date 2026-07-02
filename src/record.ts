@@ -21,11 +21,14 @@ export interface Usage {
     costPico?: number;          // daemon's cost estimate in pico-dollars, when priced
 }
 
-// Handle into the daemon DB that holds the run, for `bin/digest.ts` forensics.
+// Pointer into the daemon DB for `bin/digest.ts` forensics — bench NEVER reads the DB
+// itself (digest owns DB→forensics). `dbPath` is the always-present handle: `digest
+// <dbPath>` renders the run(s). session/runId come from the client's `--json` doc when
+// the loop reported them (a crash/error doc drops them) and scope digest to one run.
 export interface RunRef {
-    sessionId: number;          // plurnk session id (DB row)
-    runId: number;              // plurnk run id (DB row) — digest drill-down key
-    dbPath: string;             // daemon DB path — `digest <dbPath>` reconstructs the run
+    dbPath: string;             // daemon DB path — always present when a DB was copied
+    sessionId?: number;         // plurnk session id, from the --json doc — digest scope
+    runId?: number;             // plurnk run id, from the --json doc — digest drill-down key
 }
 
 export interface BenchRecord {

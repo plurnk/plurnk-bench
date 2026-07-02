@@ -7,7 +7,7 @@
 // The dir-walking glue (which trial dir, taskId/model provenance) firms up against a
 // real Pier `jobs/` tree at smoke time; the JOIN below is the grounded, tested core.
 
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import type { BenchRecord, Outcome, Usage } from "./record.ts";
 
@@ -90,6 +90,21 @@ export const joinRecord = ({ harness, taskId, model, doc, reward, dbPath }: Join
     return record;
 };
 
+// One Pier trial's result.json — the provenance + Pier-level lifecycle the loop doc
+// can't carry (a build/timeout/cancel failure kills the trial before plurnk writes a
+// doc). Subset of pier/trial/trial.py's TrialResult.
+export interface PierTrialResult {
+    task_name?: string;                                          // canonical benchmark task id
+    trial_name?: string;                                         // present iff this is a trial dir
+    config?: { agent?: { model_name?: string | null } };        // the operator's record label
+    exception_info?: { exception_type?: string; exception_message?: string } | null;
+    started_at?: string;
+    finished_at?: string;
+}
+
+// Pier exception types that mean the budget ran out, not that the loop scored a fail.
+const TIMEOUT_EXCEPTIONS = new Set(["AgentTimeoutError", "VerifierTimeoutError"]);
+
 const readJson = <T>(path: string): T | null => {
     try {
         return JSON.parse(readFileSync(path, "utf8")) as T;
@@ -99,11 +114,55 @@ const readJson = <T>(path: string): T | null => {
 };
 
 // Read one Pier trial directory's artifacts and join them. `reward.json` absent
-// (verifier crash / disabled) joins as a null oracle → an `error` outcome.
+// (verifier crash / disabled) joins as a null oracle → an `error` outcome. The digest
+// handle is the DB POINTER, never a bench-side DB read — plurnk owns DB→forensics
+// (digest). On a clean finish the loop doc carries session+runId and joinRecord scopes
+// the handle to that run; on a crash/error doc the coordinate is absent but the driver
+// still copied the DB, so we carry `dbPath` alone (digest renders the whole DB from it).
+// No DB copied at all → no handle, honestly absent.
 export const readTrial = (trialDir: string, meta: { harness: string; taskId: string; model: string }): BenchRecord => {
     const doc = readJson<PlurnkDoc>(join(trialDir, "agent", "plurnk.json"))
         ?? { schemaVersion: 0, error: { kind: "ingest", message: "plurnk.json missing" } };
     const reward = readJson<RewardJson>(join(trialDir, "verifier", "reward.json"));
     const dbPath = join(trialDir, "agent", "plurnk.db");
-    return joinRecord({ ...meta, doc, reward, dbPath });
+    const record = joinRecord({ ...meta, doc, reward, dbPath });
+    if (record.run === undefined && existsSync(dbPath)) record.run = { dbPath };
+    return record;
+};
+
+// Walk a Pier `jobs/<job>/` tree → one BenchRecord per trial. A trial dir is any
+// child holding a result.json with a `trial_name` (the job-level result.json has
+// none). result.json is the provenance source — task_name + model_name + Pier-level
+// timing/exception; the artifact join (loop doc + oracle) delegates to readTrial.
+// Trials are walked in directory-name order for deterministic output.
+export const readJob = (jobDir: string, { harness }: { harness: string }): BenchRecord[] => {
+    const dirs = readdirSync(jobDir, { withFileTypes: true })
+        .filter((e) => e.isDirectory())
+        .map((e) => e.name)
+        .toSorted();
+    const records: BenchRecord[] = [];
+    for (const name of dirs) {
+        const trialDir = join(jobDir, name);
+        const result = readJson<PierTrialResult>(join(trialDir, "result.json"));
+        if (result?.trial_name === undefined) continue;   // not a trial dir
+        const record = readTrial(trialDir, {
+            harness,
+            taskId: result.task_name ?? name,
+            model: result.config?.agent?.model_name ?? "unknown",
+        });
+        if (result.started_at !== undefined) record.startedAt = result.started_at;
+        if (result.finished_at !== undefined) record.finishedAt = result.finished_at;
+        // A Pier-level failure (build/timeout/cancel) the loop doc never saw: surface
+        // it as the error detail and reclassify a timeout — but only when the join
+        // didn't already land a verdict from a real loop doc (outcome still "error").
+        const ex = result.exception_info;
+        if (ex?.exception_type !== undefined && record.outcome === "error") {
+            record.error = ex.exception_message
+                ? `${ex.exception_type}: ${ex.exception_message}`
+                : ex.exception_type;
+            if (TIMEOUT_EXCEPTIONS.has(ex.exception_type)) record.outcome = "timeout";
+        }
+        records.push(record);
+    }
+    return records;
 };

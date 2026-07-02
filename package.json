@@ -13,6 +13,9 @@
         "test:unit": "node --test 'src/**/*.test.ts'",
         "test": "npm run test:lint && npm run test:unit"
     },
+    "dependencies": {
+        "@plurnk/plurnk-service": "0.61.0"
+    },
     "devDependencies": {
         "@types/node": "^26.0.0",
         "typescript": "^6.0.3"
