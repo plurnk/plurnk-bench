@@ -38,13 +38,22 @@ for k in $(compgen -v | grep -E '^PLURNK_|_BASE_URL$|_API_KEY$'); do
   flags+=(--agent-env "$k=$v")
 done
 
+# Give the container the box's cores — portable across whatever hardware a third party
+# runs this on. The embedder sizes its WASM pool to os.availableParallelism()
+# (PLURNK_EMBED_WORKERS=-1, the shipped default); a Docker --cpus quota throttles
+# time-slice but does NOT shrink the visible core count, so an under-provisioned
+# container spawns host-core-many workers thrashing over few cpus (the 28-min stall).
+# Matching the container's cpu allotment to that same count keeps workers==cores
+# everywhere, no hardcoded value, no thrash. Override with OVERRIDE_CPUS.
+CPUS="${OVERRIDE_CPUS:-$(node -e 'process.stdout.write(String(require("os").availableParallelism()))')}"
+
 # Set FORCE_BUILD=1 after a @plurnk version bump: Docker caches the agent-build layer
 # (which `npm i -g @plurnk/...@latest`s), so without --force-build a run reuses the old
 # daemon version. Skip it otherwise for fast cached builds.
 build=()
 [ -n "${FORCE_BUILD:-}" ] && build+=(--force-build)
 
-echo "smoke: model=$MODEL task=$TASK client_timeout=${CLIENT_TIMEOUT_SEC}s (benchmark agent budget ${AGENT_BUDGET:-?}s)${FORCE_BUILD:+ [force-build]}" >&2
+echo "smoke: model=$MODEL task=$TASK cpus=$CPUS client_timeout=${CLIENT_TIMEOUT_SEC}s (budget ${AGENT_BUDGET:-?}s)${FORCE_BUILD:+ [force-build]}" >&2
 # The default personality ships on: the daemon seeds PLURNK_PERSONALITY.md to
 # ~/.plurnk/AGENTS.md and foists it headless (confirmed via digest, PLURNK_POLICY unset).
 # So we DON'T set PLURNK_POLICY — the benchmark gets the real product default as-is.
@@ -52,6 +61,7 @@ PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
   --agent-import-path driver:PlurnkAgent \
   --model "plurnk/$MODEL" \
   --agent-kwarg "client_timeout_sec=$CLIENT_TIMEOUT_SEC" \
+  --override-cpus "$CPUS" \
   "${build[@]}" \
   "${flags[@]}" \
   -i "$TASK" --n-tasks 1 --env docker
