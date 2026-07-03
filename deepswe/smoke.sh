@@ -11,6 +11,10 @@
 # Usage: deepswe/smoke.sh [task-glob] [model-alias]
 #   task-glob    default: abs-module-cache-flags
 #   model-alias  default: PLURNK_MODEL from ~/.plurnk/.env  (e.g. turboderp, grok)
+# Bench's own knobs are namespaced PLURNK_BENCH_ (never forwarded to the daemon):
+#   PLURNK_BENCH_TIMEOUT_SEC  override the client timeout (default: task's [agent] budget − headroom)
+#   PLURNK_BENCH_CPUS         override container cpus (default: host availableParallelism)
+#   PLURNK_BENCH_FORCE_BUILD  =1 to force an agent-image rebuild (after a @plurnk version bump)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -22,16 +26,17 @@ LAN_IP="$(hostname -I | awk '{print $1}')"
 # Give the agent the BENCHMARK's own budget, not an arbitrary cap: read the task's
 # [agent] timeout_sec and use it minus headroom (daemon boot + commit + DB copy). A
 # shorter client --timeout would starve the model below the benchmark's intended
-# allowance and understate every result. Override with CLIENT_TIMEOUT_SEC for quick dev.
+# allowance and understate every result. Override with PLURNK_BENCH_TIMEOUT_SEC for quick dev.
 TASKDIR="$(ls -d ".cache/deep-swe/tasks/$TASK"*/ 2>/dev/null | head -1)"
 AGENT_BUDGET="$(awk -F= '/^\[/{s=$0} s=="[agent]" && $1 ~ /timeout_sec/ {v=$2; gsub(/[^0-9.]/,"",v); printf "%d", v}' "${TASKDIR}task.toml" 2>/dev/null)"
-CLIENT_TIMEOUT_SEC="${CLIENT_TIMEOUT_SEC:-$(( ${AGENT_BUDGET:-1920} - 120 ))}"
+CLIENT_TIMEOUT_SEC="${PLURNK_BENCH_TIMEOUT_SEC:-$(( ${AGENT_BUDGET:-1920} - 120 ))}"
 
-# Forward the config that already exists: every PLURNK_* (alias defs + GBNF) and each
-# provider *_BASE_URL / *_API_KEY that is set, rewriting host loopback → LAN for the
-# container. No hand-maintained manifest.
+# Forward the DAEMON's config that already exists: every PLURNK_* (alias defs + GBNF) and
+# each provider *_BASE_URL / *_API_KEY that is set, rewriting host loopback → LAN for the
+# container. Bench's own PLURNK_BENCH_* knobs are orchestration, not daemon config — never
+# forward them. No hand-maintained manifest.
 flags=(--agent-env "PLURNK_MODEL=$MODEL")
-for k in $(compgen -v | grep -E '^PLURNK_|_BASE_URL$|_API_KEY$'); do
+for k in $(compgen -v | grep -E '^PLURNK_|_BASE_URL$|_API_KEY$' | grep -v '^PLURNK_BENCH_'); do
   case "$k" in PLURNK_MODEL|PLURNK_MODEL_NAME) continue;; esac
   v="${!k:-}"; [ -n "$v" ] || continue
   case "$k" in *_BASE_URL) v="${v//127.0.0.1/$LAN_IP}"; v="${v//localhost/$LAN_IP}";; esac
@@ -44,16 +49,16 @@ done
 # time-slice but does NOT shrink the visible core count, so an under-provisioned
 # container spawns host-core-many workers thrashing over few cpus (the 28-min stall).
 # Matching the container's cpu allotment to that same count keeps workers==cores
-# everywhere, no hardcoded value, no thrash. Override with OVERRIDE_CPUS.
-CPUS="${OVERRIDE_CPUS:-$(node -e 'process.stdout.write(String(require("os").availableParallelism()))')}"
+# everywhere, no hardcoded value, no thrash. Override with PLURNK_BENCH_CPUS.
+CPUS="${PLURNK_BENCH_CPUS:-$(node -e 'process.stdout.write(String(require("os").availableParallelism()))')}"
 
-# Set FORCE_BUILD=1 after a @plurnk version bump: Docker caches the agent-build layer
-# (which `npm i -g @plurnk/...@latest`s), so without --force-build a run reuses the old
+# Set PLURNK_BENCH_FORCE_BUILD=1 after a @plurnk version bump: Docker caches the agent-build
+# layer (which `npm i -g @plurnk/...@latest`s), so without --force-build a run reuses the old
 # daemon version. Skip it otherwise for fast cached builds.
 build=()
-[ -n "${FORCE_BUILD:-}" ] && build+=(--force-build)
+[ -n "${PLURNK_BENCH_FORCE_BUILD:-}" ] && build+=(--force-build)
 
-echo "smoke: model=$MODEL task=$TASK cpus=$CPUS client_timeout=${CLIENT_TIMEOUT_SEC}s (budget ${AGENT_BUDGET:-?}s)${FORCE_BUILD:+ [force-build]}" >&2
+echo "smoke: model=$MODEL task=$TASK cpus=$CPUS client_timeout=${CLIENT_TIMEOUT_SEC}s (budget ${AGENT_BUDGET:-?}s)${PLURNK_BENCH_FORCE_BUILD:+ [force-build]}" >&2
 # The default personality ships on: the daemon seeds PLURNK_PERSONALITY.md to
 # ~/.plurnk/AGENTS.md and foists it headless (confirmed via digest, PLURNK_POLICY unset).
 # So we DON'T set PLURNK_POLICY — the benchmark gets the real product default as-is.
