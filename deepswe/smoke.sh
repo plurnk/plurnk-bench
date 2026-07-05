@@ -13,7 +13,7 @@
 #   model-alias  default: PLURNK_MODEL from ~/.plurnk/.env  (e.g. turboderp, grok)
 # Bench's own knobs are namespaced PLURNK_BENCH_ (never forwarded to the daemon):
 #   PLURNK_BENCH_TIMEOUT_SEC  override the client timeout (default: task's [agent] budget − headroom)
-#   PLURNK_BENCH_CPUS         override container cpus (default: host availableParallelism)
+#   PLURNK_BENCH_CPUS         override container cpus (default: task native — leaderboard-compliant)
 #   PLURNK_BENCH_FORCE_BUILD  =1 to force an agent-image rebuild (after a @plurnk version bump)
 #   PLURNK_BENCH_NO_GBNF      =1 to drop PLURNK_PROVIDERS_GBNF (for models that can't enforce it, e.g. xai)
 set -euo pipefail
@@ -52,14 +52,13 @@ done
 # not forwarding it isn't enough — forward =0 to explicitly override the default OFF.
 [ -n "${PLURNK_BENCH_NO_GBNF:-}" ] && flags+=(--agent-env "PLURNK_PROVIDERS_GBNF=0")
 
-# Give the container the box's cores — portable across whatever hardware a third party
-# runs this on. The embedder sizes its WASM pool to os.availableParallelism()
-# (PLURNK_EMBED_WORKERS=-1, the shipped default); a Docker --cpus quota throttles
-# time-slice but does NOT shrink the visible core count, so an under-provisioned
-# container spawns host-core-many workers thrashing over few cpus (the 28-min stall).
-# Matching the container's cpu allotment to that same count keeps workers==cores
-# everywhere, no hardcoded value, no thrash. Override with PLURNK_BENCH_CPUS.
-CPUS="${PLURNK_BENCH_CPUS:-$(node -e 'process.stdout.write(String(require("os").availableParallelism()))')}"
+# CPUs: default to the task's native allotment (leaderboard-compliant — an --override-cpus
+# disqualifies submissions). We used to force host cores to stop the embedder thrashing its
+# WASM pool, but the embedder reforms (lazy on ~query #316, binary-free corpus #320) shrank
+# the load enough that the native allotment copes. Opt into an override with PLURNK_BENCH_CPUS
+# (e.g. on a tiny box, or a task that indexes a huge repo).
+cpu_flags=()
+[ -n "${PLURNK_BENCH_CPUS:-}" ] && cpu_flags+=(--override-cpus "$PLURNK_BENCH_CPUS")
 
 # Set PLURNK_BENCH_FORCE_BUILD=1 after a @plurnk version bump: Docker caches the agent-build
 # layer (which `npm i -g @plurnk/...@latest`s), so without --force-build a run reuses the old
@@ -67,7 +66,7 @@ CPUS="${PLURNK_BENCH_CPUS:-$(node -e 'process.stdout.write(String(require("os").
 build=()
 [ -n "${PLURNK_BENCH_FORCE_BUILD:-}" ] && build+=(--force-build)
 
-echo "smoke: model=$MODEL task=$TASK cpus=$CPUS client_timeout=${CLIENT_TIMEOUT_SEC}s (budget ${AGENT_BUDGET:-?}s)${PLURNK_BENCH_FORCE_BUILD:+ [force-build]}" >&2
+echo "smoke: model=$MODEL task=$TASK cpus=${PLURNK_BENCH_CPUS:-native} client_timeout=${CLIENT_TIMEOUT_SEC}s (budget ${AGENT_BUDGET:-?}s)${PLURNK_BENCH_FORCE_BUILD:+ [force-build]}" >&2
 # The default personality ships on: the daemon seeds PLURNK_PERSONALITY.md to
 # ~/.plurnk/AGENTS.md and foists it headless (confirmed via digest, PLURNK_POLICY unset).
 # So we DON'T set PLURNK_POLICY — the benchmark gets the real product default as-is.
@@ -75,7 +74,7 @@ PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
   --agent-import-path driver:PlurnkAgent \
   --model "plurnk/$MODEL" \
   --agent-kwarg "client_timeout_sec=$CLIENT_TIMEOUT_SEC" \
-  --override-cpus "$CPUS" \
+  "${cpu_flags[@]}" \
   "${build[@]}" \
   "${flags[@]}" \
   -i "$TASK" --n-tasks 1 --env docker
