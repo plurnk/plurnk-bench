@@ -15,6 +15,7 @@
 #   PLURNK_BENCH_TIMEOUT_SEC  override the client timeout (default: task's [agent] budget − headroom)
 #   PLURNK_BENCH_CPUS         override container cpus (default: host availableParallelism)
 #   PLURNK_BENCH_FORCE_BUILD  =1 to force an agent-image rebuild (after a @plurnk version bump)
+#   PLURNK_BENCH_NO_GBNF      =1 to drop PLURNK_PROVIDERS_GBNF (for models that can't enforce it, e.g. xai)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -37,7 +38,12 @@ CLIENT_TIMEOUT_SEC="${PLURNK_BENCH_TIMEOUT_SEC:-$(( ${AGENT_BUDGET:-1920} - 120 
 # forward them. No hand-maintained manifest.
 flags=(--agent-env "PLURNK_MODEL=$MODEL")
 for k in $(compgen -v | grep -E '^PLURNK_|_BASE_URL$|_API_KEY$' | grep -v '^PLURNK_BENCH_'); do
-  case "$k" in PLURNK_MODEL|PLURNK_MODEL_NAME) continue;; esac
+  case "$k" in
+    PLURNK_MODEL|PLURNK_MODEL_NAME) continue;;
+    # A non-llama backend (xai/openrouter) can't enforce GBNF; 0.70.0's daemon refuses to
+    # boot with GBNF requested-but-unenforceable. PLURNK_BENCH_NO_GBNF=1 runs unconstrained.
+    PLURNK_PROVIDERS_GBNF) [ -n "${PLURNK_BENCH_NO_GBNF:-}" ] && continue;;
+  esac
   v="${!k:-}"; [ -n "$v" ] || continue
   case "$k" in *_BASE_URL) v="${v//127.0.0.1/$LAN_IP}"; v="${v//localhost/$LAN_IP}";; esac
   flags+=(--agent-env "$k=$v")
