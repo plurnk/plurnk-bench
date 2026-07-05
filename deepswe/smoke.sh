@@ -48,6 +48,9 @@ for k in $(compgen -v | grep -E '^PLURNK_|_BASE_URL$|_API_KEY$' | grep -v '^PLUR
   case "$k" in *_BASE_URL) v="${v//127.0.0.1/$LAN_IP}"; v="${v//localhost/$LAN_IP}";; esac
   flags+=(--agent-env "$k=$v")
 done
+# The container's shipped .env floor DEFAULTS PLURNK_PROVIDERS_GBNF=plurnk.gbnf, so merely
+# not forwarding it isn't enough — forward =0 to explicitly override the default OFF.
+[ -n "${PLURNK_BENCH_NO_GBNF:-}" ] && flags+=(--agent-env "PLURNK_PROVIDERS_GBNF=0")
 
 # Give the container the box's cores — portable across whatever hardware a third party
 # runs this on. The embedder sizes its WASM pool to os.availableParallelism()
