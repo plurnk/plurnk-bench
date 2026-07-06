@@ -1,10 +1,11 @@
 // Publish a bench run to a shared, human-referenceable tree so service can inspect it by
-// name: <plurnk>/benchmarks/run<N>/{plurnk.db, digest/}. Copies the run's DB and renders
-// its digest there (reusing the daemon's Digest — bench builds no forensics). N
-// auto-increments. "check out run<N> with me" is the whole point: a stable handle outside
-// the gitignored jobs/ scratch.
+// name: <plurnk>/benchmarks/run<N>/{plurnk.db, digest/, record.json}. Copies the run's DB,
+// renders its digest (reusing the daemon's Digest — bench builds no forensics), and writes
+// the joined BenchRecord (the Pier-oracle side: reward/outcome/filesModified/p2pRegressed,
+// which the DB+digest do NOT carry) so the run dir is a COMPLETE, self-sufficient results
+// source — read it here, never the gitignored jobs/ scratch. N auto-increments.
 
-import { readdirSync, mkdirSync, copyFileSync, existsSync, readFileSync, rmSync } from "node:fs";
+import { readdirSync, mkdirSync, copyFileSync, existsSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import Digest from "@plurnk/plurnk-service/digest";
@@ -36,6 +37,13 @@ export const digestHasTurns = (digestDir: string): boolean => {
     }
 };
 
+// The record persisted into benchmarks/run<N>/record.json: the joined record with its
+// digest handle re-pointed at the published (copied) DB, so it never references jobs/ scratch.
+export const publishedRecord = (record: BenchRecord, dbPath: string): BenchRecord => ({
+    ...record,
+    run: { ...record.run, dbPath },
+});
+
 // Copy the run's DB + render its digest into benchmarks/run<N>/. The digest reads the
 // COPIED DB, so the run dir is self-contained. No run handle → nothing to publish (null).
 // A turn-less run (infra failure) is rolled back rather than published.
@@ -56,6 +64,9 @@ export const publishRun = (record: BenchRecord, benchmarksDir: string): string |
         rmSync(runDir, { recursive: true, force: true });
         return null;
     }
+    // Persist the joined record (self-referential to the copied DB) so benchmarks/run<N>
+    // answers pass/fail without the jobs/ tree.
+    writeFileSync(join(runDir, "record.json"), JSON.stringify(publishedRecord(record, db), null, 4) + "\n");
     return runDir;
 };
 

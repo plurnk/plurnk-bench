@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeFileSync } from "node:fs";
-import { nextRunNumber, publishRun, defaultBenchmarksDir, digestHasTurns } from "./publish.ts";
+import { nextRunNumber, publishRun, publishedRecord, defaultBenchmarksDir, digestHasTurns } from "./publish.ts";
 import type { BenchRecord } from "./record.ts";
 
 // run<N> auto-increments off the highest existing run, ignoring non-run dirs.
@@ -43,6 +43,26 @@ test("digestHasTurns is false for an absent or empty digest, true with turns", (
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }
+});
+
+// record.json makes benchmarks/run<N> self-sufficient: it re-points the digest handle at the
+// published DB and carries the oracle side (reward/outcome/filesModified) the DB+digest lack.
+test("publishedRecord re-points the DB handle and preserves the oracle fields", () => {
+    const record: BenchRecord = {
+        harness: "deepswe", taskId: "abs-module-cache-flags", model: "plurnk/gbuild",
+        durationMs: 1000, status: 499, outcome: "timeout", turns: 15,
+        reward: 0, filesModified: 1, p2pRegressed: true, testPassFraction: 0.13,
+        run: { dbPath: "/jobs/scratch/agent/plurnk.db", runId: 7, sessionId: 1 },
+    };
+    const published = publishedRecord(record, "/benchmarks/run9/plurnk.db");
+    assert.equal(published.run!.dbPath, "/benchmarks/run9/plurnk.db");   // self-referential, not jobs/
+    assert.equal(published.run!.runId, 7);                                // handle otherwise intact
+    // the oracle side that forced reads back to jobs/ now travels with the published record
+    assert.equal(published.reward, 0);
+    assert.equal(published.outcome, "timeout");
+    assert.equal(published.filesModified, 1);
+    assert.equal(published.p2pRegressed, true);
+    assert.equal(record.run!.dbPath, "/jobs/scratch/agent/plurnk.db");   // input not mutated
 });
 
 // The shared tree is a sibling of the bench repo.
