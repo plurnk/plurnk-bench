@@ -14,7 +14,7 @@
         "test": "npm run test:lint && npm run test:unit"
     },
     "dependencies": {
-        "@plurnk/plurnk-service": "0.75.2"
+        "@plurnk/plurnk-service": "0.76.0"
     },
     "devDependencies": {
         "@types/node": "^26.0.0",
