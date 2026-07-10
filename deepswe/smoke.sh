@@ -80,5 +80,15 @@ PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
   -i "$TASK" --n-tasks 1 --env docker
 
 # Publish the run to the shared benchmarks tree (<plurnk>/benchmarks/run<N>) so it can be
-# referenced by name — "check out run<N> with me".
-node src/publish.ts "$(ls -dt jobs/*/ | head -1)"
+# referenced by name — "check out run<N> with me". Publish also banks the requiem (the model's
+# exit interview), which RE-INVOKES the model — so run it under the full authoritative provider
+# config (shipped defaults floor < ~/.plurnk/.env < this run's model), in a subshell so those
+# defaults never leak back into the --agent-env forwarding already sent above.
+(
+  set -a
+  [ -f node_modules/@plurnk/plurnk-service/.env.example ] && . node_modules/@plurnk/plurnk-service/.env.example
+  . "$HOME/.plurnk/.env"
+  set +a
+  export PLURNK_MODEL="$MODEL"
+  node src/publish.ts "$(ls -dt jobs/*/ | head -1)"
+)
