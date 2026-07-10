@@ -20,6 +20,10 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 set -a; . "$HOME/.plurnk/.env"; set +a   # model layer; provider env already present via .bashrc
+# Point the in-container client at the daemon WS. Post-refactor the daemon ws is :3046 and
+# :3044 is the AG-UI surface — a stale :3044 silently kills the loop (empty DB). Intra-container,
+# so 127.0.0.1 (never transformed to LAN below). Overridable.
+export PLURNK_WS="${PLURNK_WS:-ws://127.0.0.1:3046}"
 TASK="${1:-abs-module-cache-flags}"
 MODEL="${2:-${PLURNK_MODEL:?set PLURNK_MODEL in ~/.plurnk/.env or pass a model alias}}"
 LAN_IP="$(hostname -I | awk '{print $1}')"
