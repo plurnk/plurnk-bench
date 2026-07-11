@@ -6,7 +6,7 @@
 // from Pier's verifier `reward.json`. This is the one concept the daemon DB + digest
 // don't model; `run` is the drill-down handle back into digest.
 //
-// Two orthogonal verdicts, never conflated:
+// Two orthogonal verdicts (SPEC §verdicts), never conflated:
 //   - `status`: plurnk's terminal SEND code — how the AGENT LOOP ended (200/499/4xx).
 //   - `outcome`/`reward`/`testPassFraction`: the Pier verifier's score — how the
 //     BENCHMARK graded the produced patch. A loop can end 200 and still fail the oracle.
@@ -21,7 +21,7 @@ export interface Usage {
     costPico?: number;          // daemon's cost estimate in pico-dollars, when priced
 }
 
-// Pointer into the daemon DB for `bin/digest.ts` forensics — bench NEVER reads the DB
+// Pointer into the daemon DB (SPEC §digest-boundary) — bench NEVER reads the DB
 // itself (digest owns DB→forensics). `dbPath` is the always-present handle: `digest
 // <dbPath>` renders the run(s). session/runId come from the client's `--json` doc when
 // the loop reported them (a crash/error doc drops them) and scope digest to one run.
@@ -39,12 +39,12 @@ export interface BenchRecord {
     status: number;             // plurnk terminal SEND status (loop verdict)
     outcome: Outcome;           // benchmark verdict — derived from the oracle / failure class
     reward?: number;            // Pier verifier binary reward (0 | 1)
-    // Pier verifier `partial` — fraction of all tests passing in the graded patch.
+    // Pier verifier `partial` — fraction of all tests passing (SPEC §attempt-partial-gated).
     // ONLY meaningful once `outcome` says a loop ran (fail/pass): on error/timeout/
     // cancelled the committed diff is often empty, so this is the BASE repo's grade
     // (its pass-to-pass tests), not progress. Always read it gated on `outcome`.
     testPassFraction?: number;
-    // Failure-mode telemetry — makes a 0-reward legible without opening the patch:
+    // Failure-mode telemetry (SPEC §attempt-telemetry) — makes a 0-reward legible without opening the patch:
     //   filesModified 0           → NO-ATTEMPT (no existing source touched — even if the patch
     //                               is non-empty, e.g. a weak model dumping junk .txt into /app)
     //   filesModified>0 + regress → BROKE-THE-BUILD (real source edit, broke existing / didn't compile)

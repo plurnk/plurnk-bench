@@ -1,4 +1,4 @@
-// Per-trial forensic artifact — REUSE the daemon's own digest (plurnk-service#264/#303),
+// Per-trial forensic artifact (SPEC §digest-boundary) — REUSE the daemon's own digest (plurnk-service#264/#303),
 // never rebuild it. Bench hands digest the pointer (dbPath) + optional run scope from the
 // record's handle and reads no DB itself; digest owns the DB→waterfall projection.
 

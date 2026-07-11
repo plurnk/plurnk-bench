@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Diagnostic smoke: drive one DeepSWE task through plurnk. Reads the AUTHORITATIVE daemon
+# Diagnostic smoke (SPEC §config-carry): drive one DeepSWE task through plurnk. Reads the AUTHORITATIVE daemon
 # config IN PLACE — bench re-declares nothing:
 #   • model layer   ← ~/.plurnk/.env   (PLURNK_MODEL_<alias>, PLURNK_PROVIDERS_GBNF)
 #   • provider env  ← your shell        (.bashrc: OPENAI_BASE_URL, XAI_*, keys, …)
@@ -11,7 +11,7 @@
 # Usage: deepswe/smoke.sh [task-glob] [model-alias]
 #   task-glob    default: abs-module-cache-flags
 #   model-alias  default: PLURNK_MODEL from ~/.plurnk/.env  (e.g. turboderp, grok)
-# Bench's own knobs are namespaced PLURNK_BENCH_ (never forwarded to the daemon):
+# Bench's own knobs are namespaced PLURNK_BENCH_ (SPEC §config-bench-namespace — never forwarded to the daemon):
 #   PLURNK_BENCH_TIMEOUT_SEC  override the client timeout (default: task's [agent] budget − headroom)
 #   PLURNK_BENCH_CPUS         override container cpus (default: task native — leaderboard-compliant)
 #   PLURNK_BENCH_FORCE_BUILD  =1 to force an agent-image rebuild (after a @plurnk version bump)
@@ -31,7 +31,7 @@ LAN_IP="$(hostname -I | awk '{print $1}')"
 # Give the agent the BENCHMARK's own budget, not an arbitrary cap: read the task's
 # [agent] timeout_sec and use it minus headroom (daemon boot + commit + DB copy). A
 # shorter client --timeout would starve the model below the benchmark's intended
-# allowance and understate every result. Override with PLURNK_BENCH_TIMEOUT_SEC for quick dev.
+# allowance and understate every result (SPEC §config-budget). Override with PLURNK_BENCH_TIMEOUT_SEC for quick dev.
 TASKDIR="$(ls -d ".cache/deep-swe/tasks/$TASK"*/ 2>/dev/null | head -1)"
 AGENT_BUDGET="$(awk -F= '/^\[/{s=$0} s=="[agent]" && $1 ~ /timeout_sec/ {v=$2; gsub(/[^0-9.]/,"",v); printf "%d", v}' "${TASKDIR}task.toml" 2>/dev/null)"
 CLIENT_TIMEOUT_SEC="${PLURNK_BENCH_TIMEOUT_SEC:-$(( ${AGENT_BUDGET:-1920} - 120 ))}"
@@ -52,11 +52,11 @@ for k in $(compgen -v | grep -E '^PLURNK_|_BASE_URL$|_API_KEY$' | grep -v '^PLUR
   case "$k" in *_BASE_URL) v="${v//127.0.0.1/$LAN_IP}"; v="${v//localhost/$LAN_IP}";; esac
   flags+=(--agent-env "$k=$v")
 done
-# The container's shipped .env floor DEFAULTS PLURNK_PROVIDERS_GBNF=plurnk.gbnf, so merely
+# SPEC §config-gbnf-optout: the container's shipped .env floor DEFAULTS PLURNK_PROVIDERS_GBNF=plurnk.gbnf, so merely
 # not forwarding it isn't enough — forward =0 to explicitly override the default OFF.
 [ -n "${PLURNK_BENCH_NO_GBNF:-}" ] && flags+=(--agent-env "PLURNK_PROVIDERS_GBNF=0")
 
-# CPUs: default to the task's native allotment (leaderboard-compliant — an --override-cpus
+# CPUs (SPEC §config-native-cpus): default to the task's native allotment (leaderboard-compliant — an --override-cpus
 # disqualifies submissions). We used to force host cores to stop the embedder thrashing its
 # WASM pool, but the embedder reforms (lazy on ~query #316, binary-free corpus #320) shrank
 # the load enough that the native allotment copes. Opt into an override with PLURNK_BENCH_CPUS

@@ -1,4 +1,4 @@
-// Publish a bench run to a shared, human-referenceable tree so service can inspect it by
+// SPEC §publish / §results-canon. Publish a bench run to a shared, human-referenceable tree so service can inspect it by
 // name: <plurnk>/benchmarks/run<N>/{plurnk.db, digest/, record.json}. Copies the run's DB,
 // renders its digest (reusing the daemon's Digest — bench builds no forensics), and writes
 // the joined BenchRecord (the Pier-oracle side: reward/outcome/filesModified/p2pRegressed,
@@ -26,7 +26,7 @@ export const nextRunNumber = (benchmarksDir: string): number => {
     return ns.length > 0 ? Math.max(...ns) + 1 : 1;
 };
 
-// A published run must hold a real loop. An infra failure (daemon never looped) copies a
+// SPEC §publish-turnless-gate. A published run must hold a real loop. An infra failure (daemon never looped) copies a
 // turn-less DB; the digest (bench's own artifact) confirms 0 turns → not worth the tree.
 export const digestHasTurns = (digestDir: string): boolean => {
     try {
@@ -37,7 +37,7 @@ export const digestHasTurns = (digestDir: string): boolean => {
     }
 };
 
-// The record persisted into benchmarks/run<N>/record.json: the joined record with its
+// SPEC §publish-self-referential. The record persisted into benchmarks/run<N>/record.json: the joined record with its
 // digest handle re-pointed at the published (copied) DB, so it never references jobs/ scratch.
 export const publishedRecord = (record: BenchRecord, dbPath: string): BenchRecord => ({
     ...record,
@@ -82,7 +82,7 @@ if (import.meta.main) {
             console.log(`skipped ${record.taskId} (no run DB)`);
             continue;
         }
-        // Bank the model's exit interview alongside the digest. Best-effort: requiem re-invokes
+        // SPEC §publish-requiem. Bank the model's exit interview alongside the digest. Best-effort: requiem re-invokes
         // the model (needs the daemon's provider config present), so a missing witness is a
         // skip, not a publish failure — the run is already published.
         let note = "";

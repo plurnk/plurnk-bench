@@ -8,7 +8,7 @@ import { nextRunNumber, publishRun, publishedRecord, defaultBenchmarksDir, diges
 import type { BenchRecord } from "./record.ts";
 
 // run<N> auto-increments off the highest existing run, ignoring non-run dirs.
-test("nextRunNumber picks max(runN)+1, else 1", () => {
+test("[§publish-numbering] nextRunNumber picks max(runN)+1, else 1", () => {
     const root = mkdtempSync(join(tmpdir(), "bench-pub-"));
     try {
         assert.equal(nextRunNumber(root), 1);                 // empty tree
@@ -23,7 +23,7 @@ test("nextRunNumber picks max(runN)+1, else 1", () => {
 });
 
 // No run handle (no DB copied) → nothing to publish; bench never fabricates a run dir.
-test("publishRun returns null when the record has no run handle", () => {
+test("[§publish] publishRun returns null when the record has no run handle", () => {
     const record: BenchRecord = {
         harness: "deepswe", taskId: "t", model: "m",
         durationMs: 0, status: 0, outcome: "error", turns: 0,
@@ -32,7 +32,7 @@ test("publishRun returns null when the record has no run handle", () => {
 });
 
 // An infra-failure run (turn-less DB) must not be published — gated on the digest.
-test("digestHasTurns is false for an absent or empty digest, true with turns", () => {
+test("[§publish-turnless-gate] digestHasTurns is false for an absent or empty digest, true with turns", () => {
     const dir = mkdtempSync(join(tmpdir(), "bench-dig-"));
     try {
         assert.equal(digestHasTurns(dir), false);                                   // no digest.json
@@ -47,7 +47,7 @@ test("digestHasTurns is false for an absent or empty digest, true with turns", (
 
 // record.json makes benchmarks/run<N> self-sufficient: it re-points the digest handle at the
 // published DB and carries the oracle side (reward/outcome/filesModified) the DB+digest lack.
-test("publishedRecord re-points the DB handle and preserves the oracle fields", () => {
+test("[§publish-self-referential] publishedRecord re-points the DB handle and preserves the oracle fields", () => {
     const record: BenchRecord = {
         harness: "deepswe", taskId: "abs-module-cache-flags", model: "plurnk/gbuild",
         durationMs: 1000, status: 499, outcome: "timeout", turns: 15,
@@ -66,7 +66,7 @@ test("publishedRecord re-points the DB handle and preserves the oracle fields", 
 });
 
 // The shared tree is a sibling of the bench repo.
-test("defaultBenchmarksDir resolves to a sibling 'benchmarks' dir", () => {
+test("[§results-canon] defaultBenchmarksDir resolves to a sibling 'benchmarks' dir", () => {
     assert.match(defaultBenchmarksDir(), /\/benchmarks$/);
     assert.doesNotMatch(defaultBenchmarksDir(), /plurnk-bench\/benchmarks$/);
 });

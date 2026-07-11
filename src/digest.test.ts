@@ -5,7 +5,7 @@ import { digestDirFor, renderDigest } from "./digest.ts";
 import type { BenchRecord } from "./record.ts";
 
 // The artifact lives beside the trial's agent/ dir: <trial>/agent/plurnk.db → <trial>/digest.
-test("digestDirFor puts the artifact at <trial>/digest, beside agent/", () => {
+test("[§digest-boundary] digestDirFor puts the artifact at <trial>/digest, beside agent/", () => {
     assert.equal(
         digestDirFor(join("jobs", "j", "task__abc", "agent", "plurnk.db")),
         join("jobs", "j", "task__abc", "digest"),
@@ -14,7 +14,7 @@ test("digestDirFor puts the artifact at <trial>/digest, beside agent/", () => {
 
 // No run handle (no DB was copied) → nothing to render; bench never fabricates one. The
 // Digest.run render itself is the daughter's boundary, validated against real run DBs.
-test("renderDigest returns null when the record has no run handle", () => {
+test("[§digest-boundary] renderDigest returns null when the record has no run handle", () => {
     const record: BenchRecord = {
         harness: "deepswe", taskId: "t", model: "m",
         durationMs: 0, status: 0, outcome: "error", turns: 0,

@@ -41,7 +41,8 @@ export interface RewardJson {
     apply_failed?: number;
 }
 
-// The oracle is ground truth for PASS: reward===1 wins regardless of how the loop
+// SPEC §verdicts-oracle-outranks / §verdicts-failure-class. The oracle is ground truth
+// for PASS: reward===1 wins regardless of how the loop
 // ended. A non-pass is then classified by the loop's own failure mode (client error
 // doc → error, timed out → timeout, cancelled SEND[499] → cancelled, else fail).
 export const deriveOutcome = (doc: PlurnkDoc, reward: RewardJson | null): Outcome => {
@@ -76,7 +77,7 @@ export const joinRecord = ({ harness, taskId, model, doc, reward, dbPath }: Join
         durationMs: doc.wallMs ?? 0,
         status: doc.finalStatus ?? 0,
         outcome: deriveOutcome(doc, reward),
-        // The doc's own turns[] array is honest even when turnCount lies (0) on abnormal
+        // SPEC §turns-provenance: the doc's own turns[] array is honest even when turnCount lies (0) on abnormal
         // termination; fall back to turnCount, then 0. No raw-DB read — SqlRite owns the DB.
         turns: doc.turns?.length ?? doc.turnCount ?? 0,
     };
@@ -135,7 +136,7 @@ export const readTrial = (trialDir: string, meta: { harness: string; taskId: str
     const record = joinRecord({ ...meta, doc, reward, dbPath });
     // Carry the DB pointer as the digest handle when the loop doc dropped the coordinate.
     if (existsSync(dbPath) && record.run === undefined) record.run = { dbPath };
-    // Did the model actually edit the repo? Pier extracts `git diff base..HEAD` here; an
+    // SPEC §attempt-telemetry. Did the model actually edit the repo? Pier extracts `git diff base..HEAD` here; an
     // empty patch = NO-ATTEMPT (the loop edited plurnk scratch, never `/app`).
     const patchPath = join(trialDir, "artifacts", "model.patch");
     if (existsSync(patchPath)) {
@@ -151,7 +152,7 @@ export const readTrial = (trialDir: string, meta: { harness: string; taskId: str
     return record;
 };
 
-// Walk a Pier `jobs/<job>/` tree → one BenchRecord per trial. A trial dir is any
+// SPEC §provenance. Walk a Pier `jobs/<job>/` tree → one BenchRecord per trial. A trial dir is any
 // child holding a result.json with a `trial_name` (the job-level result.json has
 // none). result.json is the provenance source — task_name + model_name + Pier-level
 // timing/exception; the artifact join (loop doc + oracle) delegates to readTrial.

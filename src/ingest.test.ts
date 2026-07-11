@@ -20,11 +20,11 @@ const doc = (overrides: Partial<PlurnkDoc> = {}): PlurnkDoc => ({
 const reward = (r: number, extra: Partial<RewardJson> = {}): RewardJson => ({ reward: r, partial: r, ...extra });
 
 // The oracle is ground truth for PASS — reward===1 wins over any loop ending.
-test("reward 1 is pass even when the loop was cancelled (499)", () => {
+test("[§verdicts-oracle-outranks] reward 1 is pass even when the loop was cancelled (499)", () => {
     assert.equal(deriveOutcome(doc({ finalStatus: 499 }), reward(1)), "pass");
 });
 
-test("non-pass is classified by the loop's failure mode", () => {
+test("[§verdicts-failure-class] non-pass is classified by the loop's failure mode", () => {
     assert.equal(deriveOutcome(doc({ error: { kind: "client:rpc", message: "x" } }), null), "error");
     assert.equal(deriveOutcome(doc({ timedOut: true }), reward(0)), "timeout");
     assert.equal(deriveOutcome(doc({ finalStatus: 499 }), reward(0)), "cancelled");
@@ -32,7 +32,7 @@ test("non-pass is classified by the loop's failure mode", () => {
     assert.equal(deriveOutcome(doc(), reward(0)), "fail");       // graded, not solved
 });
 
-test("joinRecord maps loop side from the plurnk doc, oracle side from reward", () => {
+test("[§verdicts] joinRecord maps loop side from the plurnk doc, oracle side from reward", () => {
     const record = joinRecord({
         harness: "deepswe", taskId: "abs-module-cache-flags", model: "gemma",
         doc: doc(), reward: reward(1, { partial: 0.83 }), dbPath: "/jobs/t1/agent/plurnk.db",
@@ -49,7 +49,7 @@ test("joinRecord maps loop side from the plurnk doc, oracle side from reward", (
 
 // Turn count comes from the doc's own turns[] array — honest even when turnCount lies (0)
 // on abnormal termination — not a raw-DB read (SqlRite owns the DB post-refactor).
-test("readTrial takes the turn count from the doc's turns[] array, not a DB query", () => {
+test("[§turns-provenance] readTrial takes the turn count from the doc's turns[] array, not a DB query", () => {
     const trialDir = mkdtempSync(join(tmpdir(), "bench-turns-"));
     try {
         mkdirSync(join(trialDir, "agent"), { recursive: true });
@@ -65,7 +65,7 @@ test("readTrial takes the turn count from the doc's turns[] array, not a DB quer
 });
 
 // Failure-mode telemetry: a pass-to-pass regression means the patch broke the build.
-test("joinRecord flags p2pRegressed when a base pass-to-pass test fails", () => {
+test("[§attempt-broke-build] joinRecord flags p2pRegressed when a base pass-to-pass test fails", () => {
     const broke = joinRecord({
         harness: "deepswe", taskId: "t", model: "m", dbPath: "/x/plurnk.db",
         doc: doc({ finalStatus: 200 }), reward: reward(0, { p2p_total: 3, p2p_passed: 0 }),
@@ -80,7 +80,7 @@ test("joinRecord flags p2pRegressed when a base pass-to-pass test fails", () => 
 
 // readTrial reads the graded patch: patchLines (size) + filesModified (real source edits).
 // A junk dump (new .txt files) is non-empty but modifies 0 existing files → still no-attempt.
-test("readTrial records patchLines + filesModified, distinguishing junk dumps from real edits", () => {
+test("[§attempt-files-modified] readTrial records patchLines + filesModified, distinguishing junk dumps from real edits", () => {
     const trialDir = mkdtempSync(join(tmpdir(), "bench-patch-"));
     const read = () => readTrial(trialDir, { harness: "deepswe", taskId: "t", model: "m" });
     const patch = join(trialDir, "artifacts", "model.patch");
@@ -105,7 +105,7 @@ test("readTrial records patchLines + filesModified, distinguishing junk dumps fr
 // A crashed loop emits an error doc with no session/runId, but the driver still copied
 // the daemon DB. Bench does NOT read that DB (digest owns DB→forensics) — it carries
 // the dbPath alone as the digest handle so the whole DB stays renderable.
-test("readTrial carries a dbPath-only digest handle when the doc dropped the coordinate", () => {
+test("[§digest-boundary] readTrial carries a dbPath-only digest handle when the doc dropped the coordinate", () => {
     const trialDir = mkdtempSync(join(tmpdir(), "bench-trial-"));
     try {
         mkdirSync(join(trialDir, "agent"), { recursive: true });
@@ -123,7 +123,7 @@ test("readTrial carries a dbPath-only digest handle when the doc dropped the coo
 });
 
 // No DB copied (daemon never started) → no handle, honestly absent.
-test("readTrial leaves no handle when no DB was copied", () => {
+test("[§digest-boundary] readTrial leaves no handle when no DB was copied", () => {
     const trialDir = mkdtempSync(join(tmpdir(), "bench-nodb-"));
     try {
         mkdirSync(join(trialDir, "agent"), { recursive: true });
@@ -137,7 +137,7 @@ test("readTrial leaves no handle when no DB was copied", () => {
 
 // readJob walks a real Pier `jobs/<job>/` tree: provenance from each trial's
 // result.json, the artifact join from agent/+verifier/, deterministic dir order.
-test("readJob walks a job tree → one record per trial, provenance from result.json", () => {
+test("[§provenance] readJob walks a job tree → one record per trial, provenance from result.json", () => {
     const root = mkdtempSync(join(tmpdir(), "bench-job-"));
     try {
         // A passing trial: full loop doc + reward 1.
@@ -191,7 +191,7 @@ test("readJob walks a job tree → one record per trial, provenance from result.
     }
 });
 
-test("a client error doc yields an error record with no run handle", () => {
+test("[§verdicts-failure-class] a client error doc yields an error record with no run handle", () => {
     const record = joinRecord({
         harness: "deepswe", taskId: "t", model: "gemma",
         doc: { schemaVersion: 1, error: { kind: "client:connection", message: "refused" } },
