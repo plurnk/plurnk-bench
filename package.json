@@ -1,6 +1,6 @@
 {
     "name": "@plurnk/plurnk-bench",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "Benchmarking harnesses for the plurnk agent service — drive real benchmark task sets through @plurnk/plurnk, store/score/report the runs.",
     "type": "module",
     "private": true,
