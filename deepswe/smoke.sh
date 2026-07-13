@@ -89,10 +89,10 @@ PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
 # defaults never leak back into the --agent-env forwarding already sent above.
 (
   set -a
-  # the shipped legend: .env.defaults since 1.0.0 (.env.example before)
-  for f in node_modules/@plurnk/plurnk-service/.env.defaults node_modules/@plurnk/plurnk-service/.env.example; do
-    [ -f "$f" ] && { . "$f"; break; }
-  done
+  # The 1.0 floor is READER-DECLARES: every installed member ships its own .env.defaults
+  # and the platform assembles them into ONE floor (bench#2). Source them ALL — a knob now
+  # lives with its owner (e.g. PLURNK_PROVIDERS_FETCH_TIMEOUT in @plurnk/plurnk-providers).
+  for f in node_modules/@plurnk/*/.env.defaults; do [ -f "$f" ] && . "$f"; done
   . "$HOME/.plurnk/.env"
   set +a
   export PLURNK_MODEL="$MODEL"

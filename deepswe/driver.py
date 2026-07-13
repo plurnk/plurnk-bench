@@ -136,6 +136,6 @@ plurnk --json --yolo --project-root /app --timeout {self._client_timeout_sec} {e
 cd /app
 git add -A
 git -c user.email=plurnk@bench.local -c user.name=plurnk commit -q -m "plurnk solution" || true
-cp "${{PLURNK_DB_PATH:-$HOME/.plurnk/plurnk.db}}" {shlex.quote(str(db_dest))} 2>/dev/null || true
+cp "${{PLURNK_SERVICE_DB_PATH:-${{PLURNK_DB_PATH:-$HOME/.plurnk/plurnk.db}}}}" {shlex.quote(str(db_dest))} 2>/dev/null || true
 """
         await self.exec_as_agent(environment, command=command, env=env)
