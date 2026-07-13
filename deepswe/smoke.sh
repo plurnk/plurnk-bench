@@ -20,10 +20,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 set -a; . "$HOME/.plurnk/.env"; set +a   # model layer; provider env already present via .bashrc
-# Point the in-container client at the daemon WS. Post-refactor the daemon ws is :3046 and
-# :3044 is the AG-UI surface — a stale :3044 silently kills the loop (empty DB). Intra-container,
-# so 127.0.0.1 (never transformed to LAN below). Overridable.
-export PLURNK_WS="${PLURNK_WS:-ws://127.0.0.1:3046}"
+# Transport (service 1.0.0): single listener — PLURNK_PORT=3044 is THE client surface
+# (AG-UI); the separate WS listener is gone. The in-container daemon+client pair share the
+# shipped default, so bench sets NOTHING here (a stale port export silently kills the loop).
 TASK="${1:-abs-module-cache-flags}"
 MODEL="${2:-${PLURNK_MODEL:?set PLURNK_MODEL in ~/.plurnk/.env or pass a model alias}}"
 LAN_IP="$(hostname -I | awk '{print $1}')"
@@ -90,7 +89,10 @@ PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
 # defaults never leak back into the --agent-env forwarding already sent above.
 (
   set -a
-  [ -f node_modules/@plurnk/plurnk-service/.env.example ] && . node_modules/@plurnk/plurnk-service/.env.example
+  # the shipped legend: .env.defaults since 1.0.0 (.env.example before)
+  for f in node_modules/@plurnk/plurnk-service/.env.defaults node_modules/@plurnk/plurnk-service/.env.example; do
+    [ -f "$f" ] && { . "$f"; break; }
+  done
   . "$HOME/.plurnk/.env"
   set +a
   export PLURNK_MODEL="$MODEL"
