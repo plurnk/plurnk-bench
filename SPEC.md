@@ -141,5 +141,7 @@ review. Child contracts:
 - §config-native-cpus The container runs the task's native cpu allotment
   (leaderboard-compliant; `--override-cpus` disqualifies). `PLURNK_BENCH_CPUS` is the
   explicit opt-in override.
-- The client surface default: `PLURNK_WS` → the daemon's WebSocket (`:3046`); `:3044` is the
-  AG-UI surface (the 0.67+ client's own default target).
+- §config-client-surface The harness does not invent a transport target. Its
+  in-container daemon and `plurnk` client use the product's AG-UI+ HTTP/SSE
+  defaults; an explicit `PLURNK_HOST`, `PLURNK_PORT`, or `PLURNK_AGUI_URL`
+  remains ordinary daemon/client configuration.

@@ -25,7 +25,9 @@ plurnk-service start          # the daemon under test — separate process
 npm test                      # lint (tsc --noEmit) + unit (node --test)
 ```
 
-Bench is a daemon client: it attaches to the daemon, never starts one (in-container the daemon WS is `ws://127.0.0.1:3046`; `:3044` is the AG-UI client surface). Model under test is the daemon's `PLURNK_MODEL` alias. See `.env.example` and SPEC `§config-carry`.
+Bench drives the daemon through the ordinary `plurnk` client and its AG-UI+
+HTTP/SSE surface (default `http://127.0.0.1:3044`). The model under test is the
+daemon's `PLURNK_MODEL` alias. See `.env.example` and SPEC `§config-carry`.
 
 ## license
 
