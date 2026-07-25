@@ -7,6 +7,10 @@ plurnk is wired in as a **Pier agent driver** (`import_path`, no Pier fork). The
 container as a unit; the driver starts the daemon, points the client at the cloned repo
 at `/app`, lets the model EDIT/EXEC, commits the result, and persists the run for ingest.
 Pier extracts the committed patch, applies it to a pristine container, and grades it.
+The runner resolves exact current service/client publications before constructing the
+agent image, making Docker cache reuse version-sensitive. The driver persists the live
+WAL database with `VACUUM INTO`; snapshot failure fails the trial rather than publishing
+an incomplete database.
 
 ```
 driver.py    the `plurnk` Pier agent (BaseInstalledAgent subclass)

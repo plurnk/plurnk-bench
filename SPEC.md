@@ -126,8 +126,7 @@ Covered: `publish.test.ts [§results-canon]` (tree location).
 model layer from `~/.plurnk/.env`, provider env from the shell — and forwards every set
 `PLURNK_*` / `*_BASE_URL` / `*_API_KEY` to the in-container daemon via `--agent-env`. The one
 container-boundary transform: loopback (`127.0.0.1`/`localhost`) in a `*_BASE_URL` rewrites
-to the host LAN IP. **All uncovered** — smoke.sh has no test harness; contracts hold by
-review. Child contracts:
+to the host LAN IP. Child contracts:
 
 - §config-bench-namespace Bench-invented knobs are namespaced `PLURNK_BENCH_*`
   (TIMEOUT_SEC, CPUS, FORCE_BUILD, NO_GBNF) and are orchestration, never daemon config —
@@ -145,3 +144,14 @@ review. Child contracts:
   in-container daemon and `plurnk` client use the product's AG-UI+ HTTP/SSE
   defaults; an explicit `PLURNK_HOST`, `PLURNK_PORT`, or `PLURNK_AGUI_URL`
   remains ordinary daemon/client configuration.
+- §config-package-version Resolve exact current service/client npm versions and pass them
+  as driver kwargs. A publication changes Pier's image-build fingerprint; registry failure
+  aborts rather than reusing an unidentified cached image.
+  Covered: `smoke.test.ts [§config-package-version]`.
+
+## §snapshot-wal The daemon DB artifact includes committed WAL state
+
+The driver snapshots the live daemon database with SQLite `VACUUM INTO`. It never falls
+back to copying the main file without its WAL and fails the trial if a consolidated
+snapshot cannot be produced.
+Covered: `test_driver.py [§snapshot-wal]`.

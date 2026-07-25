@@ -14,7 +14,7 @@
 # Bench's own knobs are namespaced PLURNK_BENCH_ (SPEC §config-bench-namespace — never forwarded to the daemon):
 #   PLURNK_BENCH_TIMEOUT_SEC  override the client timeout (default: task's [agent] budget − headroom)
 #   PLURNK_BENCH_CPUS         override container cpus (default: task native — leaderboard-compliant)
-#   PLURNK_BENCH_FORCE_BUILD  =1 to force an agent-image rebuild (after a @plurnk version bump)
+#   PLURNK_BENCH_FORCE_BUILD  =1 to force an agent-image rebuild (base-image/debug escape hatch)
 #   PLURNK_BENCH_NO_GBNF      =1 to drop PLURNK_PROVIDERS_GBNF (for models that can't enforce it, e.g. xai)
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -63,13 +63,23 @@ done
 cpu_flags=()
 [ -n "${PLURNK_BENCH_CPUS:-}" ] && cpu_flags+=(--override-cpus "$PLURNK_BENCH_CPUS")
 
-# Set PLURNK_BENCH_FORCE_BUILD=1 after a @plurnk version bump: Docker caches the agent-build
-# layer (which `npm i -g @plurnk/...@latest`s), so without --force-build a run reuses the old
-# daemon version. Skip it otherwise for fast cached builds.
+# Resolve immutable versions before Pier constructs the agent image. The exact install
+# command becomes part of Pier's build fingerprint, so a new publication rebuilds and an
+# unchanged publication cache-hits. Registry failure is not permission to run an unknown
+# cached daemon.
+SERVICE_VERSION="$(npm view @plurnk/plurnk-service version 2>/dev/null)"
+CLIENT_VERSION="$(npm view @plurnk/plurnk version 2>/dev/null)"
+[ -n "$SERVICE_VERSION" ] && [ -n "$CLIENT_VERSION" ] || {
+  echo "smoke: cannot resolve current @plurnk publications" >&2
+  exit 1
+}
+
+# Reserve force-build for non-versioned image inputs: exact package publications already
+# invalidate the build cache automatically.
 build=()
 [ -n "${PLURNK_BENCH_FORCE_BUILD:-}" ] && build+=(--force-build)
 
-echo "smoke: model=$MODEL task=$TASK cpus=${PLURNK_BENCH_CPUS:-native} client_timeout=${CLIENT_TIMEOUT_SEC}s (budget ${AGENT_BUDGET:-?}s)${PLURNK_BENCH_FORCE_BUILD:+ [force-build]}" >&2
+echo "smoke: model=$MODEL task=$TASK service=$SERVICE_VERSION client=$CLIENT_VERSION cpus=${PLURNK_BENCH_CPUS:-native} client_timeout=${CLIENT_TIMEOUT_SEC}s (budget ${AGENT_BUDGET:-?}s)${PLURNK_BENCH_FORCE_BUILD:+ [force-build]}" >&2
 # The default personality ships on: the daemon seeds PLURNK_PERSONALITY.md to
 # ~/.plurnk/AGENTS.md and foists it headless (confirmed via digest, PLURNK_POLICY unset).
 # So we DON'T set PLURNK_POLICY — the benchmark gets the real product default as-is.
@@ -77,6 +87,8 @@ PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
   --agent-import-path driver:PlurnkAgent \
   --model "plurnk/$MODEL" \
   --agent-kwarg "client_timeout_sec=$CLIENT_TIMEOUT_SEC" \
+  --agent-kwarg "service_version=$SERVICE_VERSION" \
+  --agent-kwarg "client_version=$CLIENT_VERSION" \
   "${cpu_flags[@]}" \
   "${build[@]}" \
   "${flags[@]}" \

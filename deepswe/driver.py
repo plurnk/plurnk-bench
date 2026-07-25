@@ -120,12 +120,27 @@ class PlurnkAgent(BaseInstalledAgent):
         # (build_process_env merges self._extra_env), configuring the daemon.
         env = self.build_process_env({"PLURNK_PROJECT_ROOT": "/app"})
 
-        # One shell exec: start daemon → wait for WS → drive client at /app → commit
+        # One shell exec: start daemon → wait for AG-UI → drive client at /app → commit
         # so `git diff base..HEAD` (Pier's pre_artifacts.sh) captures the work →
-        # persist the DB. A non-solving loop is a valid 0-reward outcome, not an infra
-        # error, so the client's exit is tolerated; install/commit failures are not.
+        # persist a WAL-safe DB snapshot. A non-solving loop is a valid 0-reward
+        # outcome, so the client's exit is tolerated; snapshot failure is not.
         command = f"""
 set -uo pipefail
+DB="${{PLURNK_SERVICE_DB_PATH:-${{PLURNK_DB_PATH:-$HOME/.plurnk/plurnk.db}}}}"
+snapshot_db() {{
+  rm -f "$2" "$2-wal" "$2-shm"
+  node -e '
+    const {{ DatabaseSync }} = require("node:sqlite");
+    const source = new DatabaseSync(process.argv[1], {{ readOnly: true }});
+    const quote = String.fromCharCode(39);
+    const destination = process.argv[2].replaceAll(quote, quote + quote);
+    try {{
+      source.exec(`VACUUM INTO ${{quote}}${{destination}}${{quote}}`);
+    }} finally {{
+      source.close();
+    }}
+  ' "$1" "$2"
+}}
 plurnk-service start > {shlex.quote(str(daemon_log))} 2>&1 &
 for _ in $(seq 1 {DAEMON_READY_TIMEOUT_S}); do
   if plurnk models >/dev/null 2>&1; then break; fi
@@ -136,6 +151,6 @@ plurnk --json --yolo --project-root /app --timeout {self._client_timeout_sec} {e
 cd /app
 git add -A
 git -c user.email=plurnk@bench.local -c user.name=plurnk commit -q -m "plurnk solution" || true
-cp "${{PLURNK_SERVICE_DB_PATH:-${{PLURNK_DB_PATH:-$HOME/.plurnk/plurnk.db}}}}" {shlex.quote(str(db_dest))} 2>/dev/null || true
+snapshot_db "$DB" {shlex.quote(str(db_dest))}
 """
         await self.exec_as_agent(environment, command=command, env=env)
