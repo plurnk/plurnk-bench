@@ -11,3 +11,7 @@ test("[§config-package-version] smoke pins resolved service and client publicat
     assert.match(smoke, /--agent-kwarg "client_version=\$CLIENT_VERSION"/);
     assert.doesNotMatch(smoke, /after a @plurnk version bump/);
 });
+
+test("[§config-browser-disabled] smoke disables unavailable Playwright runtime", () => {
+    assert.match(smoke, /flags\+=\(--agent-env "PLURNK_SCHEMES_HTTP_BROWSER=disabled"\)/);
+});

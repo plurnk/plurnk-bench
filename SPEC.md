@@ -148,6 +148,10 @@ to the host LAN IP. Child contracts:
   as driver kwargs. A publication changes Pier's image-build fingerprint; registry failure
   aborts rather than reusing an unidentified cached image.
   Covered: `smoke.test.ts [§config-package-version]`.
+- §config-browser-disabled DeepSWE's constrained task image provides no Playwright browser
+  runtime, so the runner explicitly selects the published service's supported `disabled` mode.
+  HTTP byte fetch remains available; only the optional browser fallback is unavailable.
+  Covered: `smoke.test.ts [§config-browser-disabled]`.
 
 ## §snapshot-wal The daemon DB artifact includes committed WAL state
 
