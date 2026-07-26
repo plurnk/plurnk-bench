@@ -88,6 +88,8 @@ class DriverContractTest(unittest.TestCase):
 
         asyncio.run(agent.run("task", environment, object()))
 
+        self.assertIn("plurnk --json --auto ", environment.command)
+        self.assertNotIn(" --yolo ", environment.command)
         self.assertIn("VACUUM INTO", environment.command)
         self.assertIn('snapshot_db "$DB" /logs/agent/plurnk.db', environment.command)
         self.assertNotRegex(environment.command, r"(?m)^cp ")
