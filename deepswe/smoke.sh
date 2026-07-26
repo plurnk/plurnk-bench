@@ -45,7 +45,7 @@ for k in $(compgen -v | grep -E '^PLURNK_|_BASE_URL$|_API_KEY$' | grep -v '^PLUR
     PLURNK_MODEL|PLURNK_MODEL_NAME) continue;;
     # DeepSWE's constrained task image intentionally has no browser runtime. HTTP byte
     # fetch remains available; only the optional Playwright fallback is disabled.
-    PLURNK_SCHEMES_HTTP_BROWSER) continue;;
+    PLURNK_SCHEMES_HTTP_PLAYWRIGHT_METHOD) continue;;
     # A non-llama backend (xai/openrouter) can't enforce GBNF; 0.70.0's daemon refuses to
     # boot with GBNF requested-but-unenforceable. PLURNK_BENCH_NO_GBNF=1 runs unconstrained.
     PLURNK_PROVIDERS_GBNF) [ -n "${PLURNK_BENCH_NO_GBNF:-}" ] && continue;;
@@ -54,7 +54,7 @@ for k in $(compgen -v | grep -E '^PLURNK_|_BASE_URL$|_API_KEY$' | grep -v '^PLUR
   case "$k" in *_BASE_URL) v="${v//127.0.0.1/$LAN_IP}"; v="${v//localhost/$LAN_IP}";; esac
   flags+=(--agent-env "$k=$v")
 done
-flags+=(--agent-env "PLURNK_SCHEMES_HTTP_BROWSER=disabled")
+flags+=(--agent-env "PLURNK_SCHEMES_HTTP_PLAYWRIGHT_METHOD=disabled")
 # SPEC §config-gbnf-optout: the container's shipped .env floor DEFAULTS PLURNK_PROVIDERS_GBNF=plurnk.gbnf, so merely
 # not forwarding it isn't enough — forward =0 to explicitly override the default OFF.
 [ -n "${PLURNK_BENCH_NO_GBNF:-}" ] && flags+=(--agent-env "PLURNK_PROVIDERS_GBNF=0")

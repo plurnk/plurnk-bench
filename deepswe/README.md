@@ -41,7 +41,7 @@ and `src/digest.ts` renders each run's forensics into `<trial>/digest/` by reusi
 daemon's own `Digest`.
 
 The task image has no Playwright browser runtime, so the runner explicitly selects
-`PLURNK_SCHEMES_HTTP_BROWSER=disabled`. Ordinary HTTP byte fetch remains
+`PLURNK_SCHEMES_HTTP_PLAYWRIGHT_METHOD=disabled`. Ordinary HTTP byte fetch remains
 available; only the optional browser-rendering fallback is absent.
 
 ## status

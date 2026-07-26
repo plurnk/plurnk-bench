@@ -13,5 +13,5 @@ test("[§config-package-version] smoke pins resolved service and client publicat
 });
 
 test("[§config-browser-disabled] smoke disables unavailable Playwright runtime", () => {
-    assert.match(smoke, /flags\+=\(--agent-env "PLURNK_SCHEMES_HTTP_BROWSER=disabled"\)/);
+    assert.match(smoke, /flags\+=\(--agent-env "PLURNK_SCHEMES_HTTP_PLAYWRIGHT_METHOD=disabled"\)/);
 });
