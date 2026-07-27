@@ -16,6 +16,7 @@ live task: the daemon boots, drives a real multi-turn loop, commits, and grades.
 
 from __future__ import annotations
 
+import re
 import shlex
 from urllib.parse import urlparse
 
@@ -33,6 +34,9 @@ NODE_MAJOR = "26"
 DAEMON_READY_TIMEOUT_S = 60
 # Default client wall-clock budget per task; override via the `client_timeout_sec` kwarg.
 DEFAULT_CLIENT_TIMEOUT_S = 1800
+EXACT_NPM_VERSION = re.compile(
+    r"\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?"
+)
 
 
 class PlurnkAgent(BaseInstalledAgent):
@@ -47,6 +51,9 @@ class PlurnkAgent(BaseInstalledAgent):
         client_timeout_sec: int = DEFAULT_CLIENT_TIMEOUT_S,
         client_version: str | None = None,   # npm version spec, e.g. "0.40.2"; None = latest
         service_version: str | None = None,
+        service_source_url: str | None = None,
+        service_source_commit: str | None = None,
+        service_source_sha256: str | None = None,
         *args,
         **kwargs,
     ):
@@ -54,6 +61,9 @@ class PlurnkAgent(BaseInstalledAgent):
         self._client_timeout_sec = int(client_timeout_sec)
         self._client_version = client_version
         self._service_version = service_version
+        self._service_source_url = service_source_url
+        self._service_source_commit = service_source_commit
+        self._service_source_sha256 = service_source_sha256
 
     @staticmethod
     def name() -> str:
@@ -66,8 +76,35 @@ class PlurnkAgent(BaseInstalledAgent):
 
     # ---- install: Node + both @plurnk CLIs, baked into the task image ----
     def install_spec(self) -> AgentInstallSpec:
-        client = f"@plurnk/plurnk@{self._client_version}" if self._client_version else "@plurnk/plurnk@latest"
-        service = f"@plurnk/plurnk-service@{self._service_version}" if self._service_version else "@plurnk/plurnk-service@latest"
+        if self._client_version is None or EXACT_NPM_VERSION.fullmatch(self._client_version) is None:
+            raise ValueError("client_version must identify an exact npm publication")
+        client = f"@plurnk/plurnk@{self._client_version}"
+        source_values = (
+            self._service_source_url,
+            self._service_source_commit,
+            self._service_source_sha256,
+        )
+        has_source = any(value is not None for value in source_values)
+        if has_source and not all(value is not None for value in source_values):
+            raise ValueError("source service requires URL, commit, and SHA-256")
+        if has_source and self._service_version is not None:
+            raise ValueError("service_version and service source are mutually exclusive")
+        if has_source:
+            assert self._service_source_url is not None
+            assert self._service_source_commit is not None
+            assert self._service_source_sha256 is not None
+            parsed = urlparse(self._service_source_url)
+            if parsed.scheme not in {"http", "https"} or parsed.hostname is None:
+                raise ValueError("service source URL must be HTTP(S)")
+            if re.fullmatch(r"[0-9a-f]{40,64}", self._service_source_commit) is None:
+                raise ValueError("service source commit must be a full Git object ID")
+            if re.fullmatch(r"[0-9a-f]{64}", self._service_source_sha256) is None:
+                raise ValueError("service source SHA-256 must be 64 lowercase hex characters")
+        elif (
+            self._service_version is None
+            or EXACT_NPM_VERSION.fullmatch(self._service_version) is None
+        ):
+            raise ValueError("service_version must identify an exact npm publication")
         run = (
             "set -euo pipefail\n"
             "if ! command -v apt-get >/dev/null 2>&1; then\n"
@@ -79,7 +116,46 @@ class PlurnkAgent(BaseInstalledAgent):
             f"curl -fsSL https://deb.nodesource.com/setup_{NODE_MAJOR}.x | bash -\n"
             "apt-get install -y nodejs\n"
             # global install needs root; the agent user runs the bins off PATH at runtime
-            f"npm install -g {shlex.quote(service)} {shlex.quote(client)}\n"
+            f"npm install -g {shlex.quote(client)}\n"
+        )
+        metadata = {
+            "client": {"source": "npm", "version": self._client_version},
+        }
+        cache_key = None
+        if has_source:
+            source_url = shlex.quote(self._service_source_url)
+            source_sha256 = shlex.quote(self._service_source_sha256)
+            run += (
+                "SOURCE_ARCHIVE=/tmp/plurnk-service.tar\n"
+                f"curl -fsSL {source_url} -o \"$SOURCE_ARCHIVE\"\n"
+                f"printf '%s  %s\\n' {source_sha256} \"$SOURCE_ARCHIVE\" | sha256sum -c -\n"
+                "mkdir -p /opt/plurnk-service\n"
+                "tar -xf \"$SOURCE_ARCHIVE\" -C /opt/plurnk-service\n"
+                "cd /opt/plurnk-service\n"
+                # The root prepare script configures hooks. A Git archive deliberately
+                # has no repository metadata, so give that local-only setup a repository.
+                "git init -q\n"
+                "npm ci\n"
+                "npm run build\n"
+                "npm link --workspace @plurnk/plurnk-service\n"
+            )
+            metadata["service"] = {
+                "source": "git",
+                "commit": self._service_source_commit,
+                "sha256": self._service_source_sha256,
+            }
+            cache_key = (
+                f"plurnk-source-{self._service_source_sha256[:16]}"
+                f"-client-{self._client_version}-node-{NODE_MAJOR}"
+            )
+        else:
+            service = f"@plurnk/plurnk-service@{self._service_version}"
+            run += f"npm install -g {shlex.quote(service)}\n"
+            metadata["service"] = {
+                "source": "npm",
+                "version": self._service_version,
+            }
+        run += (
             "command -v plurnk\n"
             "command -v plurnk-service\n"
         )
@@ -88,6 +164,8 @@ class PlurnkAgent(BaseInstalledAgent):
             version=self._version,
             steps=[InstallStep(user="root", env={"DEBIAN_FRONTEND": "noninteractive"}, run=run)],
             verification_command="command -v plurnk && command -v plurnk-service",
+            cache_key=cache_key,
+            metadata=metadata,
         )
 
     # ---- runtime egress: only the model endpoint the daemon calls ----

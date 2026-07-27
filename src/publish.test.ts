@@ -26,6 +26,10 @@ test("[§publish-numbering] nextRunNumber picks max(runN)+1, else 1", () => {
 test("[§publish] publishRun returns null when the record has no run handle", () => {
     const record: BenchRecord = {
         harness: "deepswe", taskId: "t", model: "m",
+        subject: {
+            service: { source: "npm", version: "1.3.11" },
+            client: { source: "npm", version: "0.71.4" },
+        },
         durationMs: 0, status: 0, outcome: "error", turns: 0,
     };
     assert.equal(publishRun(record, mkdtempSync(join(tmpdir(), "bench-pub-"))), null);
@@ -50,6 +54,10 @@ test("[§publish-turnless-gate] digestHasTurns is false for an absent or empty d
 test("[§publish-self-referential] publishedRecord re-points the DB handle and preserves the oracle fields", () => {
     const record: BenchRecord = {
         harness: "deepswe", taskId: "abs-module-cache-flags", model: "plurnk/gbuild",
+        subject: {
+            service: { source: "git", commit: "a".repeat(40), sha256: "b".repeat(64) },
+            client: { source: "npm", version: "0.71.4" },
+        },
         durationMs: 1000, status: 499, outcome: "timeout", turns: 15,
         reward: 0, filesModified: 1, p2pRegressed: true, testPassFraction: 0.13,
         run: { dbPath: "/jobs/scratch/agent/plurnk.db", runId: 7, sessionId: 1 },

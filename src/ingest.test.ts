@@ -3,7 +3,21 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { deriveOutcome, joinRecord, readJob, readTrial, type PlurnkDoc, type RewardJson } from "./ingest.ts";
+import {
+    deriveOutcome,
+    joinRecord,
+    readJob,
+    readTrial,
+    subjectFromAgentKwargs,
+    type PlurnkDoc,
+    type RewardJson,
+} from "./ingest.ts";
+import type { BenchSubject } from "./record.ts";
+
+const subject: BenchSubject = {
+    service: { source: "npm", version: "1.3.11" },
+    client: { source: "npm", version: "0.71.4" },
+};
 
 const doc = (overrides: Partial<PlurnkDoc> = {}): PlurnkDoc => ({
     schemaVersion: 1,
@@ -35,7 +49,7 @@ test("[§verdicts-failure-class] non-pass is classified by the loop's failure mo
 test("[§verdicts] joinRecord maps loop side from the plurnk doc, oracle side from reward", () => {
     const record = joinRecord({
         harness: "deepswe", taskId: "abs-module-cache-flags", model: "gemma",
-        doc: doc(), reward: reward(1, { partial: 0.83 }), dbPath: "/jobs/t1/agent/plurnk.db",
+        subject, doc: doc(), reward: reward(1, { partial: 0.83 }), dbPath: "/jobs/t1/agent/plurnk.db",
     });
     assert.equal(record.status, 200);            // finalStatus (loop verdict)
     assert.equal(record.outcome, "pass");        // oracle verdict
@@ -58,7 +72,7 @@ test("[§turns-provenance] readTrial takes the turn count from the doc's turns[]
             schemaVersion: 1, finalStatus: 500, turnCount: 0,
             turns: Array.from({ length: 9 }, (_, i) => ({ sequence: i + 1 })),
         }));
-        assert.equal(readTrial(trialDir, { harness: "deepswe", taskId: "t", model: "m" }).turns, 9);
+        assert.equal(readTrial(trialDir, { harness: "deepswe", taskId: "t", model: "m", subject }).turns, 9);
     } finally {
         rmSync(trialDir, { recursive: true, force: true });
     }
@@ -67,12 +81,12 @@ test("[§turns-provenance] readTrial takes the turn count from the doc's turns[]
 // Failure-mode telemetry: a pass-to-pass regression means the patch broke the build.
 test("[§attempt-broke-build] joinRecord flags p2pRegressed when a base pass-to-pass test fails", () => {
     const broke = joinRecord({
-        harness: "deepswe", taskId: "t", model: "m", dbPath: "/x/plurnk.db",
+        harness: "deepswe", taskId: "t", model: "m", subject, dbPath: "/x/plurnk.db",
         doc: doc({ finalStatus: 200 }), reward: reward(0, { p2p_total: 3, p2p_passed: 0 }),
     });
     assert.equal(broke.p2pRegressed, true);
     const clean = joinRecord({
-        harness: "deepswe", taskId: "t", model: "m", dbPath: "/x/plurnk.db",
+        harness: "deepswe", taskId: "t", model: "m", subject, dbPath: "/x/plurnk.db",
         doc: doc({ finalStatus: 200 }), reward: reward(0, { p2p_total: 3, p2p_passed: 3 }),
     });
     assert.equal(clean.p2pRegressed, undefined);
@@ -82,7 +96,7 @@ test("[§attempt-broke-build] joinRecord flags p2pRegressed when a base pass-to-
 // A junk dump (new .txt files) is non-empty but modifies 0 existing files → still no-attempt.
 test("[§attempt-files-modified] readTrial records patchLines + filesModified, distinguishing junk dumps from real edits", () => {
     const trialDir = mkdtempSync(join(tmpdir(), "bench-patch-"));
-    const read = () => readTrial(trialDir, { harness: "deepswe", taskId: "t", model: "m" });
+    const read = () => readTrial(trialDir, { harness: "deepswe", taskId: "t", model: "m", subject });
     const patch = join(trialDir, "artifacts", "model.patch");
     try {
         mkdirSync(join(trialDir, "agent"), { recursive: true });
@@ -114,7 +128,7 @@ test("[§digest-boundary] readTrial carries a dbPath-only digest handle when the
         }));
         const dbPath = join(trialDir, "agent", "plurnk.db");
         writeFileSync(dbPath, "");   // the copied DB exists; bench never opens it
-        const record = readTrial(trialDir, { harness: "deepswe", taskId: "t", model: "m" });
+        const record = readTrial(trialDir, { harness: "deepswe", taskId: "t", model: "m", subject });
         assert.equal(record.outcome, "error");
         assert.deepEqual(record.run, { dbPath });   // pointer only — no coordinate reconstructed
     } finally {
@@ -128,7 +142,7 @@ test("[§digest-boundary] readTrial leaves no handle when no DB was copied", () 
     try {
         mkdirSync(join(trialDir, "agent"), { recursive: true });
         writeFileSync(join(trialDir, "agent", "plurnk.json"), "");
-        const record = readTrial(trialDir, { harness: "deepswe", taskId: "t", model: "m" });
+        const record = readTrial(trialDir, { harness: "deepswe", taskId: "t", model: "m", subject });
         assert.equal(record.run, undefined);
     } finally {
         rmSync(trialDir, { recursive: true, force: true });
@@ -146,7 +160,9 @@ test("[§provenance] readJob walks a job tree → one record per trial, provenan
         mkdirSync(join(pass, "verifier"), { recursive: true });
         writeFileSync(join(pass, "result.json"), JSON.stringify({
             trial_name: "foo__aaa", task_name: "datacurve/foo",
-            config: { agent: { model_name: "plurnk/turboderp" } },
+            config: { agent: { model_name: "plurnk/turboderp", kwargs: {
+                client_version: "0.71.4", service_version: "1.3.11",
+            } } },
             started_at: "2026-06-30T01:00:00Z", finished_at: "2026-06-30T01:05:00Z",
         }));
         writeFileSync(join(pass, "agent", "plurnk.json"), JSON.stringify({
@@ -160,7 +176,11 @@ test("[§provenance] readJob walks a job tree → one record per trial, provenan
         mkdirSync(join(killed, "agent"), { recursive: true });
         writeFileSync(join(killed, "result.json"), JSON.stringify({
             trial_name: "bar__bbb", task_name: "datacurve/bar",
-            config: { agent: { model_name: "plurnk/turboderp" } },
+            config: { agent: { model_name: "plurnk/turboderp", kwargs: {
+                client_version: "0.71.4",
+                service_source_commit: "a".repeat(40),
+                service_source_sha256: "b".repeat(64),
+            } } },
             exception_info: { exception_type: "AgentTimeoutError", exception_message: "1800s" },
             started_at: "2026-06-30T02:00:00Z", finished_at: "2026-06-30T02:30:00Z",
         }));
@@ -181,9 +201,13 @@ test("[§provenance] readJob walks a job tree → one record per trial, provenan
         assert.equal(bar.error, "AgentTimeoutError: 1800s");        // Pier exception surfaced
         assert.equal(bar.startedAt, "2026-06-30T02:00:00Z");
         assert.equal(bar.run, undefined);                           // empty doc → no digest handle
+        assert.deepEqual(bar.subject.service, {
+            source: "git", commit: "a".repeat(40), sha256: "b".repeat(64),
+        });
 
         assert.equal(foo.taskId, "datacurve/foo");
         assert.equal(foo.outcome, "pass");
+        assert.deepEqual(foo.subject, subject);
         assert.deepEqual(foo.run, { sessionId: 1, runId: 7, dbPath: join(pass, "agent", "plurnk.db") });
         assert.equal(foo.finishedAt, "2026-06-30T01:05:00Z");
     } finally {
@@ -194,11 +218,27 @@ test("[§provenance] readJob walks a job tree → one record per trial, provenan
 test("[§verdicts-failure-class] a client error doc yields an error record with no run handle", () => {
     const record = joinRecord({
         harness: "deepswe", taskId: "t", model: "gemma",
-        doc: { schemaVersion: 1, error: { kind: "client:connection", message: "refused" } },
+        subject, doc: { schemaVersion: 1, error: { kind: "client:connection", message: "refused" } },
         reward: null, dbPath: "/jobs/t/agent/plurnk.db",
     });
     assert.equal(record.outcome, "error");
     assert.equal(record.error, "client:connection: refused");
     assert.equal(record.run, undefined);         // no session/runId → no digest handle
     assert.equal(record.status, 0);              // no finalStatus in an error doc
+});
+
+test("[§subject-provenance] service identity is exact and mutually exclusive", () => {
+    assert.deepEqual(subjectFromAgentKwargs({
+        client_version: "0.71.4",
+        service_version: "1.3.11",
+    }), subject);
+    assert.throws(
+        () => subjectFromAgentKwargs({
+            client_version: "0.71.4",
+            service_version: "1.3.11",
+            service_source_commit: "a".repeat(40),
+            service_source_sha256: "b".repeat(64),
+        }),
+        /both npm and Git service artifacts/,
+    );
 });

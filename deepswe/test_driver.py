@@ -76,11 +76,62 @@ driver = importlib.import_module("driver")
 class DriverContractTest(unittest.TestCase):
     def test_install_uses_exact_requested_versions(self):
         agent = driver.PlurnkAgent(client_version="0.71.3", service_version="1.3.2")
-        command = agent.install_spec().steps[0].run
+        spec = agent.install_spec()
+        command = spec.steps[0].run
 
         self.assertIn("@plurnk/plurnk-service@1.3.2", command)
         self.assertIn("@plurnk/plurnk@0.71.3", command)
         self.assertNotIn("@latest", command)
+        self.assertEqual(
+            spec.metadata,
+            {
+                "client": {"source": "npm", "version": "0.71.3"},
+                "service": {"source": "npm", "version": "1.3.2"},
+            },
+        )
+
+    def test_install_uses_exact_source_candidate(self):
+        commit = "a" * 40
+        sha256 = "b" * 64
+        agent = driver.PlurnkAgent(
+            client_version="0.71.4",
+            service_source_url="http://192.0.2.1:1234/plurnk-service.tar",
+            service_source_commit=commit,
+            service_source_sha256=sha256,
+        )
+        spec = agent.install_spec()
+        command = spec.steps[0].run
+
+        self.assertIn("sha256sum -c -", command)
+        self.assertIn("npm ci", command)
+        self.assertIn("npm run build", command)
+        self.assertIn("npm link --workspace @plurnk/plurnk-service", command)
+        self.assertNotIn("@plurnk/plurnk-service@latest", command)
+        self.assertEqual(
+            spec.metadata["service"],
+            {"source": "git", "commit": commit, "sha256": sha256},
+        )
+        self.assertEqual(
+            spec.cache_key,
+            f"plurnk-source-{sha256[:16]}-client-0.71.4-node-{driver.NODE_MAJOR}",
+        )
+
+    def test_install_rejects_ambiguous_source_candidate(self):
+        with self.assertRaisesRegex(ValueError, "requires URL, commit, and SHA-256"):
+            driver.PlurnkAgent(
+                client_version="0.71.4",
+                service_source_url="http://192.0.2.1/plurnk-service.tar",
+            ).install_spec()
+        with self.assertRaisesRegex(ValueError, "mutually exclusive"):
+            driver.PlurnkAgent(
+                client_version="0.71.4",
+                service_version="1.3.2",
+                service_source_url="http://192.0.2.1/plurnk-service.tar",
+                service_source_commit="a" * 40,
+                service_source_sha256="b" * 64,
+            ).install_spec()
+        with self.assertRaisesRegex(ValueError, "client_version"):
+            driver.PlurnkAgent(service_version="1.3.2").install_spec()
 
     def test_snapshot_is_wal_safe_and_has_no_copy_fallback(self):
         agent = driver.PlurnkAgent()

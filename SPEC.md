@@ -87,9 +87,16 @@ Covered: `record.test.ts [§record-serial]`, `[§verdicts]`.
 
 A trial dir is any child of `jobs/<job>/` holding a `result.json` with a `trial_name` (the
 job-level result.json has none). `result.json` is the provenance source: `task_name`,
-`config.agent.model_name`, Pier timing and exceptions. Trials walk in directory-name order —
-deterministic output.
-Covered: `ingest.test.ts [§provenance]`.
+`config.agent.model_name`, exact agent kwargs, Pier timing and exceptions. Trials walk in
+directory-name order — deterministic output.
+
+### §subject-provenance The record identifies the exact product under test
+
+Every record carries its service and client artifacts. An npm artifact records its exact
+version. A Git service candidate records its full commit and archive SHA-256. Missing,
+malformed, or conflicting identities fail ingest; bench never labels a run from `latest`,
+an ambient checkout, or an inferred cache.
+Covered: `ingest.test.ts [§provenance]`, `[§subject-provenance]`.
 
 ## §publish The published run is the complete, canonical result
 
@@ -144,10 +151,18 @@ to the host LAN IP. Child contracts:
   in-container daemon and `plurnk` client use the product's AG-UI+ HTTP/SSE
   defaults; an explicit `PLURNK_HOST`, `PLURNK_PORT`, or `PLURNK_AGUI_URL`
   remains ordinary daemon/client configuration.
-- §config-package-version Resolve exact current service/client npm versions and pass them
-  as driver kwargs. A publication changes Pier's image-build fingerprint; registry failure
-  aborts rather than reusing an unidentified cached image.
+- §config-package-version Published mode resolves exact current service/client npm versions
+  and passes them as driver kwargs. A publication changes Pier's image-build fingerprint;
+  registry failure aborts rather than reusing an unidentified cached image.
   Covered: `smoke.test.ts [§config-package-version]`.
+- §config-source-candidate `PLURNK_BENCH_SERVICE_SOURCE=<monorepo>` selects development
+  mode. The tree must be clean. Bench archives its exact `HEAD`, serves only that archive
+  to Pier's build network, and passes its full commit and SHA-256 to the driver. The image
+  verifies the hash, installs the root lockfile with `npm ci`, builds every workspace, and
+  globally links `@plurnk/plurnk-service`. Its cache key includes the archive hash, exact
+  client publication, and Node major. No public service release is involved.
+  Covered: `source-candidate.test.ts [§config-source-candidate]` ×2,
+  `smoke.test.ts [§config-source-candidate]`, `test_driver.py`.
 - §config-browser-disabled DeepSWE's constrained task image provides no Playwright browser
   runtime, so the runner explicitly selects the published service's supported `disabled` mode.
   HTTP byte fetch remains available; only the optional browser fallback is unavailable.

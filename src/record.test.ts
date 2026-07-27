@@ -6,6 +6,10 @@ const sample = (overrides: Partial<BenchRecord> = {}): BenchRecord => ({
     harness: "deepswe",
     taskId: "ts-go-001",
     model: "gemma",
+    subject: {
+        service: { source: "npm", version: "1.3.11" },
+        client: { source: "npm", version: "0.71.4" },
+    },
     startedAt: "2026-06-21T00:00:00.000Z",
     finishedAt: "2026-06-21T00:05:00.000Z",
     durationMs: 300000,

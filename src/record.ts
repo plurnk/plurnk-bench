@@ -31,10 +31,20 @@ export interface RunRef {
     runId?: number;             // plurnk run id, from the --json doc — digest drill-down key
 }
 
+export type PackageArtifact =
+    | { source: "npm"; version: string }
+    | { source: "git"; commit: string; sha256: string };
+
+export interface BenchSubject {
+    service: PackageArtifact;
+    client: PackageArtifact;
+}
+
 export interface BenchRecord {
     harness: string;            // which harness produced this — "deepswe"
     taskId: string;             // the benchmark's own task identifier
     model: string;              // model under test (PLURNK_MODEL alias / record label)
+    subject: BenchSubject;      // exact service and client artifacts under test
     durationMs: number;         // plurnk wallMs — agent-loop wall time
     status: number;             // plurnk terminal SEND status (loop verdict)
     outcome: Outcome;           // benchmark verdict — derived from the oracle / failure class

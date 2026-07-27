@@ -16,6 +16,7 @@
 #   PLURNK_BENCH_CPUS         override container cpus (default: task native — leaderboard-compliant)
 #   PLURNK_BENCH_FORCE_BUILD  =1 to force an agent-image rebuild (base-image/debug escape hatch)
 #   PLURNK_BENCH_NO_GBNF      =1 to drop PLURNK_PROVIDERS_GBNF (for models that can't enforce it, e.g. xai)
+#   PLURNK_BENCH_SERVICE_SOURCE  clean plurnk-service monorepo to test instead of its npm publication
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -67,23 +68,61 @@ flags+=(--agent-env "PLURNK_SCHEMES_HTTP_PLAYWRIGHT_METHOD=disabled")
 cpu_flags=()
 [ -n "${PLURNK_BENCH_CPUS:-}" ] && cpu_flags+=(--override-cpus "$PLURNK_BENCH_CPUS")
 
-# Resolve immutable versions before Pier constructs the agent image. The exact install
-# command becomes part of Pier's build fingerprint, so a new publication rebuilds and an
-# unchanged publication cache-hits. Registry failure is not permission to run an unknown
-# cached daemon.
-SERVICE_VERSION="$(npm view @plurnk/plurnk-service version 2>/dev/null)"
+# Resolve the exact published client before Pier constructs the agent image. Service has
+# two explicit modes: the exact npm publication (release qualification), or a clean Git
+# candidate selected by PLURNK_BENCH_SERVICE_SOURCE (development). Source mode archives
+# HEAD and verifies its SHA-256 inside the Pier build; no publication is required.
 CLIENT_VERSION="$(npm view @plurnk/plurnk version 2>/dev/null)"
-[ -n "$SERVICE_VERSION" ] && [ -n "$CLIENT_VERSION" ] || {
-  echo "smoke: cannot resolve current @plurnk publications" >&2
+[ -n "$CLIENT_VERSION" ] || {
+  echo "smoke: cannot resolve current @plurnk/plurnk publication" >&2
   exit 1
 }
+service_flags=()
+service_label=
+source_server_pid=
+cleanup_source_server() {
+  if [ -n "$source_server_pid" ]; then
+    kill "$source_server_pid" 2>/dev/null || true
+    wait "$source_server_pid" 2>/dev/null || true
+  fi
+}
+trap cleanup_source_server EXIT
+if [ -n "${PLURNK_BENCH_SERVICE_SOURCE:-}" ]; then
+  coproc SOURCE_CANDIDATE_SERVER {
+    node deepswe/source-candidate.ts "$PLURNK_BENCH_SERVICE_SOURCE"
+  }
+  source_server_pid="$SOURCE_CANDIDATE_SERVER_PID"
+  if ! IFS= read -r source_candidate_json <&"${SOURCE_CANDIDATE_SERVER[0]}"; then
+    wait "$source_server_pid" || true
+    echo "smoke: source candidate preparation failed" >&2
+    exit 1
+  fi
+  IFS=$'\t' read -r source_port source_commit source_sha256 < <(
+    node -e 'const value = JSON.parse(process.argv[1]); console.log([value.port, value.commit, value.sha256].join("\\t"))' "$source_candidate_json"
+  )
+  source_url="http://$LAN_IP:$source_port/plurnk-service.tar"
+  service_flags+=(
+    --agent-kwarg "service_source_url=$source_url"
+    --agent-kwarg "service_source_commit=$source_commit"
+    --agent-kwarg "service_source_sha256=$source_sha256"
+  )
+  service_label="git:${source_commit:0:12} sha256:${source_sha256:0:12}"
+else
+  SERVICE_VERSION="$(npm view @plurnk/plurnk-service version 2>/dev/null)"
+  [ -n "$SERVICE_VERSION" ] || {
+    echo "smoke: cannot resolve current @plurnk/plurnk-service publication" >&2
+    exit 1
+  }
+  service_flags+=(--agent-kwarg "service_version=$SERVICE_VERSION")
+  service_label="npm:$SERVICE_VERSION"
+fi
 
 # Reserve force-build for non-versioned image inputs: exact package publications already
-# invalidate the build cache automatically.
+# invalidate the build cache automatically, as does an exact source archive hash.
 build=()
 [ -n "${PLURNK_BENCH_FORCE_BUILD:-}" ] && build+=(--force-build)
 
-echo "smoke: model=$MODEL task=$TASK service=$SERVICE_VERSION client=$CLIENT_VERSION cpus=${PLURNK_BENCH_CPUS:-native} client_timeout=${CLIENT_TIMEOUT_SEC}s (budget ${AGENT_BUDGET:-?}s)${PLURNK_BENCH_FORCE_BUILD:+ [force-build]}" >&2
+echo "smoke: model=$MODEL task=$TASK service=$service_label client=npm:$CLIENT_VERSION cpus=${PLURNK_BENCH_CPUS:-native} client_timeout=${CLIENT_TIMEOUT_SEC}s (budget ${AGENT_BUDGET:-?}s)${PLURNK_BENCH_FORCE_BUILD:+ [force-build]}" >&2
 # The default personality ships on: the daemon seeds PLURNK_PERSONALITY.md to
 # ~/.plurnk/AGENTS.md and foists it headless (confirmed via digest, PLURNK_POLICY unset).
 # So we DON'T set PLURNK_POLICY — the benchmark gets the real product default as-is.
@@ -91,8 +130,8 @@ PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
   --agent-import-path driver:PlurnkAgent \
   --model "plurnk/$MODEL" \
   --agent-kwarg "client_timeout_sec=$CLIENT_TIMEOUT_SEC" \
-  --agent-kwarg "service_version=$SERVICE_VERSION" \
   --agent-kwarg "client_version=$CLIENT_VERSION" \
+  "${service_flags[@]}" \
   "${cpu_flags[@]}" \
   "${build[@]}" \
   "${flags[@]}" \
