@@ -9,7 +9,7 @@
 
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import type { BenchRecord, BenchSubject, Outcome, Usage } from "./record.ts";
+import type { BenchRecord, Outcome, Usage } from "./record.ts";
 
 // The subset of plurnk's `--json` document this join consumes. A failed one-shot
 // emits `{ schemaVersion, error: { kind, message } }` instead of a full record.
@@ -64,18 +64,16 @@ export interface JoinInput {
     harness: string;
     taskId: string;
     model: string;
-    subject: BenchSubject;
     doc: PlurnkDoc;
     reward: RewardJson | null;
     dbPath: string;
 }
 
-export const joinRecord = ({ harness, taskId, model, subject, doc, reward, dbPath }: JoinInput): BenchRecord => {
+export const joinRecord = ({ harness, taskId, model, doc, reward, dbPath }: JoinInput): BenchRecord => {
     const record: BenchRecord = {
         harness,
         taskId,
         model,
-        subject,
         durationMs: doc.wallMs ?? 0,
         status: doc.finalStatus ?? 0,
         outcome: deriveOutcome(doc, reward),
@@ -106,57 +104,11 @@ export const joinRecord = ({ harness, taskId, model, subject, doc, reward, dbPat
 export interface PierTrialResult {
     task_name?: string;                                          // canonical benchmark task id
     trial_name?: string;                                         // present iff this is a trial dir
-    config?: {
-        agent?: {
-            model_name?: string | null;
-            kwargs?: Record<string, unknown>;
-        };
-    };
+    config?: { agent?: { model_name?: string | null } };        // the operator's record label
     exception_info?: { exception_type?: string; exception_message?: string } | null;
     started_at?: string;
     finished_at?: string;
 }
-
-const exactString = (value: unknown, name: string): string => {
-    if (typeof value !== "string" || value === "") {
-        throw new Error(`Pier result is missing exact ${name}`);
-    }
-    return value;
-};
-
-const exactVersion = (value: unknown, name: string): string => {
-    const version = exactString(value, name);
-    if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(version)) {
-        throw new Error(`Pier result has non-exact ${name}`);
-    }
-    return version;
-};
-
-export const subjectFromAgentKwargs = (kwargs: Record<string, unknown> | undefined): BenchSubject => {
-    const clientVersion = exactVersion(kwargs?.client_version, "client_version");
-    const serviceVersion = kwargs?.service_version;
-    const sourceCommit = kwargs?.service_source_commit;
-    const sourceSha256 = kwargs?.service_source_sha256;
-    const hasSource = sourceCommit !== undefined || sourceSha256 !== undefined;
-    if (serviceVersion !== undefined && hasSource) {
-        throw new Error("Pier result identifies both npm and Git service artifacts");
-    }
-    if (hasSource) {
-        const commit = exactString(sourceCommit, "service_source_commit");
-        const sha256 = exactString(sourceSha256, "service_source_sha256");
-        if (!/^[0-9a-f]{40,64}$/.test(commit) || !/^[0-9a-f]{64}$/.test(sha256)) {
-            throw new Error("Pier result has malformed Git service provenance");
-        }
-        return {
-            service: { source: "git", commit, sha256 },
-            client: { source: "npm", version: clientVersion },
-        };
-    }
-    return {
-        service: { source: "npm", version: exactVersion(serviceVersion, "service_version") },
-        client: { source: "npm", version: clientVersion },
-    };
-};
 
 // Pier exception types that mean the budget ran out, not that the loop scored a fail.
 const TIMEOUT_EXCEPTIONS = new Set(["AgentTimeoutError", "VerifierTimeoutError"]);
@@ -176,10 +128,7 @@ const readJson = <T>(path: string): T | null => {
 // the handle to that run; on a crash/error doc the coordinate is absent but the driver
 // still copied the DB, so we carry `dbPath` alone (digest renders the whole DB from it).
 // No DB copied at all → no handle, honestly absent.
-export const readTrial = (
-    trialDir: string,
-    meta: { harness: string; taskId: string; model: string; subject: BenchSubject },
-): BenchRecord => {
+export const readTrial = (trialDir: string, meta: { harness: string; taskId: string; model: string }): BenchRecord => {
     const doc = readJson<PlurnkDoc>(join(trialDir, "agent", "plurnk.json"))
         ?? { schemaVersion: 0, error: { kind: "ingest", message: "plurnk.json missing" } };
     const reward = readJson<RewardJson>(join(trialDir, "verifier", "reward.json"));
@@ -222,7 +171,6 @@ export const readJob = (jobDir: string, { harness }: { harness: string }): Bench
             harness,
             taskId: result.task_name ?? name,
             model: result.config?.agent?.model_name ?? "unknown",
-            subject: subjectFromAgentKwargs(result.config?.agent?.kwargs),
         });
         if (result.started_at !== undefined) record.startedAt = result.started_at;
         if (result.finished_at !== undefined) record.finishedAt = result.finished_at;

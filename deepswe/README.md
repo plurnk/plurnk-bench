@@ -7,15 +7,14 @@ plurnk is wired in as a **Pier agent driver** (`import_path`, no Pier fork). The
 container as a unit; the driver starts the daemon, points the client at the cloned repo
 at `/app`, lets the model EDIT/EXEC, commits the result, and persists the run for ingest.
 Pier extracts the committed patch, applies it to a pristine container, and grades it.
-The runner uses either exact service/client publications or an exact clean Git service
-candidate (`PLURNK_BENCH_SERVICE_SOURCE`), making Docker cache reuse artifact-sensitive.
-The driver persists the live WAL database with `VACUUM INTO`; snapshot failure fails the
-trial rather than publishing an incomplete database.
+The runner resolves exact current service/client publications before constructing the
+agent image, making Docker cache reuse version-sensitive. The driver persists the live
+WAL database with `VACUUM INTO`; snapshot failure fails the trial rather than publishing
+an incomplete database.
 
 ```
-driver.py             the `plurnk` Pier agent (BaseInstalledAgent subclass)
-smoke.sh              authoritative-config runner
-source-candidate.ts   hashed Git archive server for Pier's build network
+driver.py    the `plurnk` Pier agent (BaseInstalledAgent subclass)
+smoke.sh     carry-manifest runner: forwards an env file to the daemon via --agent-env
 ```
 
 ## reproduce
@@ -25,15 +24,18 @@ source-candidate.ts   hashed Git archive server for Pier's build network
 git clone https://github.com/datacurve-ai/deep-swe
 uv tool install git+https://github.com/datacurve-ai/pier
 
-# 2. Configure the ordinary ~/.plurnk/.env + shell provider environment.
+# 2. write .env — the CARRY MANIFEST for the in-container daemon (see .env.example).
+#    Derive it from your daemon config: the model layer (PLURNK_MODEL, the alias def)
+#    plus the provider endpoint the alias resolves to. A local llama-server the host
+#    reaches on 127.0.0.1 is reached from the container on the host's LAN IP.
 
 # 3. smoke one task, then scale
-deepswe/smoke.sh abs-module-cache-flags firefast
+deepswe/smoke.sh abs-module-cache-flags .env
 ```
 
 Config reaches the daemon via Pier's `--agent-env` (Pier does **not** interpolate
 `${VAR}` in `--config` — its resolver is dead code), which `smoke.sh` assembles from the
-authoritative environment. Results land in Pier's `jobs/<job>/<trial_id>/` (`verifier/reward.json` + our
+env file. Results land in Pier's `jobs/<job>/<trial_id>/` (`verifier/reward.json` + our
 `agent/plurnk.json` + `agent/plurnk.db`); `src/ingest.ts` joins them into `BenchRecord`s
 and `src/digest.ts` renders each run's forensics into `<trial>/digest/` by reusing the
 daemon's own `Digest`.

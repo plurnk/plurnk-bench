@@ -17,10 +17,6 @@ test("[§digest-boundary] digestDirFor puts the artifact at <trial>/digest, besi
 test("[§digest-boundary] renderDigest returns null when the record has no run handle", () => {
     const record: BenchRecord = {
         harness: "deepswe", taskId: "t", model: "m",
-        subject: {
-            service: { source: "npm", version: "1.3.11" },
-            client: { source: "npm", version: "0.71.4" },
-        },
         durationMs: 0, status: 0, outcome: "error", turns: 0,
     };
     assert.equal(renderDigest(record), null);
