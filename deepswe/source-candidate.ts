@@ -11,6 +11,9 @@ export interface SourceCandidate {
     sha256: string;
 }
 
+export const sourceCandidateLine = (port: number, candidate: SourceCandidate): string =>
+    `${port}\t${candidate.commit}\t${candidate.sha256}`;
+
 const git = (root: string, ...args: string[]): string => {
     const result = spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
     if (result.status !== 0) {
@@ -98,11 +101,7 @@ if (import.meta.main) {
         candidate = prepareSourceCandidate(source);
         const server = await serveSourceCandidate(candidate);
         close = server.close;
-        process.stdout.write(`${JSON.stringify({
-            port: server.port,
-            commit: candidate.commit,
-            sha256: candidate.sha256,
-        })}\n`);
+        process.stdout.write(`${sourceCandidateLine(server.port, candidate)}\n`);
         for (const signal of ["SIGINT", "SIGTERM"] as const) {
             process.once(signal, () => {
                 void cleanup().finally(() => process.exit(0));

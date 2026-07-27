@@ -4,7 +4,11 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import test from "node:test";
-import { prepareSourceCandidate, serveSourceCandidate } from "./source-candidate.ts";
+import {
+    prepareSourceCandidate,
+    serveSourceCandidate,
+    sourceCandidateLine,
+} from "./source-candidate.ts";
 
 const git = (root: string, ...args: string[]): void => {
     const result = spawnSync("git", ["-C", root, ...args], { encoding: "utf8" });
@@ -32,6 +36,10 @@ test("[§config-source-candidate] candidate is an exact, hashed clean Git archiv
         archiveDirectory = dirname(candidate.archivePath);
         assert.match(candidate.commit, /^[0-9a-f]{40,64}$/);
         assert.match(candidate.sha256, /^[0-9a-f]{64}$/);
+        assert.deepEqual(
+            sourceCandidateLine(1234, candidate).split("\t"),
+            ["1234", candidate.commit, candidate.sha256],
+        );
 
         const server = await serveSourceCandidate(candidate);
         try {

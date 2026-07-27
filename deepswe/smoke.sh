@@ -92,14 +92,11 @@ if [ -n "${PLURNK_BENCH_SERVICE_SOURCE:-}" ]; then
     node deepswe/source-candidate.ts "$PLURNK_BENCH_SERVICE_SOURCE"
   }
   source_server_pid="$SOURCE_CANDIDATE_SERVER_PID"
-  if ! IFS= read -r source_candidate_json <&"${SOURCE_CANDIDATE_SERVER[0]}"; then
+  if ! IFS=$'\t' read -r source_port source_commit source_sha256 <&"${SOURCE_CANDIDATE_SERVER[0]}"; then
     wait "$source_server_pid" || true
     echo "smoke: source candidate preparation failed" >&2
     exit 1
   fi
-  IFS=$'\t' read -r source_port source_commit source_sha256 < <(
-    node -e 'const value = JSON.parse(process.argv[1]); console.log([value.port, value.commit, value.sha256].join("\\t"))' "$source_candidate_json"
-  )
   source_url="http://$LAN_IP:$source_port/plurnk-service.tar"
   service_flags+=(
     --agent-kwarg "service_source_url=$source_url"
