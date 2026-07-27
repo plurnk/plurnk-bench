@@ -121,6 +121,21 @@ const readJson = <T>(path: string): T | null => {
     }
 };
 
+const countPatchLines = (raw: string): number => {
+    if (raw === "") return 0;
+
+    let binaryPayload = false;
+    let lines = 0;
+    for (const line of raw.replace(/\n+$/, "").split("\n")) {
+        if (line.startsWith("diff --git ")) binaryPayload = false;
+        if (binaryPayload) continue;
+
+        lines++;
+        if (line === "GIT binary patch") binaryPayload = true;
+    }
+    return lines;
+};
+
 // Read one Pier trial directory's artifacts and join them. `reward.json` absent
 // (verifier crash / disabled) joins as a null oracle → an `error` outcome. The digest
 // handle is the DB POINTER, never a bench-side DB read — plurnk owns DB→forensics
@@ -141,7 +156,7 @@ export const readTrial = (trialDir: string, meta: { harness: string; taskId: str
     const patchPath = join(trialDir, "artifacts", "model.patch");
     if (existsSync(patchPath)) {
         const raw = readFileSync(patchPath, "utf8");
-        record.patchLines = raw === "" ? 0 : raw.replace(/\n+$/, "").split("\n").length;
+        record.patchLines = countPatchLines(raw);
         // Existing files modified = total diffs minus new-file additions. A junk dump (a
         // weak model writing dir_tree.txt etc. into /app) is all new files → 0 modified →
         // still a no-attempt despite a non-empty patch.

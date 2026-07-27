@@ -49,7 +49,7 @@ export interface BenchRecord {
     //                               is non-empty, e.g. a weak model dumping junk .txt into /app)
     //   filesModified>0 + regress → BROKE-THE-BUILD (real source edit, broke existing / didn't compile)
     //   filesModified>0, no regress, testPassFraction<1 → NEAR-MISS / FAIL
-    patchLines?: number;        // total lines in the graded patch (Pier `model.patch`)
+    patchLines?: number;        // textual lines in the graded patch; excludes Git's encoded binary payload
     filesModified?: number;     // EXISTING files the patch changes (excludes new-file additions) — the
                                 // real "did it edit the source?" signal; 0 = no genuine repo attempt
     p2pRegressed?: boolean;     // a base pass-to-pass test now fails — the patch broke build/existing behavior

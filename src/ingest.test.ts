@@ -97,6 +97,22 @@ test("[§attempt-files-modified] readTrial records patchLines + filesModified, d
 
         writeFileSync(patch, "diff --git a/src/x.go b/src/x.go\nindex 1..2 100644\n-old\n+new\n");
         assert.deepEqual([read().patchLines, read().filesModified], [4, 1]);          // real source edit
+
+        writeFileSync(patch, [
+            "diff --git a/abs b/abs",
+            "new file mode 100755",
+            "index 0000000..1234567",
+            "GIT binary patch",
+            "literal 1000000",
+            "encoded-payload",
+            "",
+            "diff --git a/src/x.go b/src/x.go",
+            "index 1..2 100644",
+            "-old",
+            "+new",
+            "",
+        ].join("\n"));
+        assert.deepEqual([read().patchLines, read().filesModified], [8, 1]);          // binary payload does not inflate text size
     } finally {
         rmSync(trialDir, { recursive: true, force: true });
     }

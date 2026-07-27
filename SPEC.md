@@ -51,7 +51,8 @@ the digest's count for error docs.
 
 Read from Pier's graded `model.patch`, never inferred from the loop's claims:
 
-- `patchLines` — total lines in the graded patch; empty patch → 0.
+- `patchLines` — textual lines in the graded patch, excluding Git's encoded binary payload;
+  empty patch → 0.
 - §attempt-files-modified `filesModified` — EXISTING files changed (`diff --git` count minus
   `new file mode` count). A junk dump (new .txt files into /app) is non-empty but modifies 0
   existing files → still NO-ATTEMPT.
