@@ -4,7 +4,14 @@ import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeFileSync } from "node:fs";
-import { nextRunNumber, publishRun, publishedRecord, defaultBenchmarksDir, digestHasTurns } from "./publish.ts";
+import {
+    defaultBenchmarksDir,
+    digestHasTurns,
+    nextRunNumber,
+    publishRun,
+    publishedRecord,
+    recordHasModelAttempt,
+} from "./publish.ts";
 import type { BenchRecord } from "./record.ts";
 
 // run<N> auto-increments off the highest existing run, ignoring non-run dirs.
@@ -29,6 +36,21 @@ test("[§publish] publishRun returns null when the record has no run handle", ()
         durationMs: 0, status: 0, outcome: "error", turns: 0,
     };
     assert.equal(publishRun(record, mkdtempSync(join(tmpdir(), "bench-pub-"))), null);
+});
+
+test("[§publish-model-attempt-gate] zero provider usage is not a benchmark attempt", () => {
+    const record: BenchRecord = {
+        harness: "deepswe", taskId: "t", model: "m",
+        durationMs: 1000, status: 500, outcome: "fail", turns: 2,
+        run: { dbPath: "/unused/plurnk.db" },
+        usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+    };
+    assert.equal(recordHasModelAttempt(record), false);
+    assert.equal(publishRun(record, mkdtempSync(join(tmpdir(), "bench-pub-"))), null);
+    assert.equal(recordHasModelAttempt({
+        ...record,
+        usage: { promptTokens: 1, completionTokens: 0, totalTokens: 1 },
+    }), true);
 });
 
 // An infra-failure run (turn-less DB) must not be published — gated on the digest.

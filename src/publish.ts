@@ -37,6 +37,12 @@ export const digestHasTurns = (digestDir: string): boolean => {
     }
 };
 
+// SPEC §publish-model-attempt-gate. Automated setup/orchestration turns can exist
+// before the first provider completion. Positive provider usage is the boundary
+// between that infrastructure activity and an actual model benchmark attempt.
+export const recordHasModelAttempt = (record: BenchRecord): boolean =>
+    (record.usage?.totalTokens ?? 0) > 0;
+
 // SPEC §publish-self-referential. The record persisted into benchmarks/run<N>/record.json: the joined record with its
 // digest handle re-pointed at the published (copied) DB, so it never references jobs/ scratch.
 export const publishedRecord = (record: BenchRecord, dbPath: string): BenchRecord => ({
@@ -48,7 +54,7 @@ export const publishedRecord = (record: BenchRecord, dbPath: string): BenchRecor
 // COPIED DB, so the run dir is self-contained. No run handle → nothing to publish (null).
 // A turn-less run (infra failure) is rolled back rather than published.
 export const publishRun = (record: BenchRecord, benchmarksDir: string): string | null => {
-    if (record.run === undefined) return null;
+    if (record.run === undefined || !recordHasModelAttempt(record)) return null;
     const runDir = join(benchmarksDir, `run${nextRunNumber(benchmarksDir)}`);
     const digestDir = join(runDir, "digest");
     mkdirSync(runDir, { recursive: true });
@@ -79,7 +85,7 @@ if (import.meta.main) {
     for (const record of readJob(jobDir, { harness: "deepswe" })) {
         const dir = publishRun(record, benchmarksDir);
         if (dir === null) {
-            console.log(`skipped ${record.taskId} (no run DB)`);
+            console.log(`skipped ${record.taskId} (no publishable model run)`);
             continue;
         }
         // SPEC §publish-requiem. Bank the model's exit interview alongside the digest. Best-effort: requiem re-invokes

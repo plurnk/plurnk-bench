@@ -102,6 +102,11 @@ daemon DB), **`digest/`** (rendered from the COPY — the dir is self-contained)
 - §publish-turnless-gate A turn-less DB (infra failure — the daemon never looped) is rolled
   back, not published. Gate: the rendered digest's `turns`.
   Covered: `publish.test.ts [§publish-turnless-gate]`.
+- §publish-model-attempt-gate Automated setup/orchestration turns before the provider
+  completes do not make an infrastructure failure a benchmark attempt. A published run
+  requires positive provider token usage; zero or absent usage is skipped before copying
+  the DB into the canonical tree.
+  Covered: `publish.test.ts [§publish-model-attempt-gate]`.
 - §publish-self-referential `record.json`'s digest handle points at the PUBLISHED copy,
   never back into the gitignored `jobs/` scratch; the input record is not mutated.
   Covered: `publish.test.ts [§publish-self-referential]`.
