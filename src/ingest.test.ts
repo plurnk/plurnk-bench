@@ -6,14 +6,15 @@ import { join } from "node:path";
 import { deriveOutcome, joinRecord, readJob, readTrial, type PlurnkDoc, type RewardJson } from "./ingest.ts";
 
 const doc = (overrides: Partial<PlurnkDoc> = {}): PlurnkDoc => ({
-    schemaVersion: 1,
-    session: { id: 1, name: "s" },
+    schemaVersion: 3,
+    workspace: { id: 1, name: "s" },
     finalStatus: 200,
     timedOut: false,
-    runId: 7,
+    loopId: 7,
+    workerId: 9,
     turnCount: 9,
     wallMs: 4200,
-    usage: { promptTokens: 800, completionTokens: 200, costPico: 0 },
+    usage: { promptTokens: 800, completionTokens: 200, costUsd: 0 },
     ...overrides,
 });
 
@@ -25,7 +26,15 @@ test("[§verdicts-oracle-outranks] reward 1 is pass even when the loop was cance
 });
 
 test("[§verdicts-failure-class] non-pass is classified by the loop's failure mode", () => {
-    assert.equal(deriveOutcome(doc({ error: { kind: "client:rpc", message: "x" } }), null), "error");
+    assert.equal(deriveOutcome({
+        schemaVersion: 3,
+        problem: {
+            type: "https://problems.plurnk.dev/client/rpc/error",
+            title: "Error",
+            status: 502,
+            detail: "x",
+        },
+    }, null), "error");
     assert.equal(deriveOutcome(doc({ timedOut: true }), reward(0)), "timeout");
     assert.equal(deriveOutcome(doc({ finalStatus: 499 }), reward(0)), "cancelled");
     assert.equal(deriveOutcome(doc(), null), "error");          // oracle never graded, no pass
@@ -43,8 +52,36 @@ test("[§verdicts] joinRecord maps loop side from the plurnk doc, oracle side fr
     assert.equal(record.testPassFraction, 0.83);
     assert.equal(record.turns, 9);
     assert.equal(record.durationMs, 4200);
-    assert.deepEqual(record.usage, { promptTokens: 800, completionTokens: 200, totalTokens: 1000, costPico: 0 });
-    assert.deepEqual(record.run, { sessionId: 1, runId: 7, dbPath: "/jobs/t1/agent/plurnk.db" });
+    assert.deepEqual(record.usage, { promptTokens: 800, completionTokens: 200, totalTokens: 1000, costUsd: 0 });
+    assert.deepEqual(record.run, { workspaceId: 1, workerId: 9, loopId: 7, dbPath: "/jobs/t1/agent/plurnk.db" });
+});
+
+test("joinRecord rejects superseded client JSON instead of guessing its fields", () => {
+    assert.throws(
+        () => joinRecord({
+            harness: "deepswe",
+            taskId: "t",
+            model: "m",
+            doc: { ...doc(), schemaVersion: 1 as 3 },
+            reward: null,
+            dbPath: "/jobs/t/agent/plurnk.db",
+        }),
+        /unsupported plurnk client JSON schema 1; expected 3/,
+    );
+});
+
+test("joinRecord rejects a terminal status without its matching Problem", () => {
+    assert.throws(
+        () => joinRecord({
+            harness: "deepswe",
+            taskId: "t",
+            model: "m",
+            doc: doc({ finalStatus: 500 }),
+            reward: null,
+            dbPath: "/jobs/t/agent/plurnk.db",
+        }),
+        /invalid operation result/,
+    );
 });
 
 // Turn count comes from the doc's own turns[] array — honest even when turnCount lies (0)
@@ -55,7 +92,15 @@ test("[§turns-provenance] readTrial takes the turn count from the doc's turns[]
         mkdirSync(join(trialDir, "agent"), { recursive: true });
         // turnCount lies (0) though 9 turns really ran; the turns[] array is the honest count.
         writeFileSync(join(trialDir, "agent", "plurnk.json"), JSON.stringify({
-            schemaVersion: 1, finalStatus: 500, turnCount: 0,
+            schemaVersion: 3,
+            finalStatus: 500,
+            problem: {
+                type: "https://problems.plurnk.dev/daemon/drain/loop-threw",
+                title: "Loop threw",
+                status: 500,
+                detail: "The loop failed.",
+            },
+            turnCount: 0,
             turns: Array.from({ length: 9 }, (_, i) => ({ sequence: i + 1 })),
         }));
         assert.equal(readTrial(trialDir, { harness: "deepswe", taskId: "t", model: "m" }).turns, 9);
@@ -87,7 +132,7 @@ test("[§attempt-files-modified] readTrial records patchLines + filesModified, d
     try {
         mkdirSync(join(trialDir, "agent"), { recursive: true });
         mkdirSync(join(trialDir, "artifacts"), { recursive: true });
-        writeFileSync(join(trialDir, "agent", "plurnk.json"), JSON.stringify({ schemaVersion: 1, finalStatus: 200, session: { id: 1 }, runId: 2, turnCount: 3 }));
+        writeFileSync(join(trialDir, "agent", "plurnk.json"), JSON.stringify({ schemaVersion: 3, finalStatus: 200, workspace: { id: 1 }, workerId: 4, loopId: 2, turnCount: 3 }));
 
         writeFileSync(patch, "");                                                    // empty → no-attempt
         assert.deepEqual([read().patchLines, read().filesModified], [0, 0]);
@@ -118,7 +163,7 @@ test("[§attempt-files-modified] readTrial records patchLines + filesModified, d
     }
 });
 
-// A crashed loop emits an error doc with no session/runId, but the driver still copied
+// A crashed loop emits an error doc with no workspace/worker identity, but the driver still copied
 // the daemon DB. Bench does NOT read that DB (digest owns DB→forensics) — it carries
 // the dbPath alone as the digest handle so the whole DB stays renderable.
 test("[§digest-boundary] readTrial carries a dbPath-only digest handle when the doc dropped the coordinate", () => {
@@ -126,7 +171,13 @@ test("[§digest-boundary] readTrial carries a dbPath-only digest handle when the
     try {
         mkdirSync(join(trialDir, "agent"), { recursive: true });
         writeFileSync(join(trialDir, "agent", "plurnk.json"), JSON.stringify({
-            schemaVersion: 1, error: { kind: "runtime_error", message: "undefined.length" },
+            schemaVersion: 3,
+            problem: {
+                type: "https://problems.plurnk.dev/client/runtime/error",
+                title: "Error",
+                status: 500,
+                detail: "undefined.length",
+            },
         }));
         const dbPath = join(trialDir, "agent", "plurnk.db");
         writeFileSync(dbPath, "");   // the copied DB exists; bench never opens it
@@ -166,8 +217,8 @@ test("[§provenance] readJob walks a job tree → one record per trial, provenan
             started_at: "2026-06-30T01:00:00Z", finished_at: "2026-06-30T01:05:00Z",
         }));
         writeFileSync(join(pass, "agent", "plurnk.json"), JSON.stringify({
-            schemaVersion: 1, session: { id: 1, name: "s" }, finalStatus: 200,
-            runId: 7, turnCount: 3, wallMs: 1000, usage: null,
+            schemaVersion: 3, workspace: { id: 1, name: "s" }, finalStatus: 200,
+            workerId: 9, loopId: 7, turnCount: 3, wallMs: 1000, usage: null,
         }));
         writeFileSync(join(pass, "verifier", "reward.json"), JSON.stringify({ reward: 1, partial: 1 }));
 
@@ -194,27 +245,61 @@ test("[§provenance] readJob walks a job tree → one record per trial, provenan
         assert.equal(bar.taskId, "datacurve/bar");
         assert.equal(bar.model, "plurnk/turboderp");
         assert.equal(bar.outcome, "timeout");                       // AgentTimeoutError reclassified
-        assert.equal(bar.error, "AgentTimeoutError: 1800s");        // Pier exception surfaced
+        assert.equal(bar.status, 504);
+        assert.equal(bar.problem?.detail, "AgentTimeoutError: 1800s");
+        assert.equal(bar.problem?.type, "https://problems.plurnk.dev/bench/pier/agent-timeout-error");
+        assert.equal(bar.problem?.upstreamType, "AgentTimeoutError");
         assert.equal(bar.startedAt, "2026-06-30T02:00:00Z");
         assert.equal(bar.run, undefined);                           // empty doc → no digest handle
 
         assert.equal(foo.taskId, "datacurve/foo");
         assert.equal(foo.outcome, "pass");
-        assert.deepEqual(foo.run, { sessionId: 1, runId: 7, dbPath: join(pass, "agent", "plurnk.db") });
+        assert.deepEqual(foo.run, { workspaceId: 1, workerId: 9, loopId: 7, dbPath: join(pass, "agent", "plurnk.db") });
         assert.equal(foo.finishedAt, "2026-06-30T01:05:00Z");
     } finally {
         rmSync(root, { recursive: true, force: true });
     }
 });
 
-test("[§verdicts-failure-class] a client error doc yields an error record with no run handle", () => {
+test("[§verdicts-failure-class] a client Problem doc yields an error record with no run handle", () => {
     const record = joinRecord({
         harness: "deepswe", taskId: "t", model: "gemma",
-        doc: { schemaVersion: 1, error: { kind: "client:connection", message: "refused" } },
+        doc: {
+            schemaVersion: 3,
+            problem: {
+                type: "https://problems.plurnk.dev/client/connection/refused",
+                title: "Refused",
+                status: 503,
+                detail: "refused",
+                retryable: true,
+            },
+        },
         reward: null, dbPath: "/jobs/t/agent/plurnk.db",
     });
     assert.equal(record.outcome, "error");
-    assert.equal(record.error, "client:connection: refused");
-    assert.equal(record.run, undefined);         // no session/runId → no digest handle
-    assert.equal(record.status, 0);              // no finalStatus in an error doc
+    assert.equal(record.status, 503);
+    assert.equal(record.problem?.type, "https://problems.plurnk.dev/client/connection/refused");
+    assert.equal(record.run, undefined);         // no workspace/worker identity -> no scoped digest handle
+});
+
+test("legacy client error documents are rejected instead of translated", () => {
+    assert.throws(
+        () => joinRecord({
+            harness: "deepswe",
+            taskId: "t",
+            model: "gemma",
+            doc: {
+                schemaVersion: 3,
+                error: {
+                    type: "https://problems.plurnk.dev/client/connection/refused",
+                    title: "Refused",
+                    status: 503,
+                    detail: "refused",
+                },
+            } as unknown as PlurnkDoc,
+            reward: null,
+            dbPath: "/jobs/t/agent/plurnk.db",
+        }),
+        /legacy plurnk client error field/,
+    );
 });

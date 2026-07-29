@@ -14,7 +14,7 @@ const sample = (overrides: Partial<BenchRecord> = {}): BenchRecord => ({
     reward: 1,
     testPassFraction: 1,
     turns: 12,
-    run: { sessionId: 1, runId: 1, dbPath: "/tmp/plurnk-task.db" },
+    run: { workspaceId: 1, workerId: 2, loopId: 3, dbPath: "/tmp/plurnk-task.db" },
     ...overrides,
 });
 
@@ -34,9 +34,9 @@ test("[§verdicts] status (loop verdict) is independent of outcome (oracle verdi
     assert.equal(record.reward, 0);
 });
 
-// The forensic handle survives serialization — a skeptic reads dbPath+runId off a
+// The forensic handle survives serialization - a skeptic reads its scope off a
 // stored record and runs `digest <dbPath>` to reconstruct the exact run.
 test("[§digest-boundary] digest drill-down handle is preserved", () => {
     const restored = JSON.parse(JSON.stringify(sample())) as BenchRecord;
-    assert.deepEqual(restored.run, { sessionId: 1, runId: 1, dbPath: "/tmp/plurnk-task.db" });
+    assert.deepEqual(restored.run, { workspaceId: 1, workerId: 2, loopId: 3, dbPath: "/tmp/plurnk-task.db" });
 });

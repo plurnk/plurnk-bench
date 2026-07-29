@@ -2,7 +2,7 @@
 // `--json` document (loop side) + Pier's verifier `reward.json` (oracle side).
 //
 // Shapes mirror the producers exactly:
-//   - PlurnkDoc  ← plurnk/src/cli.ts buildJsonRecord (schemaVersion 1) / buildJsonError
+//   - PlurnkDoc  <- plurnk/src/cli.ts buildJsonRecord (schemaVersion 3) / buildJsonError
 //   - RewardJson ← deep-swe tests/grader.py reward.json
 // The dir-walking glue (which trial dir, taskId/model provenance) firms up against a
 // real Pier `jobs/` tree at smoke time; the JOIN below is the grounded, tested core.
@@ -10,21 +10,45 @@
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import type { BenchRecord, Outcome, Usage } from "./record.ts";
+import {
+    Problems,
+    Validator,
+    type ProblemDetails,
+} from "@plurnk/plurnk-contracts";
 
 // The subset of plurnk's `--json` document this join consumes. A failed one-shot
-// emits `{ schemaVersion, error: { kind, message } }` instead of a full record.
+// emits `{ schemaVersion, problem: ProblemDetails }` instead of a full record.
 export interface PlurnkDoc {
-    schemaVersion: number;
-    session?: { id: number; name: string };
+    schemaVersion: 3;
+    workspace?: { id: number; name: string };
     finalStatus?: number;
     timedOut?: boolean;
-    runId?: number | null;
+    loopId?: number | null;
+    workerId?: number | null;
     turnCount?: number;
     turns?: unknown[];
     wallMs?: number;
-    usage?: { promptTokens: number; completionTokens: number; costPico: number } | null;
-    error?: { kind: string; message: string };
+    usage?: { promptTokens: number; completionTokens: number; costUsd: number } | null;
+    problem?: ProblemDetails;
 }
+
+const assertPlurnkDoc = (doc: PlurnkDoc): PlurnkDoc => {
+    if (doc.schemaVersion !== 3) {
+        throw new Error(`unsupported plurnk client JSON schema ${String(doc.schemaVersion)}; expected 3`);
+    }
+    if ("error" in doc) {
+        throw new Error("legacy plurnk client error field is not supported; use problem");
+    }
+    if (doc.finalStatus === undefined) {
+        if (doc.problem !== undefined) Validator.assertProblemDetails(doc.problem);
+    } else {
+        Validator.assertOperationResult({
+            status: doc.finalStatus,
+            ...(doc.problem === undefined ? {} : { problem: doc.problem }),
+        });
+    }
+    return doc;
+};
 
 // deep-swe grader output. `reward` is the binary verdict; `partial` the fraction of
 // all (fail-to-pass + pass-to-pass) tests passing; `apply_failed` set if the patch
@@ -47,7 +71,7 @@ export interface RewardJson {
 // doc → error, timed out → timeout, cancelled SEND[499] → cancelled, else fail).
 export const deriveOutcome = (doc: PlurnkDoc, reward: RewardJson | null): Outcome => {
     if (reward?.reward === 1) return "pass";
-    if (doc.error !== undefined) return "error";
+    if (doc.problem !== undefined && doc.finalStatus === undefined) return "error";
     if (doc.timedOut === true) return "timeout";
     if (doc.finalStatus === 499) return "cancelled";
     if (reward === null) return "error";   // oracle never graded and the loop didn't pass
@@ -56,8 +80,8 @@ export const deriveOutcome = (doc: PlurnkDoc, reward: RewardJson | null): Outcom
 
 const usageOf = (doc: PlurnkDoc): Usage | undefined => {
     if (doc.usage === undefined || doc.usage === null) return undefined;
-    const { promptTokens, completionTokens, costPico } = doc.usage;
-    return { promptTokens, completionTokens, totalTokens: promptTokens + completionTokens, costPico };
+    const { promptTokens, completionTokens, costUsd } = doc.usage;
+    return { promptTokens, completionTokens, totalTokens: promptTokens + completionTokens, costUsd };
 };
 
 export interface JoinInput {
@@ -70,12 +94,13 @@ export interface JoinInput {
 }
 
 export const joinRecord = ({ harness, taskId, model, doc, reward, dbPath }: JoinInput): BenchRecord => {
+    assertPlurnkDoc(doc);
     const record: BenchRecord = {
         harness,
         taskId,
         model,
         durationMs: doc.wallMs ?? 0,
-        status: doc.finalStatus ?? 0,
+        status: doc.finalStatus ?? doc.problem?.status ?? 0,
         outcome: deriveOutcome(doc, reward),
         // SPEC §turns-provenance: the doc's own turns[] array is honest even when turnCount lies (0) on abnormal
         // termination; fall back to turnCount, then 0. No raw-DB read — SqlRite owns the DB.
@@ -91,10 +116,18 @@ export const joinRecord = ({ harness, taskId, model, doc, reward, dbPath }: Join
         if (reward.p2p_total !== undefined && reward.p2p_passed !== undefined && reward.p2p_passed < reward.p2p_total)
             record.p2pRegressed = true;
     }
-    if (doc.session !== undefined && typeof doc.runId === "number") {
-        record.run = { sessionId: doc.session.id, runId: doc.runId, dbPath };
+    if (doc.workspace !== undefined && typeof doc.workerId === "number") {
+        record.run = {
+            workspaceId: doc.workspace.id,
+            workerId: doc.workerId,
+            ...(typeof doc.loopId === "number" ? { loopId: doc.loopId } : {}),
+            dbPath,
+        };
     }
-    if (doc.error !== undefined) record.error = `${doc.error.kind}: ${doc.error.message}`;
+    const problem = doc.problem;
+    if (problem !== undefined) {
+        record.problem = problem;
+    }
     return record;
 };
 
@@ -112,6 +145,12 @@ export interface PierTrialResult {
 
 // Pier exception types that mean the budget ran out, not that the loop scored a fail.
 const TIMEOUT_EXCEPTIONS = new Set(["AgentTimeoutError", "VerifierTimeoutError"]);
+
+const problemCode = (value: string): string => value
+    .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase() || "unknown-exception";
 
 const readJson = <T>(path: string): T | null => {
     try {
@@ -138,14 +177,23 @@ const countPatchLines = (raw: string): number => {
 
 // Read one Pier trial directory's artifacts and join them. `reward.json` absent
 // (verifier crash / disabled) joins as a null oracle → an `error` outcome. The digest
-// handle is the DB POINTER, never a bench-side DB read — plurnk owns DB→forensics
-// (digest). On a clean finish the loop doc carries session+runId and joinRecord scopes
+// handle is the DB POINTER, never a bench-side DB read - plurnk owns DB->forensics
+// (digest). On a clean finish the loop doc carries workspace+worker identity and joinRecord scopes
 // the handle to that run; on a crash/error doc the coordinate is absent but the driver
 // still copied the DB, so we carry `dbPath` alone (digest renders the whole DB from it).
 // No DB copied at all → no handle, honestly absent.
 export const readTrial = (trialDir: string, meta: { harness: string; taskId: string; model: string }): BenchRecord => {
     const doc = readJson<PlurnkDoc>(join(trialDir, "agent", "plurnk.json"))
-        ?? { schemaVersion: 0, error: { kind: "ingest", message: "plurnk.json missing" } };
+        ?? {
+            schemaVersion: 3,
+            problem: Problems.create(
+                "bench:ingest",
+                "client-record-missing",
+                500,
+                "The trial did not produce agent/plurnk.json.",
+                { stage: "ingest", retryable: false },
+            ),
+        };
     const reward = readJson<RewardJson>(join(trialDir, "verifier", "reward.json"));
     const dbPath = join(trialDir, "agent", "plurnk.db");
     const record = joinRecord({ ...meta, doc, reward, dbPath });
@@ -189,15 +237,28 @@ export const readJob = (jobDir: string, { harness }: { harness: string }): Bench
         });
         if (result.started_at !== undefined) record.startedAt = result.started_at;
         if (result.finished_at !== undefined) record.finishedAt = result.finished_at;
-        // A Pier-level failure (build/timeout/cancel) the loop doc never saw: surface
-        // it as the error detail and reclassify a timeout — but only when the join
+        // A Pier-level failure (build/timeout/cancel) the loop doc never saw: map
+        // the external exception once and reclassify a timeout - but only when the join
         // didn't already land a verdict from a real loop doc (outcome still "error").
         const ex = result.exception_info;
         if (ex?.exception_type !== undefined && record.outcome === "error") {
-            record.error = ex.exception_message
+            const detail = ex.exception_message
                 ? `${ex.exception_type}: ${ex.exception_message}`
                 : ex.exception_type;
-            if (TIMEOUT_EXCEPTIONS.has(ex.exception_type)) record.outcome = "timeout";
+            const timedOut = TIMEOUT_EXCEPTIONS.has(ex.exception_type);
+            record.problem = Problems.create(
+                "bench:pier",
+                problemCode(ex.exception_type),
+                timedOut ? 504 : 500,
+                detail,
+                {
+                    stage: "trial",
+                    upstreamType: ex.exception_type,
+                    retryable: false,
+                },
+            );
+            record.status = record.problem.status;
+            if (timedOut) record.outcome = "timeout";
         }
         records.push(record);
     }

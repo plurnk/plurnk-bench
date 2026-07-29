@@ -63,8 +63,8 @@ export const publishRun = (record: BenchRecord, benchmarksDir: string): string |
     Digest.run({
         dbPath: db,
         digestDir,
-        ...(record.run.runId !== undefined ? { runId: record.run.runId } : {}),
-        ...(record.run.sessionId !== undefined ? { sessionId: record.run.sessionId } : {}),
+        ...(record.run.workerId !== undefined ? { workerId: record.run.workerId } : {}),
+        ...(record.run.workspaceId !== undefined ? { workspaceId: record.run.workspaceId } : {}),
     });
     if (!digestHasTurns(digestDir)) {
         rmSync(runDir, { recursive: true, force: true });

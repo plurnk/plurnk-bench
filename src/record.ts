@@ -1,7 +1,7 @@
 // The benchmark task attempt: one DeepSWE task driven through plurnk to a verdict.
 //
 // Shaped by the two real artifacts it joins (see ingest.ts): the loop side from the
-// plurnk client's `--json` document (finalStatus, runId, turnCount, wallMs, usage —
+// plurnk client's `--json` document (finalStatus, loopId, turnCount, wallMs, usage -
 // the daemon's own reported numbers, captured not re-summed), and the oracle side
 // from Pier's verifier `reward.json`. This is the one concept the daemon DB + digest
 // don't model; `run` is the drill-down handle back into digest.
@@ -18,17 +18,19 @@ export interface Usage {
     promptTokens: number;
     completionTokens: number;
     totalTokens: number;
-    costPico?: number;          // daemon's cost estimate in pico-dollars, when priced
+    costUsd: number;            // daemon's standard USD estimate
 }
 
 // Pointer into the daemon DB (SPEC §digest-boundary) — bench NEVER reads the DB
 // itself (digest owns DB→forensics). `dbPath` is the always-present handle: `digest
-// <dbPath>` renders the run(s). session/runId come from the client's `--json` doc when
+// <dbPath>` renders the run(s). Workspace, worker, and loop identity come from
+// the client's `--json` doc when
 // the loop reported them (a crash/error doc drops them) and scope digest to one run.
 export interface RunRef {
     dbPath: string;             // daemon DB path — always present when a DB was copied
-    sessionId?: number;         // plurnk session id, from the --json doc — digest scope
-    runId?: number;             // plurnk run id, from the --json doc — digest drill-down key
+    workspaceId?: number;       // workspace scope for digest
+    workerId?: number;          // conversation worker scope for digest
+    loopId?: number;            // terminal loop identity for correlation
 }
 
 export interface BenchRecord {
@@ -58,5 +60,5 @@ export interface BenchRecord {
     run?: RunRef;               // digest drill-down handle (absent if the run never started)
     startedAt?: string;         // ISO 8601, when available (Pier trial timing)
     finishedAt?: string;        // ISO 8601
-    error?: string;             // failure detail when outcome is error/timeout
+    problem?: import("@plurnk/plurnk-contracts").ProblemDetails; // exact client or terminal failure occurrence
 }

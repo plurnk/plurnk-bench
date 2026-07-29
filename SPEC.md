@@ -31,7 +31,7 @@ Covered: `ingest.test.ts [§verdicts-oracle-outranks]`.
 
 ### §verdicts-failure-class Non-pass is classified by the loop's failure mode
 
-In order: client error doc → `error`; `timedOut` → `timeout`; `finalStatus 499` →
+In order: client Problem doc -> `error`; `timedOut` -> `timeout`; `finalStatus 499` ->
 `cancelled`; oracle never graded (`reward.json` absent) → `error`; else `fail`. Pier-level
 exceptions (`AgentTimeoutError`, `VerifierTimeoutError`) reclassify an `error` outcome to
 `timeout` — but never overwrite a verdict a real loop doc already landed.
@@ -72,7 +72,7 @@ p2pRegressed` → BROKE-THE-BUILD · `filesModified>0, no regress, fraction<1` �
 DB→forensics belongs to the daemon's own digest (reused via
 `@plurnk/plurnk-service/digest`), backed by the SqlRite ORM — bench holds a **pointer**
 (`RunRef.dbPath`), renders through `Digest.run`, and issues zero raw SQL. The handle rules:
-loop doc carried `session`+`runId` → scoped handle; crash/error doc but a DB was copied →
+loop doc carried `workspace`+`workerId` -> scoped handle; crash/error doc but a DB was copied ->
 `dbPath`-only handle (digest renders the whole DB); no DB copied → no handle, honestly
 absent — the bench never fabricates one.
 Covered: `ingest.test.ts [§digest-boundary]` ×2, `digest.test.ts [§digest-boundary]` ×2,
@@ -83,6 +83,13 @@ Covered: `ingest.test.ts [§digest-boundary]` ×2, `digest.test.ts [§digest-bou
 `BenchRecord` round-trips through JSON without loss — it serializes 1:1 to `record.json` /
 a JSONL line.
 Covered: `record.test.ts [§record-serial]`, `[§verdicts]`.
+
+The accepted client-document schema is version 3. Its run reference uses
+`workspaceId`/`workerId`/`loopId`; cost is the ordinary numeric `costUsd`
+reported by the daemon. A failed client document preserves its exact RFC 9457
+Problem under `problem`; Pier exceptions are mapped once to a `bench:pier`
+Problem. Version 1, legacy session/run coordinates, pico-USD, the old `error`
+field, and flattened failure strings are rejected rather than translated.
 
 ## §provenance Job-tree walking and trial identity
 

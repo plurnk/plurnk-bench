@@ -17,13 +17,13 @@ export const digestDirFor = (dbPath: string): string => join(dirname(dbPath), ".
 // DB — a real signal, surfaced, not swallowed.
 export const renderDigest = (record: BenchRecord): string | null => {
     if (record.run === undefined) return null;
-    const { dbPath, runId, sessionId } = record.run;
+    const { dbPath, workerId, workspaceId } = record.run;
     const digestDir = digestDirFor(dbPath);
     Digest.run({
         dbPath,
         digestDir,
-        ...(runId !== undefined ? { runId } : {}),
-        ...(sessionId !== undefined ? { sessionId } : {}),
+        ...(workerId !== undefined ? { workerId } : {}),
+        ...(workspaceId !== undefined ? { workspaceId } : {}),
     });
     return digestDir;
 };

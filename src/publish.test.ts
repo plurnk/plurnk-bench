@@ -43,13 +43,13 @@ test("[§publish-model-attempt-gate] zero provider usage is not a benchmark atte
         harness: "deepswe", taskId: "t", model: "m",
         durationMs: 1000, status: 500, outcome: "fail", turns: 2,
         run: { dbPath: "/unused/plurnk.db" },
-        usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+        usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0 },
     };
     assert.equal(recordHasModelAttempt(record), false);
     assert.equal(publishRun(record, mkdtempSync(join(tmpdir(), "bench-pub-"))), null);
     assert.equal(recordHasModelAttempt({
         ...record,
-        usage: { promptTokens: 1, completionTokens: 0, totalTokens: 1 },
+        usage: { promptTokens: 1, completionTokens: 0, totalTokens: 1, costUsd: 0 },
     }), true);
 });
 
@@ -74,11 +74,11 @@ test("[§publish-self-referential] publishedRecord re-points the DB handle and p
         harness: "deepswe", taskId: "abs-module-cache-flags", model: "plurnk/gbuild",
         durationMs: 1000, status: 499, outcome: "timeout", turns: 15,
         reward: 0, filesModified: 1, p2pRegressed: true, testPassFraction: 0.13,
-        run: { dbPath: "/jobs/scratch/agent/plurnk.db", runId: 7, sessionId: 1 },
+        run: { dbPath: "/jobs/scratch/agent/plurnk.db", workerId: 7, workspaceId: 1, loopId: 8 },
     };
     const published = publishedRecord(record, "/benchmarks/run9/plurnk.db");
     assert.equal(published.run!.dbPath, "/benchmarks/run9/plurnk.db");   // self-referential, not jobs/
-    assert.equal(published.run!.runId, 7);                                // handle otherwise intact
+    assert.equal(published.run!.workerId, 7);                             // handle otherwise intact
     // the oracle side that forced reads back to jobs/ now travels with the published record
     assert.equal(published.reward, 0);
     assert.equal(published.outcome, "timeout");
