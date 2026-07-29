@@ -678,6 +678,17 @@ export const requiemIsComplete = (
     reportExists: boolean,
 ): boolean => status === 0 && markdownExists && reportExists;
 
+export const requiemModelAlias = (
+    enabled: boolean,
+    configured: string | undefined,
+): string | null => {
+    if (!enabled) return null;
+    if (configured === undefined || configured.trim() === "") {
+        throw new Error("PLURNK_BENCHLET_REQUIEM_MODEL must name a model alias when requiems are enabled");
+    }
+    return configured;
+};
+
 const requiemSummary = (path: string): Record<string, unknown> => {
     const report = JSON.parse(readFileSync(path, "utf8")) as {
         workers?: Array<{
@@ -726,6 +737,10 @@ const main = async (): Promise<void> => {
     const candidateOverhead = Number(process.env.PLURNK_BENCHLET_CANDIDATE_OVERHEAD_SEC);
     const requiemTimeout = Number(process.env.PLURNK_BENCHLET_REQUIEM_TIMEOUT_SEC);
     const requiemEnabled = process.env.PLURNK_BENCHLET_REQUIEM === "1";
+    const requiemModel = requiemModelAlias(
+        requiemEnabled,
+        process.env.PLURNK_BENCHLET_REQUIEM_MODEL,
+    );
     if (!Number.isSafeInteger(candidateTimeout) || candidateTimeout <= 0) {
         throw new Error("PLURNK_BENCHLET_CANDIDATE_TIMEOUT_SEC must be a positive integer");
     }
@@ -807,6 +822,7 @@ const main = async (): Promise<void> => {
             candidateTimeoutSeconds: candidateTimeout,
             candidateOverheadSeconds: candidateOverhead,
             requiemTimeoutSeconds: requiemTimeout,
+            requiemModelAlias: requiemModel,
             oracleSuiteTimeoutSeconds: Object.fromEntries(
                 manifest.suites.map((suite) => [suite.name, suite.timeoutSeconds]),
             ),
@@ -922,7 +938,7 @@ const main = async (): Promise<void> => {
     }
 
     let requiem: Record<string, unknown> = { enabled: requiemEnabled, status: null };
-    if (requiemEnabled) {
+    if (requiemModel !== null) {
         activeStage = "requiem";
         const requiemArgs = [
             `--env-file=${operatorEnv}`,
@@ -936,7 +952,7 @@ const main = async (): Promise<void> => {
             cwd: serviceRoot,
             env: {
                 ...process.env,
-                PLURNK_MODEL: model,
+                PLURNK_MODEL: requiemModel,
             },
             stdoutPath: resolve(runDir, "requiem.stdout.log"),
             stderrPath: resolve(runDir, "requiem.stderr.log"),
@@ -952,6 +968,7 @@ const main = async (): Promise<void> => {
         );
         requiem = {
             enabled: true,
+            modelAlias: requiemModel,
             status: result.status,
             signal: result.signal,
             timedOut: result.timedOut,

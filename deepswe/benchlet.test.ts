@@ -14,6 +14,7 @@ import {
     gradeObservations,
     parseGoTestEvents,
     requiemIsComplete,
+    requiemModelAlias,
     runToFiles,
 } from "./benchlet.ts";
 
@@ -206,4 +207,13 @@ test("[§benchlet-failure] benchlet requires both requiem artifacts and a succes
     assert.equal(requiemIsComplete(1, true, true), false);
     assert.equal(requiemIsComplete(0, true, false), false);
     assert.equal(requiemIsComplete(0, false, true), false);
+});
+
+test("[§benchlet-requiem-witness] requiem selection is independent and explicit", () => {
+    assert.equal(requiemModelAlias(true, "glm"), "glm");
+    assert.equal(requiemModelAlias(false, undefined), null);
+    assert.throws(
+        () => requiemModelAlias(true, undefined),
+        /PLURNK_BENCHLET_REQUIEM_MODEL must name a model alias/,
+    );
 });

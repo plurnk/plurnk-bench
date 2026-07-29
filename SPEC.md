@@ -163,13 +163,18 @@ complete evidence while changing one product variable at a time.
   model score. A requiem is complete only when its process succeeds and both
   `requiem.md` and `requiem.json` exist. Infrastructure failures retain the
   stage, error, provenance, and all artifacts written before the failure.
+- §benchlet-requiem-witness The requiem is an independent forensic model call,
+  not another candidate turn. `PLURNK_BENCHLET_REQUIEM_MODEL` names its
+  required witness alias; the candidate alias is never an implicit fallback.
+  Provenance records both aliases, and the witness receives the complete
+  evidence without truncation or summarization.
 - §benchlet-location Runs are atomically allocated as sibling
   `../benchmarks/run<N>-deepswe-abs-<model>/` directories. Concurrent claims
   advance to another number rather than nesting or reusing a run.
 
 Covered: `benchlet.test.ts [§benchlet-oracle]`,
-`[§benchlet-evidence]`, `[§benchlet-failure]`, and
-`[§benchlet-location]`. The real `--preflight` path covers task hashes,
+`[§benchlet-evidence]`, `[§benchlet-failure]`, `[§benchlet-location]`, and
+`[§benchlet-requiem-witness]`. The real `--preflight` path covers task hashes,
 repository fetch, official verifier preparation, and the pristine baseline.
 
 ## §config-carry The runner carries authoritative config, re-declaring nothing
