@@ -10,6 +10,7 @@ import { basename, resolve } from "node:path";
 import test from "node:test";
 import {
     allocateRun,
+    digestSummary,
     gradeObservations,
     parseGoTestEvents,
     requiemIsComplete,
@@ -73,6 +74,43 @@ test("[§benchlet-oracle] benchlet grading rejects an unapplied patch without ru
     assert.equal(result.reward, 0);
     assert.equal(result.partial, 0);
     assert.ok(result.tests.every((entry) => entry.output === "submission patch did not apply"));
+});
+
+test("[§benchlet-evidence] benchlet summary preserves the terminal loop Problem", () => {
+    const summary = digestSummary({
+        workers: [{ id: 4, name: "model-1" }],
+        loops: [{
+            id: 2,
+            worker_id: 4,
+            sequence: 1,
+            status: 500,
+            terminal_message: "invalid emission",
+            terminated_by: null,
+            result: {
+                status: 500,
+                problem: {
+                    type: "https://problems.plurnk.dev/engine/generation/invalid-emission-exhausted",
+                    status: 500,
+                },
+            },
+        }],
+        turns: [],
+        turn_attempts: [],
+        log_entries: [],
+    });
+
+    assert.deepEqual(summary.loopOutcomes, [{
+        workerId: 4,
+        workerName: "model-1",
+        loop: 1,
+        status: 500,
+        terminalMessage: "invalid emission",
+        terminatedBy: null,
+        problem: {
+            type: "https://problems.plurnk.dev/engine/generation/invalid-emission-exhausted",
+            status: 500,
+        },
+    }]);
 });
 
 test("[§benchlet-evidence] benchlet shell owns the operator environment bootstrap", () => {

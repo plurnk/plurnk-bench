@@ -70,6 +70,22 @@ interface OracleResult {
 }
 
 interface DigestJson {
+    workers: Array<{
+        id: number;
+        name: string;
+    }>;
+    loops: Array<{
+        id: number;
+        worker_id: number;
+        sequence: number;
+        status: number;
+        terminal_message: string | null;
+        terminated_by: string | null;
+        result: {
+            status: number;
+            problem?: Record<string, unknown>;
+        };
+    }>;
     turns: Array<{
         id: number;
         model: string | null;
@@ -568,7 +584,30 @@ const gradePatch = async (
     }
 };
 
-const digestSummary = (digest: DigestJson): Record<string, unknown> => {
+export const digestSummary = (digest: DigestJson): {
+    modelTurns: number;
+    providerAttempts: number;
+    rejectedAttempts: number;
+    models: string[];
+    usage: {
+        prompt: number;
+        completion: number;
+        reasoning: number;
+        cached: number;
+        costUsd: number;
+    };
+    loopOutcomes: Array<{
+        workerId: number;
+        workerName: string | null;
+        loop: number;
+        status: number;
+        terminalMessage: string | null;
+        terminatedBy: string | null;
+        problem: Record<string, unknown> | null;
+    }>;
+    operationCounts: Record<string, number>;
+    problemTypes: Record<string, number>;
+} => {
     const operationCounts: Record<string, number> = {};
     const problemTypes: Record<string, number> = {};
     for (const entry of digest.log_entries.filter((entry) => entry.origin === "model")) {
@@ -579,6 +618,7 @@ const digestSummary = (digest: DigestJson): Record<string, unknown> => {
         }
     }
     const attempts = digest.turn_attempts;
+    const workerNames = new Map(digest.workers.map((worker) => [worker.id, worker.name]));
     return {
         modelTurns: digest.turns.filter((turn) => turn.model !== null && turn.model !== "unknown").length,
         providerAttempts: attempts.length,
@@ -591,6 +631,15 @@ const digestSummary = (digest: DigestJson): Record<string, unknown> => {
             cached: attempts.reduce((sum, attempt) => sum + attempt.usage_cached, 0),
             costUsd: attempts.reduce((sum, attempt) => sum + attempt.usage_cost_usd, 0),
         },
+        loopOutcomes: digest.loops.map((loop) => ({
+            workerId: loop.worker_id,
+            workerName: workerNames.get(loop.worker_id) ?? null,
+            loop: loop.sequence,
+            status: loop.status,
+            terminalMessage: loop.terminal_message,
+            terminatedBy: loop.terminated_by,
+            problem: loop.result.problem ?? null,
+        })),
         operationCounts,
         problemTypes,
     };
@@ -662,12 +711,16 @@ const main = async (): Promise<void> => {
     const operatorEnv = expandHome(process.env.PLURNK_BENCHLET_OPERATOR_ENV ?? "");
     const candidateTimeout = Number(process.env.PLURNK_BENCHLET_CANDIDATE_TIMEOUT_SEC);
     const candidateOverhead = Number(process.env.PLURNK_BENCHLET_CANDIDATE_OVERHEAD_SEC);
+    const requiemTimeout = Number(process.env.PLURNK_BENCHLET_REQUIEM_TIMEOUT_SEC);
     const requiemEnabled = process.env.PLURNK_BENCHLET_REQUIEM === "1";
     if (!Number.isSafeInteger(candidateTimeout) || candidateTimeout <= 0) {
         throw new Error("PLURNK_BENCHLET_CANDIDATE_TIMEOUT_SEC must be a positive integer");
     }
     if (!Number.isSafeInteger(candidateOverhead) || candidateOverhead <= 0) {
         throw new Error("PLURNK_BENCHLET_CANDIDATE_OVERHEAD_SEC must be a positive integer");
+    }
+    if (!Number.isSafeInteger(requiemTimeout) || requiemTimeout <= 0) {
+        throw new Error("PLURNK_BENCHLET_REQUIEM_TIMEOUT_SEC must be a positive integer");
     }
     if (!existsSync(operatorEnv)) throw new Error(`operator model environment is missing: ${operatorEnv}`);
 
@@ -740,6 +793,7 @@ const main = async (): Promise<void> => {
         configuration: {
             candidateTimeoutSeconds: candidateTimeout,
             candidateOverheadSeconds: candidateOverhead,
+            requiemTimeoutSeconds: requiemTimeout,
             oracleSuiteTimeoutSeconds: Object.fromEntries(
                 manifest.suites.map((suite) => [suite.name, suite.timeoutSeconds]),
             ),
@@ -831,7 +885,8 @@ const main = async (): Promise<void> => {
     );
     writeJson(resolve(runDir, "oracle-working.json"), workingOracle);
     activeStage = "oracle-submission";
-    const submissionOracle = patchState.submissionSha256 === patchState.workingSha256
+    const submissionReusedWorking = patchState.submissionSha256 === patchState.workingSha256;
+    const submissionOracle = submissionReusedWorking
         ? workingOracle
         : await gradePatch(
             "submission",
@@ -843,6 +898,15 @@ const main = async (): Promise<void> => {
             config,
         );
     writeJson(resolve(runDir, "oracle-submission.json"), submissionOracle);
+    if (submissionReusedWorking) {
+        const reuseDir = resolve(runDir, "oracle-submission");
+        mkdirSync(reuseDir);
+        writeJson(resolve(reuseDir, "reused.json"), {
+            reusedFrom: "oracle-working",
+            reason: "working.patch and model.patch have identical SHA-256 hashes",
+            patchSha256: patchState.submissionSha256,
+        });
+    }
 
     let requiem: Record<string, unknown> = { enabled: requiemEnabled, status: null };
     if (requiemEnabled) {
@@ -864,6 +928,7 @@ const main = async (): Promise<void> => {
             stdoutPath: resolve(runDir, "requiem.stdout.log"),
             stderrPath: resolve(runDir, "requiem.stderr.log"),
             tee: true,
+            timeoutMs: requiemTimeout * 1_000,
         });
         const markdownPath = resolve(runDir, "digest/requiem.md");
         const reportPath = resolve(runDir, "digest/requiem.json");
@@ -888,9 +953,16 @@ const main = async (): Promise<void> => {
     activeStage = "finalize";
     const completedAt = new Date();
     const harnessStatus = requiemEnabled && requiem.complete !== true ? "incomplete" : "complete";
+    const requiemCostUsd = typeof requiem.summary === "object"
+        && requiem.summary !== null
+        && "costUsd" in requiem.summary
+        && typeof requiem.summary.costUsd === "number"
+        ? requiem.summary.costUsd
+        : 0;
     writeJson(resolve(runDir, "result.json"), {
         schemaVersion: 1,
         harnessStatus,
+        totalCostUsd: summary.usage.costUsd + requiemCostUsd,
         candidate: {
             status: candidate.status,
             signal: candidate.signal,
@@ -903,6 +975,10 @@ const main = async (): Promise<void> => {
             baseline,
             working: workingOracle,
             submission: submissionOracle,
+            submissionEvidence: {
+                reusedWorking: submissionReusedWorking,
+                patchSha256: patchState.submissionSha256,
+            },
         },
         requiem,
         startedAt: startedAt.toISOString(),

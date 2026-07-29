@@ -157,8 +157,8 @@ complete evidence while changing one product variable at a time.
 - §benchlet-evidence Every command records raw stdout, raw stderr, exit status,
   signal, and timeout state before the harness reads its output. A complete run
   includes the database, digest, exact packet files, all provider attempts and
-  their reasoning/admission errors, both oracle results, exact requiem request
-  and response evidence, usage, and USD cost.
+  their reasoning/admission errors, terminal loop Problems, both oracle
+  results, exact requiem request and response evidence, usage, and USD cost.
 - §benchlet-failure A run with no provider attempt is infrastructure, not a
   model score. A requiem is complete only when its process succeeds and both
   `requiem.md` and `requiem.json` exist. Infrastructure failures retain the
