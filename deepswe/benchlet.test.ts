@@ -44,6 +44,30 @@ test("[§benchlet-oracle] benchlet rejects malformed go test JSON instead of sil
     );
 });
 
+test("[§benchlet-oracle] benchlet preserves a test interrupted before its terminal event", () => {
+    const events = [
+        JSON.stringify({ Action: "run", Package: "example.test/pkg", Test: "TestInterrupted" }),
+        JSON.stringify({
+            Action: "output",
+            Package: "example.test/pkg",
+            Test: "TestInterrupted",
+            Output: "=== RUN   TestInterrupted\n",
+        }),
+        JSON.stringify({ Action: "output", Package: "example.test/pkg", Output: "FAIL\texample.test/pkg\n" }),
+        JSON.stringify({ Action: "fail", Package: "example.test/pkg" }),
+    ].join("\n");
+
+    const parsed = parseGoTestEvents(events);
+
+    assert.deepEqual(parsed.get("example.test/pkg.TestInterrupted"), {
+        status: "failed",
+        output: [
+            "=== RUN   TestInterrupted",
+            "go test ended after starting this test without emitting a terminal event",
+        ].join("\n"),
+    });
+});
+
 test("[§benchlet-oracle] benchlet grading distinguishes absent evidence from a pass", () => {
     const result = gradeObservations({
         base_commit: "base",

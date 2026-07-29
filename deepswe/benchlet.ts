@@ -256,6 +256,7 @@ const statusRank: Record<TestStatus, number> = {
 export const parseGoTestEvents = (text: string): Map<string, TestObservation> => {
     const observations = new Map<string, TestObservation>();
     const output = new Map<string, string[]>();
+    const running = new Set<string>();
     for (const [index, line] of text.split("\n").entries()) {
         if (line.trim() === "") continue;
         let event: { Action?: string; Package?: string; Test?: string; Output?: string };
@@ -266,6 +267,7 @@ export const parseGoTestEvents = (text: string): Map<string, TestObservation> =>
         }
         if (event.Package === undefined || event.Test === undefined) continue;
         const nodeId = `${event.Package}.${event.Test}`;
+        if (event.Action === "run") running.add(nodeId);
         if (event.Output !== undefined) {
             const lines = output.get(nodeId) ?? [];
             lines.push(event.Output);
@@ -286,6 +288,17 @@ export const parseGoTestEvents = (text: string): Map<string, TestObservation> =>
                 output: (output.get(nodeId) ?? []).join("").trim(),
             });
         }
+        running.delete(nodeId);
+    }
+    for (const nodeId of running) {
+        const captured = (output.get(nodeId) ?? []).join("").trim();
+        observations.set(nodeId, {
+            status: "failed",
+            output: [
+                captured,
+                "go test ended after starting this test without emitting a terminal event",
+            ].filter(Boolean).join("\n"),
+        });
     }
     return observations;
 };
