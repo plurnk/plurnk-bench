@@ -133,6 +133,45 @@ canonical results source — landings from `record.json`, forensics through `dig
 which never publishes (§publish-turnless-gate).
 Covered: `publish.test.ts [§results-canon]` (tree location).
 
+## §benchlet-diagnostic One fixed host-side diagnostic
+
+`deepswe/benchlet.sh [model]` is the sole host-side entrypoint for iterative
+diagnosis against the pinned `abs-module-cache-flags` task. It is not a
+leaderboard result and does not replace Pier. Its value is repeatability and
+complete evidence while changing one product variable at a time.
+
+- §benchlet-provenance The manifest pins the upstream repository commit, task
+  files and hashes, exact oracle node IDs, suite boundaries, and suite
+  timeouts. A run requires clean bench, service, and client commits and records
+  those revisions. The complete pinned task is copied into the run artifact.
+- §benchlet-oracle The harness proves the pristine baseline before invoking a
+  model. Candidate preparation is delegated to the task's own
+  `grader.py prepare`, including its reset of test-owned paths. Tests run
+  through ordinary `go test -json`; malformed JSON is an infrastructure error,
+  missing node IDs fail, and duplicate observations merge worst-status-wins.
+- §benchlet-two-patches `model.patch` is only `base..HEAD`, matching the
+  committed submission the canonical benchmark grades. `working.patch`
+  separately captures committed, tracked, and untracked working state. Both
+  are graded and named distinctly; an uncommitted solution is never reported
+  as the submitted score.
+- §benchlet-evidence Every command records raw stdout, raw stderr, exit status,
+  signal, and timeout state before the harness reads its output. A complete run
+  includes the database, digest, exact packet files, all provider attempts and
+  their reasoning/admission errors, both oracle results, exact requiem request
+  and response evidence, usage, and USD cost.
+- §benchlet-failure A run with no provider attempt is infrastructure, not a
+  model score. A requiem is complete only when its process succeeds and both
+  `requiem.md` and `requiem.json` exist. Infrastructure failures retain the
+  stage, error, provenance, and all artifacts written before the failure.
+- §benchlet-location Runs are atomically allocated as sibling
+  `../benchmarks/run<N>-deepswe-abs-<model>/` directories. Concurrent claims
+  advance to another number rather than nesting or reusing a run.
+
+Covered: `benchlet.test.ts [§benchlet-oracle]`,
+`[§benchlet-evidence]`, `[§benchlet-failure]`, and
+`[§benchlet-location]`. The real `--preflight` path covers task hashes,
+repository fetch, official verifier preparation, and the pristine baseline.
+
 ## §config-carry The runner carries authoritative config, re-declaring nothing
 
 `deepswe/smoke.sh` reads the daemon's config from its authoritative sources IN PLACE —

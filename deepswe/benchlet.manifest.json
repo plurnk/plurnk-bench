@@ -1,0 +1,34 @@
+{
+    "schemaVersion": 1,
+    "task": "abs-module-cache-flags",
+    "repositoryUrl": "https://github.com/abs-lang/abs.git",
+    "baseCommit": "cb1b3b671d0ee9fa9da9f7b02f86967953ffd10a",
+    "suites": [
+        {
+            "name": "base-evaluator",
+            "package": "github.com/abs-lang/abs/evaluator",
+            "buckets": ["p2p"],
+            "timeoutSeconds": 120
+        },
+        {
+            "name": "challenge-evaluator",
+            "package": "github.com/abs-lang/abs/evaluator",
+            "buckets": ["f2p"],
+            "timeoutSeconds": 300
+        },
+        {
+            "name": "challenge-repl",
+            "package": "github.com/abs-lang/abs/repl",
+            "buckets": ["p2p", "f2p"],
+            "timeoutSeconds": 300
+        }
+    ],
+    "files": {
+        "instruction.md": "cffcaa70386408363b090b563943fd63fdcc322ed44b8c76cc3e56cfd76b7ed8",
+        "task.toml": "7504deb25f0daef6cfcbfeba98a91de254aad6785aca83f0ce82ef67f8c2d39f",
+        "tests/config.json": "18ae10bb40d545220bc46690d2ab749911b5bb12bfba870e3679ab3750684014",
+        "tests/grader.py": "47cc9eaadf21e636323c360ec4fa786f0733ec9fd1d21ea5a5717ff9f8c4077c",
+        "tests/test.patch": "1f14443b836ad75b66975d9c8b6e735f675250136661dfc0a370d018ba4a97f9",
+        "tests/test.sh": "dfecfd863824f3d9780fb1bdb13de5415d831a7c452a41f39202dd29e4454b81"
+    }
+}

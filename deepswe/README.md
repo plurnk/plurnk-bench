@@ -33,6 +33,27 @@ uv tool install git+https://github.com/datacurve-ai/pier
 deepswe/smoke.sh abs-module-cache-flags .env
 ```
 
+## iterative diagnostic
+
+Use the checked-in benchlet when changing Plurnk and repeatedly inspecting one
+fixed external task without Pier's container ceremony:
+
+```sh
+deepswe/benchlet.sh --preflight
+deepswe/benchlet.sh grok
+```
+
+The first command verifies the pinned task, upstream commit, official verifier
+preparation, and pristine p2p/f2p baseline without calling a model. The second
+builds the clean service and client revisions, runs the task once, grades both
+the complete working tree and the committed submission, digests every packet
+and provider attempt, and obtains a requiem from the same model. Results land
+in a flat sibling directory such as
+`../benchmarks/run31-deepswe-abs-grok/`.
+
+This is a diagnostic oracle, not a canonical DeepSWE score. Pier remains the
+publication path. See SPEC `§benchlet-diagnostic`.
+
 Config reaches the daemon via Pier's `--agent-env` (Pier does **not** interpolate
 `${VAR}` in `--config` — its resolver is dead code), which `smoke.sh` assembles from the
 env file. Results land in Pier's `jobs/<job>/<trial_id>/` (`verifier/reward.json` + our
