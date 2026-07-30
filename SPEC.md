@@ -133,22 +133,26 @@ canonical results source — landings from `record.json`, forensics through `dig
 which never publishes (§publish-turnless-gate).
 Covered: `publish.test.ts [§results-canon]` (tree location).
 
-## §benchlet-diagnostic One fixed host-side diagnostic
+## §benchlet-diagnostic Pinned host-side diagnostics
 
-`deepswe/benchlet.sh [model]` is the sole host-side entrypoint for iterative
-diagnosis against the pinned `abs-module-cache-flags` task. It is not a
-leaderboard result and does not replace Pier. Its value is repeatability and
-complete evidence while changing one product variable at a time.
+`deepswe/benchlet.sh [--task task] [model]` is the sole host-side entrypoint for
+iterative diagnosis against a checked-in task manifest. The default task is
+`abs-module-cache-flags`. A selected task, candidate model, source revisions,
+and personality snapshot remain fixed within a run. The benchlet is not a
+leaderboard result and does not replace Pier; its value is repeatability and
+complete evidence while changing one experimental variable at a time.
 
 - §benchlet-provenance The manifest pins the upstream repository commit, task
-  files and hashes, exact oracle node IDs, suite boundaries, and suite
-  timeouts. A run requires clean bench, service, and client commits and records
-  those revisions. The complete pinned task is copied into the run artifact.
+  files and hashes, environment, verifier backend, and verifier timeouts. A run
+  requires clean bench, service, and client commits and records those
+  revisions. The complete pinned task is copied into the run artifact.
 - §benchlet-oracle The harness proves the pristine baseline before invoking a
-  model. Candidate preparation is delegated to the task's own
-  `grader.py prepare`, including its reset of test-owned paths. Tests run
-  through ordinary `go test -json`; malformed JSON is an infrastructure error,
-  missing node IDs fail, and duplicate observations merge worst-status-wins.
+  model. The ABS diagnostic delegates preparation to the task's
+  `grader.py prepare` and runs its selected suites through ordinary
+  `go test -json`. Docker-backed diagnostics run the pinned task image and
+  canonical `tests/test.sh`, then require consistent `reward.json` and
+  `ctrf.json` evidence. Malformed output is infrastructure failure; absent test
+  evidence fails rather than passing by omission.
 - §benchlet-two-patches `model.patch` is only `base..HEAD`, matching the
   committed submission the canonical benchmark grades. `working.patch`
   separately captures committed, tracked, and untracked working state. Both
@@ -169,7 +173,7 @@ complete evidence while changing one product variable at a time.
   Provenance records both aliases, and the witness receives the complete
   evidence without truncation or summarization.
 - §benchlet-location Runs are atomically allocated as sibling
-  `../benchmarks/run<N>-deepswe-abs-<model>/` directories. Concurrent claims
+  `../benchmarks/run<N>-deepswe-<task>-<model>/` directories. Concurrent claims
   advance to another number rather than nesting or reusing a run.
 
 Covered: `benchlet.test.ts [§benchlet-oracle]`,

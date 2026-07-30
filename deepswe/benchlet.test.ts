@@ -14,7 +14,9 @@ import {
     candidatePolicySnapshotPath,
     digestSummary,
     gradeObservations,
+    manifestPathForTask,
     parseGoTestEvents,
+    parseTaskVerifierArtifacts,
     requiemIsComplete,
     requiemModelAlias,
     runToFiles,
@@ -208,11 +210,78 @@ test("[§benchlet-location] benchlet allocates flat run numbers without reusing 
     const root = mkdtempSync(resolve(tmpdir(), "plurnk-benchlet-numbering-"));
     try {
         mkdirSync(resolve(root, "run1-old"));
-        assert.equal(basename(allocateRun(root, "grok")), "run2-deepswe-abs-grok");
-        assert.equal(basename(allocateRun(root, "grok")), "run3-deepswe-abs-grok");
+        assert.equal(
+            basename(allocateRun(root, "happy-dom-abort-pending-body-reads", "glm")),
+            "run2-deepswe-happy-dom-abort-pending-body-reads-glm",
+        );
+        assert.equal(
+            basename(allocateRun(root, "happy-dom-abort-pending-body-reads", "glm")),
+            "run3-deepswe-happy-dom-abort-pending-body-reads-glm",
+        );
     } finally {
         rmSync(root, { recursive: true, force: true });
     }
+});
+
+test("[§benchlet-provenance] benchlet resolves only pinned, path-safe task manifests", () => {
+    assert.equal(
+        basename(manifestPathForTask("happy-dom-abort-pending-body-reads")),
+        "happy-dom-abort-pending-body-reads.json",
+    );
+    assert.throws(() => manifestPathForTask("../untracked-task"), /invalid benchlet task name/);
+});
+
+test("[§benchlet-oracle] benchlet preserves canonical task-verifier evidence", () => {
+    const result = parseTaskVerifierArtifacts({
+        base_commit: "base",
+        p2p_node_ids: ["base behavior"],
+        f2p_node_ids: ["new behavior"],
+    }, {
+        reward: 0,
+        p2p_passed: 1,
+        p2p_total: 1,
+        f2p_passed: 0,
+        f2p_total: 1,
+        partial: 0.5,
+    }, {
+        results: {
+            tests: [
+                { name: "[p2p] base behavior", status: "passed" },
+                { name: "[f2p] new behavior", status: "failed", message: "expected AbortError" },
+            ],
+        },
+    });
+
+    assert.equal(result.reward, 0);
+    assert.equal(result.partial, 0.5);
+    assert.deepEqual(result.tests[1], {
+        nodeId: "new behavior",
+        bucket: "f2p",
+        status: "failed",
+        output: "expected AbortError",
+    });
+});
+
+test("[§benchlet-oracle] benchlet rejects inconsistent task-verifier summaries", () => {
+    assert.throws(() => parseTaskVerifierArtifacts({
+        base_commit: "base",
+        p2p_node_ids: ["base behavior"],
+        f2p_node_ids: ["new behavior"],
+    }, {
+        reward: 1,
+        p2p_passed: 1,
+        p2p_total: 1,
+        f2p_passed: 1,
+        f2p_total: 1,
+        partial: 1,
+    }, {
+        results: {
+            tests: [
+                { name: "[p2p] base behavior", status: "passed" },
+                { name: "[f2p] new behavior", status: "failed" },
+            ],
+        },
+    }), /CTRF and reward disagree on f2p passes/);
 });
 
 test("[§benchlet-failure] benchlet requires both requiem artifacts and a successful requiem process", () => {

@@ -36,20 +36,23 @@ deepswe/smoke.sh abs-module-cache-flags .env
 ## iterative diagnostic
 
 Use the checked-in benchlet when changing Plurnk and repeatedly inspecting one
-fixed external task without Pier's container ceremony:
+pinned external task without Pier's full container ceremony:
 
 ```sh
 deepswe/benchlet.sh --preflight
 deepswe/benchlet.sh grok
+deepswe/benchlet.sh --task happy-dom-abort-pending-body-reads --preflight
+deepswe/benchlet.sh --task happy-dom-abort-pending-body-reads glm
 ```
 
-The first command verifies the pinned task, upstream commit, official verifier
-preparation, and pristine p2p/f2p baseline without calling a model. The second
+The `--preflight` form verifies the selected task, upstream commit, official
+verifier, and pristine p2p/f2p baseline without calling a model. A model run
 builds the clean service and client revisions, runs the task once, grades both
 the complete working tree and the committed submission, digests every packet
-and provider attempt, and obtains a requiem from the same model. Results land
-in a flat sibling directory such as
-`../benchmarks/run31-deepswe-abs-grok/`.
+and provider attempt, and obtains an independent requiem. Docker-backed tasks
+reuse their pinned task image for the candidate checkout and canonical
+verifier. Results land in a flat sibling directory such as
+`../benchmarks/run47-deepswe-happy-dom-abort-pending-body-reads-glm/`.
 
 This is a diagnostic oracle, not a canonical DeepSWE score. Pier remains the
 publication path. See SPEC `§benchlet-diagnostic`.

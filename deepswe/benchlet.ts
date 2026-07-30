@@ -18,21 +18,74 @@ import { dirname, relative, resolve } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
 import { finished } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
+import { parseArgs } from "node:util";
 
 type TestStatus = "passed" | "skipped" | "failed";
 
-interface Manifest {
+interface ManifestBase {
     schemaVersion: number;
     task: string;
     repositoryUrl: string;
     baseCommit: string;
-    suites: Array<{
-        name: string;
-        package: string;
-        buckets: Array<"p2p" | "f2p">;
-        timeoutSeconds: number;
-    }>;
     files: Record<string, string>;
+}
+
+interface HostManifest extends ManifestBase {
+    environment: {
+        kind: "host";
+    };
+    verifier: {
+        kind: "go";
+        suites: Array<{
+            name: string;
+            package: string;
+            buckets: Array<"p2p" | "f2p">;
+            timeoutSeconds: number;
+        }>;
+    };
+}
+
+interface DockerManifest extends ManifestBase {
+    environment: {
+        kind: "docker";
+        image: string;
+        network: "none";
+        cpus: number;
+        memoryMb: number;
+    };
+    verifier: {
+        kind: "task";
+        timeoutSeconds: number;
+    };
+}
+
+type Manifest = HostManifest | DockerManifest;
+
+const isDockerManifest = (manifest: Manifest): manifest is DockerManifest =>
+    manifest.environment.kind === "docker" && manifest.verifier.kind === "task";
+
+const isHostManifest = (manifest: Manifest): manifest is HostManifest =>
+    manifest.environment.kind === "host" && manifest.verifier.kind === "go";
+
+interface CtrfReport {
+    results?: {
+        tests?: Array<{
+            name: string;
+            status: string;
+            message?: string;
+            trace?: string;
+        }>;
+    };
+}
+
+interface VerifierReward {
+    reward: number;
+    apply_failed?: number;
+    p2p_passed: number;
+    p2p_total: number;
+    f2p_passed: number;
+    f2p_total: number;
+    partial: number;
 }
 
 interface OracleConfig {
@@ -125,6 +178,13 @@ const resolveFrom = (root: string, value: string): string => {
     return resolve(root, expanded);
 };
 
+export const manifestPathForTask = (task: string): string => {
+    if (!/^[a-z0-9][a-z0-9._-]*$/.test(task)) {
+        throw new Error(`invalid benchlet task name: ${task}`);
+    }
+    return resolve(moduleDir, "benchlet.manifests", `${task}.json`);
+};
+
 export const candidatePolicyPath = (serviceRoot: string): string =>
     resolve(serviceRoot, "plurnk-meta", "PLURNK_PERSONALITY.md");
 
@@ -159,6 +219,22 @@ const git = (repository: string, args: string[], options: { env?: NodeJS.Process
 
 const gitDir = (repository: string, args: string[]): string =>
     shell("git", [`--git-dir=${repository}`, ...args]);
+
+const dockerImageId = (image: string): string => {
+    const inspect = spawnSync("docker", ["image", "inspect", "--format={{.Id}}", image], {
+        encoding: "utf8",
+    });
+    if (inspect.error !== undefined) throw inspect.error;
+    if (inspect.status !== 0) {
+        shell("docker", ["pull", image]);
+        return shell("docker", ["image", "inspect", "--format={{.Id}}", image]).trim();
+    }
+    return inspect.stdout.trim();
+};
+
+const removeContainer = (container: string): void => {
+    shell("docker", ["rm", "--force", container], { allowFailure: true });
+};
 
 const writeJson = (path: string, value: unknown): void => {
     writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
@@ -345,6 +421,9 @@ export const gradeObservations = (
 };
 
 const validateFixture = (manifest: Manifest, taskDir: string): OracleConfig => {
+    assert.equal(manifest.schemaVersion, 1, "benchlet manifest schema must be version 1");
+    assert.ok(manifest.repositoryUrl !== "", "benchlet manifest must pin a repository URL");
+    assert.match(manifest.baseCommit, /^[0-9a-f]{40}$/, "benchlet manifest must pin a full Git commit");
     for (const [name, expected] of Object.entries(manifest.files)) {
         const path = resolve(taskDir, name);
         if (!existsSync(path)) throw new Error(`external task fixture is missing ${name}: ${path}`);
@@ -355,9 +434,18 @@ const validateFixture = (manifest: Manifest, taskDir: string): OracleConfig => {
     }
     const config = JSON.parse(readFileSync(resolve(taskDir, "tests/config.json"), "utf8")) as OracleConfig;
     assert.equal(config.base_commit, manifest.baseCommit, "oracle base commit must match the benchlet manifest");
+    if (manifest.verifier.kind === "task") {
+        assert.equal(manifest.environment.kind, "docker", "task verifier requires its pinned Docker environment");
+        assert.ok(manifest.environment.image !== "", "Docker environment must pin an image");
+        assert.ok(Number.isFinite(manifest.environment.cpus) && manifest.environment.cpus > 0);
+        assert.ok(Number.isSafeInteger(manifest.environment.memoryMb) && manifest.environment.memoryMb > 0);
+        assert.ok(Number.isSafeInteger(manifest.verifier.timeoutSeconds) && manifest.verifier.timeoutSeconds > 0);
+        return config;
+    }
+
     const configured = new Set([...config.p2p_node_ids, ...config.f2p_node_ids]);
     const selected = new Map<string, number>();
-    for (const suite of manifest.suites) {
+    for (const suite of manifest.verifier.suites) {
         if (!Number.isSafeInteger(suite.timeoutSeconds) || suite.timeoutSeconds <= 0) {
             throw new Error(`suite ${suite.name} must declare a positive timeoutSeconds`);
         }
@@ -405,7 +493,7 @@ const sourceProvenance = (repository: string): {
     };
 };
 
-export const allocateRun = (runsRoot: string, model: string): string => {
+export const allocateRun = (runsRoot: string, task: string, model: string): string => {
     mkdirSync(runsRoot, { recursive: true });
     const entries = readdirSync(runsRoot, { withFileTypes: true })
         .filter((entry) => entry.isDirectory())
@@ -414,9 +502,10 @@ export const allocateRun = (runsRoot: string, model: string): string => {
         const match = /^run(\d+)(?:-|$)/.exec(entry);
         return match === null ? maximum : Math.max(maximum, Number(match[1]));
     }, 0) + 1;
-    const label = model.replaceAll(/[^A-Za-z0-9_.-]+/g, "-");
+    const taskLabel = task.replaceAll(/[^A-Za-z0-9_.-]+/g, "-");
+    const modelLabel = model.replaceAll(/[^A-Za-z0-9_.-]+/g, "-");
     while (true) {
-        const path = resolve(runsRoot, `run${next}-deepswe-abs-${label}`);
+        const path = resolve(runsRoot, `run${next}-deepswe-${taskLabel}-${modelLabel}`);
         try {
             mkdirSync(path);
             return path;
@@ -449,6 +538,34 @@ const cloneBase = (cache: string, destination: string, baseCommit: string): void
     git(destination, ["config", "core.hooksPath", "/dev/null"]);
     git(destination, ["config", "user.name", "Plurnk"]);
     git(destination, ["config", "user.email", "plurnk@pm.me"]);
+};
+
+const copyDockerBase = (manifest: DockerManifest, destination: string): void => {
+    mkdirSync(destination, { recursive: true });
+    const container = shell("docker", ["create", manifest.environment.image]).trim();
+    try {
+        shell("docker", ["cp", `${container}:/app/.`, destination]);
+    } finally {
+        removeContainer(container);
+    }
+    assert.equal(git(destination, ["rev-parse", "HEAD"]).trim(), manifest.baseCommit);
+    assert.equal(git(destination, ["status", "--porcelain"]), "", "Docker task checkout must be pristine");
+    git(destination, ["config", "core.hooksPath", "/dev/null"]);
+    git(destination, ["config", "user.name", "Plurnk"]);
+    git(destination, ["config", "user.email", "plurnk@pm.me"]);
+};
+
+const prepareCandidateRepository = (
+    manifest: Manifest,
+    repositoryCache: string,
+    destination: string,
+): void => {
+    if (isDockerManifest(manifest)) {
+        copyDockerBase(manifest, destination);
+        return;
+    }
+    assert.ok(isHostManifest(manifest), "benchlet manifest environment and verifier are incompatible");
+    cloneBase(repositoryCache, destination, manifest.baseCommit);
 };
 
 const capturePatches = async (
@@ -489,12 +606,12 @@ const capturePatches = async (
 
 const regexEscape = (value: string): string => value.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-const gradePatch = async (
+const gradeGoPatch = async (
     label: string,
     patchPath: string,
     artifactDir: string,
     repositoryCache: string,
-    manifest: Manifest,
+    manifest: HostManifest,
     taskDir: string,
     config: OracleConfig,
 ): Promise<OracleResult> => {
@@ -544,7 +661,7 @@ const gradePatch = async (
             throw new Error(`external verifier unexpectedly graded ${label} during preparation`);
         }
 
-        for (const suite of manifest.suites) {
+        for (const suite of manifest.verifier.suites) {
             const selected = suite.buckets.flatMap((bucket) =>
                 (bucket === "p2p" ? config.p2p_node_ids : config.f2p_node_ids)
                     .filter((nodeId) => nodeId.startsWith(`${suite.package}.`)));
@@ -602,6 +719,121 @@ const gradePatch = async (
         rmSync(workRoot, { recursive: true, force: true });
     }
 };
+
+export const parseTaskVerifierArtifacts = (
+    config: OracleConfig,
+    reward: VerifierReward,
+    ctrf?: CtrfReport,
+): OracleResult => {
+    const applyFailed = reward.apply_failed === 1;
+    if (applyFailed) {
+        assert.equal(reward.reward, 0, "an unapplied patch cannot receive reward");
+        return gradeObservations(config, new Map(), true);
+    }
+    if (ctrf === undefined) throw new Error("task verifier did not produce ctrf.json");
+
+    const observations = new Map<string, TestObservation>();
+    const tests = ctrf.results?.tests;
+    if (!Array.isArray(tests)) throw new Error("task verifier emitted malformed CTRF test results");
+    for (const test of tests) {
+        const match = /^\[(p2p|f2p)\] (.+)$/.exec(test.name);
+        if (match === null) throw new Error(`task verifier emitted an unbucketed test: ${test.name}`);
+        const status = test.status === "passed" || test.status === "skipped" || test.status === "failed"
+            ? test.status
+            : "failed";
+        const nodeId = match[2]!;
+        if (observations.has(nodeId)) throw new Error(`task verifier emitted duplicate test evidence: ${nodeId}`);
+        observations.set(nodeId, {
+            status,
+            output: test.message ?? test.trace ?? "",
+        });
+    }
+
+    const result = gradeObservations(config, observations);
+    assert.equal(result.p2pPassed, reward.p2p_passed, "CTRF and reward disagree on p2p passes");
+    assert.equal(result.p2pTotal, reward.p2p_total, "manifest and reward disagree on p2p total");
+    assert.equal(result.f2pPassed, reward.f2p_passed, "CTRF and reward disagree on f2p passes");
+    assert.equal(result.f2pTotal, reward.f2p_total, "manifest and reward disagree on f2p total");
+    assert.equal(result.reward, reward.reward, "CTRF and reward disagree on binary reward");
+    assert.ok(Math.abs(result.partial - reward.partial) < Number.EPSILON, "CTRF and reward disagree on partial score");
+    return result;
+};
+
+const gradeTaskPatch = async (
+    label: string,
+    patchPath: string,
+    artifactDir: string,
+    manifest: DockerManifest,
+    taskDir: string,
+    config: OracleConfig,
+): Promise<OracleResult> => {
+    mkdirSync(artifactDir, { recursive: true });
+    const verifierArtifacts = resolve(artifactDir, "verifier");
+    mkdirSync(verifierArtifacts);
+    const container = shell("docker", [
+        "create",
+        "--network",
+        manifest.environment.network,
+        "--cpus",
+        String(manifest.environment.cpus),
+        "--memory",
+        `${manifest.environment.memoryMb}m`,
+        manifest.environment.image,
+        "sleep",
+        "infinity",
+    ]).trim();
+    try {
+        shell("docker", ["start", container]);
+        shell("docker", ["exec", container, "mkdir", "-p", "/tests", "/logs/artifacts", "/logs/verifier"]);
+        shell("docker", ["cp", `${resolve(taskDir, "tests")}/.`, `${container}:/tests`]);
+        shell("docker", ["cp", patchPath, `${container}:/logs/artifacts/model.patch`]);
+        const args = ["exec", container, "bash", "/tests/test.sh"];
+        const result = await runToFiles("docker", args, {
+            cwd: benchRoot,
+            stdoutPath: resolve(artifactDir, "stdout.log"),
+            stderrPath: resolve(artifactDir, "stderr.log"),
+            timeoutMs: manifest.verifier.timeoutSeconds * 1_000,
+        });
+        writeJson(resolve(artifactDir, "command.json"), {
+            command: "docker",
+            args,
+            status: result.status,
+            signal: result.signal,
+            error: result.error?.message ?? null,
+            timedOut: result.timedOut,
+        });
+        shell("docker", ["cp", `${container}:/logs/verifier/.`, verifierArtifacts]);
+        if (result.error !== undefined) throw result.error;
+        if (result.timedOut) throw new Error(`task verifier timed out for ${label}`);
+        if (result.status !== 0) {
+            throw new Error(`task verifier failed for ${label} (${result.status ?? result.signal ?? "unknown"})`);
+        }
+        const rewardPath = resolve(verifierArtifacts, "reward.json");
+        if (!existsSync(rewardPath)) throw new Error(`task verifier did not grade ${label}`);
+        const reward = JSON.parse(readFileSync(rewardPath, "utf8")) as VerifierReward;
+        const ctrfPath = resolve(verifierArtifacts, "ctrf.json");
+        const ctrf = existsSync(ctrfPath)
+            ? JSON.parse(readFileSync(ctrfPath, "utf8")) as CtrfReport
+            : undefined;
+        return parseTaskVerifierArtifacts(config, reward, ctrf);
+    } finally {
+        removeContainer(container);
+    }
+};
+
+const gradePatch = (
+    label: string,
+    patchPath: string,
+    artifactDir: string,
+    repositoryCache: string,
+    manifest: Manifest,
+    taskDir: string,
+    config: OracleConfig,
+): Promise<OracleResult> => isDockerManifest(manifest)
+    ? gradeTaskPatch(label, patchPath, artifactDir, manifest, taskDir, config)
+    : isHostManifest(manifest)
+        ? gradeGoPatch(label, patchPath, artifactDir, repositoryCache, manifest, taskDir, config)
+        : Promise.reject(new Error("benchlet manifest environment and verifier are incompatible"));
 
 export const digestSummary = (digest: DigestJson): {
     modelTurns: number;
@@ -724,17 +956,33 @@ const requiemSummary = (path: string): Record<string, unknown> => {
 
 const main = async (): Promise<void> => {
     process.loadEnvFile(resolve(benchRoot, ".env.defaults"));
-    const manifestPath = resolve(moduleDir, "benchlet.manifest.json");
+    const { values, positionals } = parseArgs({
+        args: process.argv.slice(2),
+        options: {
+            preflight: { type: "boolean", default: false },
+            task: { type: "string" },
+        },
+        allowPositionals: true,
+        strict: true,
+    });
+    if (positionals.length > 1) throw new Error("benchlet accepts at most one model alias");
+    const task = values.task ?? process.env.PLURNK_BENCHLET_TASK;
+    if (task === undefined || task.trim() === "") throw new Error("benchlet requires a task name");
+    const manifestPath = manifestPathForTask(task);
+    if (!existsSync(manifestPath)) throw new Error(`benchlet has no pinned manifest for task: ${task}`);
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Manifest;
-    assert.equal(manifest.schemaVersion, 1);
+    assert.equal(manifest.task, task, "benchlet manifest task must match its selection");
 
-    const cliArgs = process.argv.slice(2);
-    const preflightOnly = cliArgs.includes("--preflight");
-    const model = cliArgs.find((arg) => !arg.startsWith("--")) ?? process.env.PLURNK_BENCHLET_MODEL;
+    const preflightOnly = values.preflight;
+    const model = positionals[0] ?? process.env.PLURNK_BENCHLET_MODEL;
     if (model === undefined || model.trim() === "") throw new Error("benchlet requires a model alias");
     const taskCache = resolveFrom(benchRoot, process.env.PLURNK_BENCHLET_TASK_CACHE ?? "");
     const taskDir = resolve(taskCache, manifest.task);
-    const repositoryCache = resolveFrom(benchRoot, process.env.PLURNK_BENCHLET_REPOSITORY_CACHE ?? "");
+    const repositoryCacheRoot = resolveFrom(
+        benchRoot,
+        process.env.PLURNK_BENCHLET_REPOSITORY_CACHE_ROOT ?? "",
+    );
+    const repositoryCache = resolve(repositoryCacheRoot, `${manifest.task}.git`);
     const runsRoot = resolveFrom(benchRoot, process.env.PLURNK_BENCHLET_RUNS_ROOT ?? "");
     const serviceRoot = resolveFrom(benchRoot, process.env.PLURNK_BENCHLET_SERVICE_ROOT ?? "");
     const clientRoot = resolveFrom(benchRoot, process.env.PLURNK_BENCHLET_CLIENT_ROOT ?? "");
@@ -761,7 +1009,10 @@ const main = async (): Promise<void> => {
     if (!existsSync(candidatePolicy)) throw new Error(`candidate personality is missing: ${candidatePolicy}`);
 
     const config = validateFixture(manifest, taskDir);
-    ensureRepositoryCache(manifest, repositoryCache);
+    const imageId = manifest.environment.kind === "docker"
+        ? dockerImageId(manifest.environment.image)
+        : null;
+    if (manifest.environment.kind === "host") ensureRepositoryCache(manifest, repositoryCache);
     const sources = {
         bench: sourceProvenance(benchRoot),
         service: sourceProvenance(serviceRoot),
@@ -798,7 +1049,7 @@ const main = async (): Promise<void> => {
         return;
     }
 
-    const runDir = allocateRun(runsRoot, model);
+    const runDir = allocateRun(runsRoot, manifest.task, model);
     const candidatePolicySnapshot = candidatePolicySnapshotPath(runDir);
     copyFileSync(candidatePolicy, candidatePolicySnapshot);
     snapshotTask(runDir, manifestPath, manifest, taskDir);
@@ -811,7 +1062,7 @@ const main = async (): Promise<void> => {
         startedAt: startedAt.toISOString(),
         invocation: {
             command: relative(benchRoot, resolve(moduleDir, "benchlet.sh")),
-            args: [model],
+            args: ["--task", manifest.task, model],
             cwd: benchRoot,
         },
         task: {
@@ -820,6 +1071,11 @@ const main = async (): Promise<void> => {
             baseCommit: manifest.baseCommit,
             manifestSha256: sha256(manifestPath),
             files: manifest.files,
+            environment: {
+                ...manifest.environment,
+                imageId,
+            },
+            verifier: manifest.verifier,
         },
         modelAlias: model,
         sources,
@@ -833,9 +1089,14 @@ const main = async (): Promise<void> => {
             candidateOverheadSeconds: candidateOverhead,
             requiemTimeoutSeconds: requiemTimeout,
             requiemModelAlias: requiemModel,
-            oracleSuiteTimeoutSeconds: Object.fromEntries(
-                manifest.suites.map((suite) => [suite.name, suite.timeoutSeconds]),
-            ),
+            oracleSuiteTimeoutSeconds: manifest.verifier.kind === "go"
+                ? Object.fromEntries(
+                    manifest.verifier.suites.map((suite) => [suite.name, suite.timeoutSeconds]),
+                )
+                : null,
+            oracleTaskTimeoutSeconds: manifest.verifier.kind === "task"
+                ? manifest.verifier.timeoutSeconds
+                : null,
             requiemEnabled,
             operatorEnv,
             operatorEnvKeys: envFileKeyNames(operatorEnv),
@@ -870,7 +1131,7 @@ const main = async (): Promise<void> => {
     }
 
     const repository = resolve(runDir, "repo");
-    cloneBase(repositoryCache, repository, manifest.baseCommit);
+    prepareCandidateRepository(manifest, repositoryCache, repository);
     const instruction = readFileSync(resolve(taskDir, "instruction.md"), "utf8");
     const candidateArgs = [
         "scripts/candidate.mjs",
