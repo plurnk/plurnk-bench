@@ -1,0 +1,10 @@
+{
+    "schemaVersion": 1,
+    "name": "filesystem-read-text",
+    "source": "MCP-Atlas documented filesystem smoke task",
+    "prompt": "What is the first word of the file at /data/Barber Shop.csv?",
+    "enabledTools": [
+        "filesystem_read_text_file"
+    ],
+    "expectedAnswer": "Customer"
+}

@@ -11,10 +11,13 @@
     "scripts": {
         "test:lint": "tsc --noEmit",
         "test:driver": "python -m unittest discover -s deepswe -p 'test_*.py'",
-        "test:unit": "node --test 'src/**/*.test.ts' 'deepswe/**/*.test.ts'",
+        "test:unit": "node --test 'src/**/*.test.ts' 'deepswe/**/*.test.ts' 'atlas/**/*.test.ts'",
+        "atlas": "./atlas/benchlet.sh",
         "test": "npm run test:lint && npm run test:driver && npm run test:unit"
     },
     "dependencies": {
+        "@modelcontextprotocol/client": "2.0.0",
+        "@modelcontextprotocol/server": "2.0.0",
         "@plurnk/plurnk-contracts": "^1.3.13",
         "@plurnk/plurnk-service": "^1.3.7"
     },

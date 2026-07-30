@@ -19,6 +19,7 @@ import { spawn, spawnSync } from "node:child_process";
 import { finished } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { allocateRunDirectory } from "../src/run-directory.ts";
 
 type TestStatus = "passed" | "skipped" | "failed";
 
@@ -494,26 +495,7 @@ const sourceProvenance = (repository: string): {
 };
 
 export const allocateRun = (runsRoot: string, task: string, model: string): string => {
-    mkdirSync(runsRoot, { recursive: true });
-    const entries = readdirSync(runsRoot, { withFileTypes: true })
-        .filter((entry) => entry.isDirectory())
-        .map((entry) => entry.name);
-    let next = entries.reduce((maximum, entry) => {
-        const match = /^run(\d+)(?:-|$)/.exec(entry);
-        return match === null ? maximum : Math.max(maximum, Number(match[1]));
-    }, 0) + 1;
-    const taskLabel = task.replaceAll(/[^A-Za-z0-9_.-]+/g, "-");
-    const modelLabel = model.replaceAll(/[^A-Za-z0-9_.-]+/g, "-");
-    while (true) {
-        const path = resolve(runsRoot, `run${next}-deepswe-${taskLabel}-${modelLabel}`);
-        try {
-            mkdirSync(path);
-            return path;
-        } catch (error) {
-            if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-            next += 1;
-        }
-    }
+    return allocateRunDirectory(runsRoot, ["deepswe", task, model]);
 };
 
 const snapshotTask = (
