@@ -8,6 +8,8 @@ keeping the protocol claim precise:
   `2026-07-28`.
 - Plurnk connects as a strict current MCP host and exposes the server as
   `EXEC[atlas]`.
+- The candidate workspace is headless and Git-free, with every executor except
+  `atlas` disabled, matching Atlas's task-tool boundary.
 - The model must call an executable tool; an answer without an `EXEC` does not
   pass the diagnostic.
 

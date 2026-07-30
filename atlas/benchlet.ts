@@ -1,7 +1,6 @@
 import {
     copyFileSync,
     existsSync,
-    mkdirSync,
     readFileSync,
     writeFileSync,
 } from "node:fs";
@@ -96,6 +95,15 @@ const positiveInteger = (name: string): number => {
     const value = Number(raw);
     if (!Number.isSafeInteger(value) || value <= 0) {
         throw new Error(`${name} must be a positive integer.`);
+    }
+    return value;
+};
+
+const integer = (name: string): number => {
+    const raw = required(name);
+    const value = Number(raw);
+    if (!Number.isSafeInteger(value)) {
+        throw new Error(`${name} must be an integer.`);
     }
     return value;
 };
@@ -309,6 +317,31 @@ export const answerMatches = (answer: string, expected: string): boolean => {
     return new RegExp(`(?:^|\\W)${escaped}(?:\\W|$)`, "i").test(answer);
 };
 
+export const atlasClientArgs = (options: {
+    readonly filesItems: number;
+    readonly maxTurns: number;
+    readonly timeoutSeconds: number;
+    readonly prompt: string;
+}): string[] => [
+    "--auto",
+    "--project-root",
+    "",
+    "--no-git",
+    "--files-items",
+    String(options.filesItems),
+    "--max-turns",
+    String(options.maxTurns),
+    "--timeout",
+    String(options.timeoutSeconds),
+    options.prompt,
+];
+
+export const requiemIsComplete = (
+    status: number | null,
+    markdown: boolean,
+    report: boolean,
+): boolean => status === 0 && markdown && report;
+
 const usageSummary = (digest: Digest): Record<string, unknown> => {
     const attempts = digest.turn_attempts ?? [];
     return {
@@ -350,6 +383,8 @@ const runRequiem = async (
         tee: true,
         timeoutMs: timeoutSeconds * 1_000,
     });
+    const markdown = existsSync(resolve(runDir, "digest", "requiem.md"));
+    const report = existsSync(resolve(runDir, "digest", "requiem.json"));
     return {
         enabled: true,
         model,
@@ -357,8 +392,9 @@ const runRequiem = async (
         signal: result.signal,
         timedOut: result.timedOut,
         error: result.error?.message ?? null,
-        markdown: existsSync(resolve(runDir, "digest", "requiem.md")),
-        report: existsSync(resolve(runDir, "digest", "requiem.json")),
+        complete: requiemIsComplete(result.status, markdown, report),
+        markdown,
+        report,
     };
 };
 
@@ -388,6 +424,10 @@ const main = async (): Promise<void> => {
     const candidateTimeout = positiveInteger("PLURNK_BENCH_ATLAS_CANDIDATE_TIMEOUT_SEC");
     const candidateOverhead = positiveInteger("PLURNK_BENCH_ATLAS_CANDIDATE_OVERHEAD_SEC");
     const maxTurns = positiveInteger("PLURNK_BENCH_ATLAS_MAX_TURNS");
+    const filesItems = integer("PLURNK_BENCH_ATLAS_FILES_ITEMS");
+    if (filesItems < -1) {
+        throw new Error("PLURNK_BENCH_ATLAS_FILES_ITEMS must be -1, 0, or a positive integer.");
+    }
     const requiemEnabled = required("PLURNK_BENCH_ATLAS_REQUIEM") === "1";
     const requiemModel = required("PLURNK_BENCH_ATLAS_REQUIEM_MODEL");
     const requiemTimeout = positiveInteger("PLURNK_BENCH_ATLAS_REQUIEM_TIMEOUT_SEC");
@@ -415,7 +455,6 @@ const main = async (): Promise<void> => {
     const runDir = allocateRunDirectory(runsRoot, ["atlas", task.name, model]);
     activeRunDir = runDir;
     activeStartedAt = new Date();
-    mkdirSync(resolve(runDir, "project"));
     copyFileSync(selectedTaskPath, resolve(runDir, "task.json"));
     copyFileSync(policy, resolve(runDir, "candidate-policy.md"));
 
@@ -451,6 +490,7 @@ const main = async (): Promise<void> => {
             candidateTimeoutSeconds: candidateTimeout,
             candidateOverheadSeconds: candidateOverhead,
             maxTurns,
+            filesItems,
             requiemEnabled,
             requiemModel,
             requiemTimeoutSeconds: requiemTimeout,
@@ -492,22 +532,18 @@ const main = async (): Promise<void> => {
         PLURNK_CLIENT_CHECKOUT: clientRoot,
         PLURNK_SERVICE_POLICY: resolve(runDir, "candidate-policy.md"),
         PLURNK_SERVICE_EMBED_DISABLE: "1",
-        PLURNK_SERVICE_FILES_ITEMS: "0",
+        PLURNK_EXECS_ONLY: "atlas",
         PLURNK_MCP_ATLAS: process.execPath,
         PLURNK_MCP_ATLAS_ARGS: JSON.stringify(adapterArgs),
     };
     const candidateArgs = [
         "scripts/candidate.mjs",
-        "--auto",
-        "--project-root",
-        resolve(runDir, "project"),
-        "--files-items",
-        "0",
-        "--max-turns",
-        String(maxTurns),
-        "--timeout",
-        String(candidateTimeout),
-        task.prompt,
+        ...atlasClientArgs({
+            filesItems,
+            maxTurns,
+            timeoutSeconds: candidateTimeout,
+            prompt: task.prompt,
+        }),
     ];
     writeJson(resolve(runDir, "candidate-command.json"), {
         command: process.execPath,
@@ -561,6 +597,7 @@ const main = async (): Promise<void> => {
         serviceRoot,
         runDir,
     );
+    const requiemComplete = !requiemEnabled || requiem.complete === true;
 
     activeStage = "finalize";
     captureContainerLog(started.container, runDir);
@@ -569,7 +606,7 @@ const main = async (): Promise<void> => {
     const completedAt = new Date();
     writeJson(resolve(runDir, "result.json"), {
         schemaVersion: 1,
-        harnessStatus: "complete",
+        harnessStatus: requiemComplete ? "complete" : "incomplete",
         passed,
         task: task.name,
         model,
@@ -603,7 +640,7 @@ const main = async (): Promise<void> => {
         completedAt: completedAt.toISOString(),
     });
     process.stdout.write(`artifact=${runDir}\n`);
-    if (!passed) process.exitCode = 1;
+    if (!passed || !requiemComplete) process.exitCode = 1;
 };
 
 if (import.meta.main) {
