@@ -186,14 +186,11 @@ const ensureAtlasSource = (
 ): void => {
     if (!existsSync(cache)) {
         mkdirSync(dirname(cache), { recursive: true });
-        shell("git", ["clone", "--quiet", "--no-checkout", repository, cache]);
+        shell("git", ["clone", "--quiet", repository, cache]);
     }
     const remote = shell("git", ["-C", cache, "remote", "get-url", "origin"]).trim();
     if (remote !== repository) {
         throw new Error(`Atlas source cache origin is '${remote}', expected '${repository}'.`);
-    }
-    if (shell("git", ["-C", cache, "status", "--porcelain"]).trim() !== "") {
-        throw new Error(`Atlas source cache is dirty: ${cache}`);
     }
     shell("git", ["-C", cache, "fetch", "--quiet", "--depth=1", "origin", revision]);
     const fetched = shell("git", ["-C", cache, "rev-parse", "FETCH_HEAD"]).trim();
@@ -206,7 +203,13 @@ const ensureAtlasSource = (
         { allowFailure: true },
     ).trim();
     if (current !== revision) {
+        if (shell("git", ["-C", cache, "status", "--porcelain"]).trim() !== "") {
+            throw new Error(`Atlas source cache is dirty: ${cache}`);
+        }
         shell("git", ["-C", cache, "checkout", "--quiet", "--detach", revision]);
+    }
+    if (shell("git", ["-C", cache, "status", "--porcelain"]).trim() !== "") {
+        throw new Error(`Atlas source cache is dirty: ${cache}`);
     }
 };
 
