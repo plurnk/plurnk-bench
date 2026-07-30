@@ -4,6 +4,7 @@ import {
     answerMatches,
     atlasClientArgs,
     atlasScoringCsv,
+    missingAtlasTools,
     requiemIsComplete,
     successfulExecutorCalls,
     withoutMcpServers,
@@ -49,6 +50,22 @@ test("Atlas runs isolate their one MCP server without discarding model credentia
         PLURNK_MODEL_GROK: "xai/grok",
         XAI_API_KEY: "secret",
     });
+});
+
+test("Atlas preflight names every task tool absent from the live fixture catalog", () => {
+    assert.deepEqual(missingAtlasTools([
+        { name: "filesystem_read_text_file" },
+        { name: "filesystem_directory_tree" },
+        null,
+        { invalid: true },
+    ], [
+        "filesystem_read_text_file",
+        "cli-mcp-server_run_command",
+        "fetch_fetch",
+    ]), [
+        "cli-mcp-server_run_command",
+        "fetch_fetch",
+    ]);
 });
 
 test("Atlas candidate is headless, Git-free, and retains the configured orientation survey", () => {

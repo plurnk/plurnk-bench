@@ -27,7 +27,7 @@ Run a pinned public Atlas task and score its three ground-truth claims with
 Atlas's own claim-coverage scorer:
 
 ```sh
-npm run atlas -- --task storyteller-dependency
+npm run atlas -- --task fantasy-sports-average
 ```
 
 Select another configured model alias:
@@ -42,3 +42,7 @@ provenance, Atlas tool catalog, build and candidate logs, Plurnk database,
 digest, packets, reasoning, result, and optional requiem. Scored tasks also
 include the pinned dataset row, model response, scorer logs, per-claim verdicts,
 and Atlas coverage statistics under `atlas-scoring/`.
+
+A task is skipped before inference when the pinned Atlas fixture does not
+expose its complete official tool allowlist. The harness does not narrow the
+allowlist or add compatibility behavior to make a stale specimen run.

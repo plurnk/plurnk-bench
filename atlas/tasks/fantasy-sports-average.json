@@ -1,0 +1,34 @@
+{
+    "schemaVersion": 1,
+    "name": "fantasy-sports-average",
+    "source": "ScaleAI/MCP-Atlas task 689cd6f8522029b7ad7b2026",
+    "prompt": "I was reviewing my sports data on my computer, and I am sure that the average score of the athletes is less than 80, while my father believes it is over 100. Can you help me determine who is correct?",
+    "enabledTools": [
+        "filesystem_read_file",
+        "filesystem_read_text_file",
+        "filesystem_read_media_file",
+        "filesystem_read_multiple_files",
+        "filesystem_list_directory",
+        "filesystem_list_directory_with_sizes",
+        "filesystem_search_files",
+        "filesystem_directory_tree",
+        "filesystem_list_allowed_directories",
+        "filesystem_get_file_info",
+        "mcp-code-executor_execute_code",
+        "mcp-code-executor_read_code_file",
+        "mcp-code-executor_check_installed_packages",
+        "mcp-code-executor_get_environment_config"
+    ],
+    "oracle": {
+        "kind": "claims",
+        "dataset": {
+            "name": "ScaleAI/MCP-Atlas",
+            "revision": "b5bcde2236c0b8772020e13dea4e481241e78677",
+            "taskId": "689cd6f8522029b7ad7b2026"
+        },
+        "claims": [
+            "The user's sports data on their computer is in the file fantasy sports.csv",
+            "The average score of the athletes in the file fantasy sports.csv is 101.05882352941177, so the user's father is correct."
+        ]
+    }
+}

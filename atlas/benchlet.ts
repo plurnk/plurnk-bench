@@ -324,6 +324,24 @@ const awaitAtlas = async (
     });
 };
 
+export const missingAtlasTools = (
+    catalog: readonly unknown[],
+    enabledTools: readonly string[],
+): string[] => {
+    const available = new Set(catalog.flatMap((candidate) => {
+        if (
+            candidate === null
+            || typeof candidate !== "object"
+            || Array.isArray(candidate)
+            || typeof (candidate as { name?: unknown }).name !== "string"
+        ) {
+            return [];
+        }
+        return [(candidate as { name: string }).name];
+    }));
+    return enabledTools.filter((name) => !available.has(name));
+};
+
 const taskPath = (name: string): string => {
     if (!/^[a-z0-9][a-z0-9._-]*$/.test(name)) {
         throw new Error(`Invalid Atlas task name '${name}'.`);
@@ -733,6 +751,39 @@ const main = async (): Promise<void> => {
         readyRequestTimeoutMs,
     );
     writeJson(resolve(runDir, "atlas-tools.json"), tools);
+    const missingTools = missingAtlasTools(tools, task.enabledTools);
+    if (missingTools.length > 0) {
+        activeStage = "skip";
+        captureContainerLog(started.container, runDir);
+        removeContainer(started.container);
+        activeContainer = undefined;
+        const completedAt = new Date();
+        writeJson(resolve(runDir, "result.json"), {
+            schemaVersion: 1,
+            harnessStatus: "skipped",
+            passed: null,
+            task: task.name,
+            model,
+            reason: {
+                code: "atlas-task-tools-unavailable",
+                detail: "The pinned Atlas fixture did not expose every tool enabled for this task.",
+                missingTools,
+            },
+            startedAt: activeStartedAt.toISOString(),
+            completedAt: completedAt.toISOString(),
+            durationMs: completedAt.getTime() - activeStartedAt.getTime(),
+        });
+        const provenance = JSON.parse(
+            readFileSync(resolve(runDir, "provenance.json"), "utf8"),
+        ) as Record<string, unknown>;
+        writeJson(resolve(runDir, "provenance.json"), {
+            ...provenance,
+            state: "skipped",
+            completedAt: completedAt.toISOString(),
+        });
+        process.stdout.write(`artifact=${runDir}\n`);
+        return;
+    }
 
     activeStage = "build";
     await buildSource("service", serviceRoot, runDir);
