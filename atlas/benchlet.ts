@@ -532,7 +532,9 @@ const main = async (): Promise<void> => {
         PLURNK_CLIENT_CHECKOUT: clientRoot,
         PLURNK_SERVICE_POLICY: resolve(runDir, "candidate-policy.md"),
         PLURNK_SERVICE_EMBED_DISABLE: "1",
-        PLURNK_EXECS_ONLY: "atlas",
+        PLURNK_CANDIDATE_CLIENT_ENV: JSON.stringify({
+            PLURNK_EXECS_ONLY: "atlas",
+        }),
         PLURNK_MCP_ATLAS: process.execPath,
         PLURNK_MCP_ATLAS_ARGS: JSON.stringify(adapterArgs),
     };
