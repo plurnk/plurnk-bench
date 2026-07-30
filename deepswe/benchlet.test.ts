@@ -10,6 +10,8 @@ import { basename, resolve } from "node:path";
 import test from "node:test";
 import {
     allocateRun,
+    candidatePolicyPath,
+    candidatePolicySnapshotPath,
     digestSummary,
     gradeObservations,
     parseGoTestEvents,
@@ -17,6 +19,17 @@ import {
     requiemModelAlias,
     runToFiles,
 } from "./benchlet.ts";
+
+test("[§benchlet-evidence] benchlet resolves and snapshots the service candidate personality", () => {
+    assert.equal(
+        candidatePolicyPath("/source/plurnk-service"),
+        "/source/plurnk-service/plurnk-meta/PLURNK_PERSONALITY.md",
+    );
+    assert.equal(
+        candidatePolicySnapshotPath("/artifacts/run46"),
+        "/artifacts/run46/candidate-policy.md",
+    );
+});
 
 test("[§benchlet-oracle] benchlet parses exact go test events and keeps failure output", () => {
     const events = [

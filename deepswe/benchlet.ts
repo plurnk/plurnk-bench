@@ -125,6 +125,12 @@ const resolveFrom = (root: string, value: string): string => {
     return resolve(root, expanded);
 };
 
+export const candidatePolicyPath = (serviceRoot: string): string =>
+    resolve(serviceRoot, "plurnk-meta", "PLURNK_PERSONALITY.md");
+
+export const candidatePolicySnapshotPath = (runDir: string): string =>
+    resolve(runDir, "candidate-policy.md");
+
 const sha256 = (path: string): string =>
     createHash("sha256").update(readFileSync(path)).digest("hex");
 
@@ -733,6 +739,7 @@ const main = async (): Promise<void> => {
     const serviceRoot = resolveFrom(benchRoot, process.env.PLURNK_BENCHLET_SERVICE_ROOT ?? "");
     const clientRoot = resolveFrom(benchRoot, process.env.PLURNK_BENCHLET_CLIENT_ROOT ?? "");
     const operatorEnv = expandHome(process.env.PLURNK_BENCHLET_OPERATOR_ENV ?? "");
+    const candidatePolicy = candidatePolicyPath(serviceRoot);
     const candidateTimeout = Number(process.env.PLURNK_BENCHLET_CANDIDATE_TIMEOUT_SEC);
     const candidateOverhead = Number(process.env.PLURNK_BENCHLET_CANDIDATE_OVERHEAD_SEC);
     const requiemTimeout = Number(process.env.PLURNK_BENCHLET_REQUIEM_TIMEOUT_SEC);
@@ -751,6 +758,7 @@ const main = async (): Promise<void> => {
         throw new Error("PLURNK_BENCHLET_REQUIEM_TIMEOUT_SEC must be a positive integer");
     }
     if (!existsSync(operatorEnv)) throw new Error(`operator model environment is missing: ${operatorEnv}`);
+    if (!existsSync(candidatePolicy)) throw new Error(`candidate personality is missing: ${candidatePolicy}`);
 
     const config = validateFixture(manifest, taskDir);
     ensureRepositoryCache(manifest, repositoryCache);
@@ -791,6 +799,8 @@ const main = async (): Promise<void> => {
     }
 
     const runDir = allocateRun(runsRoot, model);
+    const candidatePolicySnapshot = candidatePolicySnapshotPath(runDir);
+    copyFileSync(candidatePolicy, candidatePolicySnapshot);
     snapshotTask(runDir, manifestPath, manifest, taskDir);
     const startedAt = new Date();
     activeRunDir = runDir;
@@ -829,6 +839,11 @@ const main = async (): Promise<void> => {
             requiemEnabled,
             operatorEnv,
             operatorEnvKeys: envFileKeyNames(operatorEnv),
+            candidatePolicy: {
+                sourcePath: candidatePolicy,
+                snapshotPath: candidatePolicySnapshot,
+                sha256: sha256(candidatePolicySnapshot),
+            },
             shellCredentialKeys: environmentKeyNames(process.env),
         },
     };
@@ -866,24 +881,24 @@ const main = async (): Promise<void> => {
         String(candidateTimeout),
         instruction,
     ];
+    const candidateEnvironmentOverrides = {
+        PLURNK_CANDIDATE_DIR: runDir,
+        PLURNK_CANDIDATE_MODEL: model,
+        PLURNK_CLIENT_CHECKOUT: clientRoot,
+        PLURNK_SERVICE_POLICY: candidatePolicySnapshot,
+    };
     writeJson(resolve(runDir, "candidate-command.json"), {
         command: process.execPath,
         args: candidateArgs,
         cwd: serviceRoot,
-        environmentOverrides: {
-            PLURNK_CANDIDATE_DIR: runDir,
-            PLURNK_CANDIDATE_MODEL: model,
-            PLURNK_CLIENT_CHECKOUT: clientRoot,
-        },
+        environmentOverrides: candidateEnvironmentOverrides,
     });
     activeStage = "candidate";
     const candidate = await runToFiles(process.execPath, candidateArgs, {
         cwd: serviceRoot,
         env: {
             ...process.env,
-            PLURNK_CANDIDATE_DIR: runDir,
-            PLURNK_CANDIDATE_MODEL: model,
-            PLURNK_CLIENT_CHECKOUT: clientRoot,
+            ...candidateEnvironmentOverrides,
         },
         stdoutPath: resolve(runDir, "candidate.stdout.log"),
         stderrPath: resolve(runDir, "candidate.stderr.log"),
