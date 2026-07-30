@@ -1,0 +1,38 @@
+{
+    "schemaVersion": 1,
+    "name": "storyteller-dependency",
+    "source": "ScaleAI/MCP-Atlas task 689e0b1d9c8e2ac413c1f25c",
+    "prompt": "I've been working on a local project for telling stories where I've already built a few react components. I want to check the required dependency version for the component that has the fewest lines of code.",
+    "enabledTools": [
+        "filesystem_read_multiple_files",
+        "filesystem_directory_tree",
+        "filesystem_list_allowed_directories",
+        "git_git_status",
+        "git_git_diff_unstaged",
+        "git_git_diff_staged",
+        "git_git_diff",
+        "git_git_log",
+        "git_git_show",
+        "fetch_fetch",
+        "cli-mcp-server_run_command",
+        "cli-mcp-server_show_security_rules",
+        "filesystem_search_files",
+        "whois_whois_domain",
+        "whois_whois_tld",
+        "whois_whois_ip",
+        "whois_whois_as"
+    ],
+    "oracle": {
+        "kind": "claims",
+        "dataset": {
+            "name": "ScaleAI/MCP-Atlas",
+            "revision": "b5bcde2236c0b8772020e13dea4e481241e78677",
+            "taskId": "689e0b1d9c8e2ac413c1f25c"
+        },
+        "claims": [
+            "The component with the fewest lines of code is AspectRatio",
+            "The AspectRatio component uses `@radix-ui/react-aspect-ratio`",
+            "The required dependency version for `@radix-ui/react-aspect-ratio` is \"^1.0.3\""
+        ]
+    }
+}

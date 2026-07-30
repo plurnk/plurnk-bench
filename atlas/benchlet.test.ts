@@ -3,6 +3,7 @@ import test from "node:test";
 import {
     answerMatches,
     atlasClientArgs,
+    atlasScoringCsv,
     requiemIsComplete,
     successfulExecutorCalls,
     withoutMcpServers,
@@ -12,6 +13,30 @@ test("Atlas answer evidence requires the expected whole answer token", () => {
     assert.equal(answerMatches("Customer", "Customer"), true);
     assert.equal(answerMatches("The answer is Customer.", "Customer"), true);
     assert.equal(answerMatches("CustomerService", "Customer"), false);
+});
+
+test("Atlas scoring input preserves the pinned task, claims, prompt, and multiline answer", () => {
+    const task = {
+        schemaVersion: 1 as const,
+        name: "scored",
+        source: "source",
+        prompt: "Find it.",
+        enabledTools: ["filesystem_read_text_file"],
+        oracle: {
+            kind: "claims" as const,
+            dataset: {
+                name: "ScaleAI/MCP-Atlas",
+                revision: "b5bcde2236c0b8772020e13dea4e481241e78677",
+                taskId: "task-1",
+            },
+            claims: ["The answer is \"yes\".", "The value is 2."],
+        },
+    };
+    assert.deepEqual(atlasScoringCsv(task, "Yes.\nThe value is 2."), {
+        groundTruth: `${String.raw`"TASK","PROMPT","GTFA_CLAIMS"
+"task-1","Find it.","[""The answer is \""yes\""."",""The value is 2.""]"`}\n`,
+        model: "\"task_id\",\"response\"\n\"task-1\",\"Yes.\nThe value is 2.\"\n",
+    });
 });
 
 test("Atlas runs isolate their one MCP server without discarding model credentials", () => {

@@ -6,5 +6,8 @@
     "enabledTools": [
         "filesystem_read_text_file"
     ],
-    "expectedAnswer": "Customer"
+    "oracle": {
+        "kind": "exact",
+        "answer": "Customer"
+    }
 }

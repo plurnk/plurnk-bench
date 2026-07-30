@@ -1,6 +1,7 @@
 import {
     copyFileSync,
     existsSync,
+    mkdirSync,
     readFileSync,
     writeFileSync,
 } from "node:fs";
@@ -19,13 +20,28 @@ import {
 } from "../deepswe/benchlet.ts";
 import { allocateRunDirectory } from "../src/run-directory.ts";
 
+interface ExactOracle {
+    readonly kind: "exact";
+    readonly answer: string;
+}
+
+interface ClaimsOracle {
+    readonly kind: "claims";
+    readonly dataset: {
+        readonly name: string;
+        readonly revision: string;
+        readonly taskId: string;
+    };
+    readonly claims: string[];
+}
+
 interface AtlasTask {
     readonly schemaVersion: 1;
     readonly name: string;
     readonly source: string;
     readonly prompt: string;
     readonly enabledTools: string[];
-    readonly expectedAnswer: string;
+    readonly oracle: ExactOracle | ClaimsOracle;
 }
 
 interface Digest {
@@ -110,6 +126,15 @@ const integer = (name: string): number => {
     return value;
 };
 
+const ratio = (name: string): number => {
+    const raw = required(name);
+    const value = Number(raw);
+    if (!Number.isFinite(value) || value < 0 || value > 1) {
+        throw new Error(`${name} must be a number from 0 through 1.`);
+    }
+    return value;
+};
+
 const shell = (
     command: string,
     args: string[],
@@ -152,6 +177,37 @@ const sourceProvenance = (repository: string): {
         remote: remote === "" ? null : remote,
         clean: status === "",
     };
+};
+
+const ensureAtlasSource = (
+    repository: string,
+    revision: string,
+    cache: string,
+): void => {
+    if (!existsSync(cache)) {
+        mkdirSync(dirname(cache), { recursive: true });
+        shell("git", ["clone", "--quiet", "--no-checkout", repository, cache]);
+    }
+    const remote = shell("git", ["-C", cache, "remote", "get-url", "origin"]).trim();
+    if (remote !== repository) {
+        throw new Error(`Atlas source cache origin is '${remote}', expected '${repository}'.`);
+    }
+    if (shell("git", ["-C", cache, "status", "--porcelain"]).trim() !== "") {
+        throw new Error(`Atlas source cache is dirty: ${cache}`);
+    }
+    shell("git", ["-C", cache, "fetch", "--quiet", "--depth=1", "origin", revision]);
+    const fetched = shell("git", ["-C", cache, "rev-parse", "FETCH_HEAD"]).trim();
+    if (fetched !== revision) {
+        throw new Error(`Atlas source fetch resolved '${fetched}', expected '${revision}'.`);
+    }
+    const current = shell(
+        "git",
+        ["-C", cache, "rev-parse", "HEAD"],
+        { allowFailure: true },
+    ).trim();
+    if (current !== revision) {
+        shell("git", ["-C", cache, "checkout", "--quiet", "--detach", revision]);
+    }
 };
 
 const environmentKeyNames = (env: NodeJS.ProcessEnv): string[] =>
@@ -283,12 +339,37 @@ const readTask = (name: string): {
         task.schemaVersion !== 1
         || task.name !== name
         || task.prompt.trim() === ""
-        || task.expectedAnswer.trim() === ""
         || !Array.isArray(task.enabledTools)
         || task.enabledTools.length === 0
         || task.enabledTools.some((tool) => typeof tool !== "string" || tool === "")
     ) {
         throw new Error(`Atlas task '${name}' is malformed.`);
+    }
+    if (
+        task.oracle === null
+        || typeof task.oracle !== "object"
+        || (task.oracle.kind !== "exact" && task.oracle.kind !== "claims")
+    ) {
+        throw new Error(`Atlas task '${name}' has an unknown oracle.`);
+    }
+    if (
+        task.oracle.kind === "exact"
+        && task.oracle.answer.trim() === ""
+    ) {
+        throw new Error(`Atlas task '${name}' has an empty exact oracle.`);
+    }
+    if (
+        task.oracle.kind === "claims"
+        && (
+            task.oracle.dataset.name.trim() === ""
+            || !/^[0-9a-f]{40}$/.test(task.oracle.dataset.revision)
+            || task.oracle.dataset.taskId.trim() === ""
+            || !Array.isArray(task.oracle.claims)
+            || task.oracle.claims.length === 0
+            || task.oracle.claims.some((claim) => typeof claim !== "string" || claim.trim() === "")
+        )
+    ) {
+        throw new Error(`Atlas task '${name}' has a malformed claims oracle.`);
     }
     return { path, task };
 };
@@ -318,6 +399,29 @@ export const answerMatches = (answer: string, expected: string): boolean => {
     const escaped = expected.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
     return new RegExp(`(?:^|\\W)${escaped}(?:\\W|$)`, "i").test(answer);
 };
+
+const csvCell = (value: string): string => `"${value.replaceAll("\"", "\"\"")}"`;
+
+export const atlasScoringCsv = (
+    task: AtlasTask & { readonly oracle: ClaimsOracle },
+    answer: string,
+): {
+    readonly groundTruth: string;
+    readonly model: string;
+} => ({
+    groundTruth: [
+        ["TASK", "PROMPT", "GTFA_CLAIMS"].map(csvCell).join(","),
+        [
+            task.oracle.dataset.taskId,
+            task.prompt,
+            JSON.stringify(task.oracle.claims),
+        ].map(csvCell).join(","),
+    ].join("\n") + "\n",
+    model: [
+        ["task_id", "response"].map(csvCell).join(","),
+        [task.oracle.dataset.taskId, answer].map(csvCell).join(","),
+    ].join("\n") + "\n",
+});
 
 export const atlasClientArgs = (options: {
     readonly filesItems: number;
@@ -411,6 +515,91 @@ const runRequiem = async (
     };
 };
 
+const scoreClaims = async (
+    task: AtlasTask & { readonly oracle: ClaimsOracle },
+    answer: string,
+    model: string,
+    sourceRoot: string,
+    runDir: string,
+    timeoutSeconds: number,
+    judgeModel: string,
+    judgeConcurrency: number,
+): Promise<{
+    readonly kind: "claims";
+    readonly coverage: number;
+    readonly judgeModel: string;
+    readonly sourceRevision: string;
+    readonly dataset: ClaimsOracle["dataset"];
+}> => {
+    const apiKey = required("PLURNK_API_KEY");
+    const configuredBaseUrl = required("OPENAI_BASE_URL").replace(/\/v1\/?$/, "");
+    const scoringDir = resolve(runDir, "atlas-scoring");
+    mkdirSync(scoringDir);
+    const groundTruthPath = resolve(scoringDir, "ground-truth.csv");
+    const modelPath = resolve(scoringDir, "model-output.csv");
+    const csv = atlasScoringCsv(task, answer);
+    writeFileSync(groundTruthPath, csv.groundTruth);
+    writeFileSync(modelPath, csv.model);
+
+    const result = await runToFiles("uv", [
+        "run",
+        "--isolated",
+        "--with-requirements",
+        resolve(sourceRoot, "requirements.txt"),
+        "python",
+        resolve(sourceRoot, "services", "scoring", "score_claims.py"),
+        "--groundtruth-file",
+        groundTruthPath,
+        "--model-file",
+        modelPath,
+        "--model-name",
+        model,
+        "--evaluator-model",
+        judgeModel,
+        "--output-dir",
+        scoringDir,
+        "--concurrency",
+        String(judgeConcurrency),
+        "--num-tasks",
+        "1",
+        "--verbose",
+    ], {
+        cwd: sourceRoot,
+        env: {
+            ...process.env,
+            LLM_API_KEY: apiKey,
+            LLM_BASE_URL: configuredBaseUrl,
+        },
+        stdoutPath: resolve(scoringDir, "scorer.stdout.log"),
+        stderrPath: resolve(scoringDir, "scorer.stderr.log"),
+        tee: true,
+        timeoutMs: timeoutSeconds * 1_000,
+    });
+    commandFailure("Atlas claim scorer", result);
+    const statisticsPath = resolve(scoringDir, `coverage_stats_${model}_all.json`);
+    if (!existsSync(statisticsPath)) {
+        throw new Error("Atlas claim scorer did not produce coverage statistics.");
+    }
+    const statistics = JSON.parse(readFileSync(statisticsPath, "utf8")) as {
+        readonly valid_responses?: number;
+        readonly mean_coverage?: number;
+    };
+    if (
+        statistics.valid_responses !== 1
+        || typeof statistics.mean_coverage !== "number"
+        || !Number.isFinite(statistics.mean_coverage)
+    ) {
+        throw new Error("Atlas claim scorer produced invalid coverage statistics.");
+    }
+    return {
+        kind: "claims",
+        coverage: statistics.mean_coverage,
+        judgeModel,
+        sourceRevision: shell("git", ["-C", sourceRoot, "rev-parse", "HEAD"]).trim(),
+        dataset: task.oracle.dataset,
+    };
+};
+
 const main = async (): Promise<void> => {
     process.loadEnvFile(resolve(benchRoot, ".env.defaults"));
     const { values, positionals } = parseArgs({
@@ -444,6 +633,16 @@ const main = async (): Promise<void> => {
     const requiemEnabled = required("PLURNK_BENCH_ATLAS_REQUIEM") === "1";
     const requiemModel = required("PLURNK_BENCH_ATLAS_REQUIEM_MODEL");
     const requiemTimeout = positiveInteger("PLURNK_BENCH_ATLAS_REQUIEM_TIMEOUT_SEC");
+    const sourceRepository = required("PLURNK_BENCH_ATLAS_SOURCE_REPOSITORY");
+    const sourceRevision = required("PLURNK_BENCH_ATLAS_SOURCE_REVISION");
+    if (!/^[0-9a-f]{40}$/.test(sourceRevision)) {
+        throw new Error("PLURNK_BENCH_ATLAS_SOURCE_REVISION must be a full Git commit.");
+    }
+    const sourceRoot = resolveFrom(benchRoot, required("PLURNK_BENCH_ATLAS_SOURCE_CACHE"));
+    const scorerTimeout = positiveInteger("PLURNK_BENCH_ATLAS_SCORER_TIMEOUT_SEC");
+    const judgeModel = required("PLURNK_BENCH_ATLAS_JUDGE_MODEL");
+    const judgeConcurrency = positiveInteger("PLURNK_BENCH_ATLAS_JUDGE_CONCURRENCY");
+    const passCoverage = ratio("PLURNK_BENCH_ATLAS_PASS_COVERAGE");
     const operatorEnv = expandHome(required("PLURNK_BENCH_ATLAS_OPERATOR_ENV"));
     const runsRoot = resolveFrom(benchRoot, required("PLURNK_BENCH_ATLAS_RUNS_ROOT"));
     const serviceRoot = resolveFrom(benchRoot, required("PLURNK_BENCH_ATLAS_SERVICE_ROOT"));
@@ -453,11 +652,17 @@ const main = async (): Promise<void> => {
         throw new Error(`Atlas requiem environment is missing: ${operatorEnv}`);
     }
     if (!existsSync(policy)) throw new Error(`Candidate personality is missing: ${policy}`);
+    if (task.oracle.kind === "claims") {
+        ensureAtlasSource(sourceRepository, sourceRevision, sourceRoot);
+    }
 
     const sources = {
         bench: sourceProvenance(benchRoot),
         service: sourceProvenance(serviceRoot),
         client: sourceProvenance(clientRoot),
+        ...(task.oracle.kind === "claims"
+            ? { atlas: sourceProvenance(sourceRoot) }
+            : {}),
     };
     for (const [name, source] of Object.entries(sources)) {
         if (!source.clean) {
@@ -507,6 +712,10 @@ const main = async (): Promise<void> => {
             requiemEnabled,
             requiemModel,
             requiemTimeoutSeconds: requiemTimeout,
+            scorerTimeoutSeconds: scorerTimeout,
+            judgeModel,
+            judgeConcurrency,
+            passCoverage,
             credentialKeys: environmentKeyNames(process.env),
         },
     });
@@ -596,7 +805,25 @@ const main = async (): Promise<void> => {
         task.enabledTools,
     );
     const usedAtlas = successfulAtlasExecs > 0;
-    const matched = answerMatches(answer, task.expectedAnswer);
+    const evaluation = task.oracle.kind === "exact"
+        ? {
+            kind: "exact" as const,
+            expectedAnswer: task.oracle.answer,
+            matched: answerMatches(answer, task.oracle.answer),
+        }
+        : await scoreClaims(
+            task as AtlasTask & { readonly oracle: ClaimsOracle },
+            answer,
+            model,
+            sourceRoot,
+            runDir,
+            scorerTimeout,
+            judgeModel,
+            judgeConcurrency,
+        );
+    const oraclePassed = evaluation.kind === "exact"
+        ? evaluation.matched
+        : evaluation.coverage >= passCoverage;
     const successfulExecs = digest.log_entries.filter((entry) =>
         entry.origin === "model"
         && entry.op === "EXEC"
@@ -604,7 +831,7 @@ const main = async (): Promise<void> => {
     const passed = candidate.status === 0
         && loop.status === 200
         && usedAtlas
-        && matched;
+        && oraclePassed;
 
     activeStage = "requiem";
     const requiem = await runRequiem(
@@ -628,9 +855,10 @@ const main = async (): Promise<void> => {
         passed,
         task: task.name,
         model,
-        expectedAnswer: task.expectedAnswer,
         answer,
-        answerMatched: matched,
+        evaluation,
+        passCoverage: evaluation.kind === "claims" ? passCoverage : null,
+        oraclePassed,
         usedAtlas,
         successfulExecs,
         successfulAtlasExecs,

@@ -23,6 +23,13 @@ Run the documented filesystem task with the configured default model:
 npm run atlas
 ```
 
+Run a pinned public Atlas task and score its three ground-truth claims with
+Atlas's own claim-coverage scorer:
+
+```sh
+npm run atlas -- --task storyteller-dependency
+```
+
 Select another configured model alias:
 
 ```sh
@@ -32,4 +39,6 @@ npm run atlas -- glm
 Every run is allocated directly under `../benchmarks/` as one descriptive
 `run<N>-atlas-*` directory. It contains the exact source and container
 provenance, Atlas tool catalog, build and candidate logs, Plurnk database,
-digest, packets, reasoning, result, and optional requiem.
+digest, packets, reasoning, result, and optional requiem. Scored tasks also
+include the pinned dataset row, model response, scorer logs, per-claim verdicts,
+and Atlas coverage statistics under `atlas-scoring/`.
