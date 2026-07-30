@@ -51,6 +51,8 @@ interface Digest {
         readonly origin: string;
         readonly op: string;
         readonly status_rx: number;
+        readonly stream?: string;
+        readonly target?: string | null;
     }>;
 }
 
@@ -341,6 +343,18 @@ export const requiemIsComplete = (
     report: boolean,
 ): boolean => status === 0 && markdown && report;
 
+export const successfulExecutorCalls = (
+    entries: Digest["log_entries"],
+    runtime: string,
+    allowedTools: readonly string[],
+): number => entries.filter((entry) =>
+    entry.origin === "model"
+    && entry.op === "EXEC"
+    && entry.status_rx < 400
+    && entry.stream?.startsWith(`${runtime}:///`) === true
+    && typeof entry.target === "string"
+    && allowedTools.includes(entry.target)).length;
+
 const usageSummary = (digest: Digest): Record<string, unknown> => {
     const attempts = digest.turn_attempts ?? [];
     return {
@@ -576,8 +590,12 @@ const main = async (): Promise<void> => {
     const loop = digest.loops.find((candidateLoop) => candidateLoop.prompt === task.prompt);
     if (loop === undefined) throw new Error("Atlas digest omitted the task loop.");
     const answer = loop.terminal_message ?? "";
-    const digestMarkdown = readFileSync(digestMarkdownPath, "utf8");
-    const usedAtlas = digestMarkdown.includes("EXEC[atlas]");
+    const successfulAtlasExecs = successfulExecutorCalls(
+        digest.log_entries,
+        "atlas",
+        task.enabledTools,
+    );
+    const usedAtlas = successfulAtlasExecs > 0;
     const matched = answerMatches(answer, task.expectedAnswer);
     const successfulExecs = digest.log_entries.filter((entry) =>
         entry.origin === "model"
@@ -586,7 +604,6 @@ const main = async (): Promise<void> => {
     const passed = candidate.status === 0
         && loop.status === 200
         && usedAtlas
-        && successfulExecs > 0
         && matched;
 
     activeStage = "requiem";
@@ -616,6 +633,7 @@ const main = async (): Promise<void> => {
         answerMatched: matched,
         usedAtlas,
         successfulExecs,
+        successfulAtlasExecs,
         candidate: {
             status: candidate.status,
             signal: candidate.signal,

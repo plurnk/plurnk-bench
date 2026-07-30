@@ -4,6 +4,7 @@ import {
     answerMatches,
     atlasClientArgs,
     requiemIsComplete,
+    successfulExecutorCalls,
     withoutMcpServers,
 } from "./benchlet.ts";
 
@@ -50,4 +51,35 @@ test("an enabled Atlas requiem is complete only with a successful call and both 
     assert.equal(requiemIsComplete(1, true, true), false);
     assert.equal(requiemIsComplete(0, false, true), false);
     assert.equal(requiemIsComplete(0, true, false), false);
+});
+
+test("Atlas evidence comes from a successful allowed tool stream, not rendered prose", () => {
+    const entries = [
+        {
+            origin: "model",
+            op: "EXEC",
+            status_rx: 200,
+            stream: "atlas:///1/2/3",
+            target: "filesystem_read_text_file",
+        },
+        {
+            origin: "model",
+            op: "EXEC",
+            status_rx: 200,
+            stream: "sh:///1/2/4",
+            target: "filesystem_read_text_file",
+        },
+        {
+            origin: "model",
+            op: "EXEC",
+            status_rx: 400,
+            stream: "atlas:///1/2/5",
+            target: "filesystem_read_text_file",
+        },
+    ];
+    assert.equal(
+        successfulExecutorCalls(entries, "atlas", ["filesystem_read_text_file"]),
+        1,
+    );
+    assert.equal(successfulExecutorCalls(entries, "atlas", ["other_tool"]), 0);
 });
