@@ -9,7 +9,6 @@ __pycache__/
 .env.*
 !.env.defaults
 !.env.example
-AGENTS.md
 *.tsbuildinfo
 
 # SQLite working files (WAL mode) — bench result stores
