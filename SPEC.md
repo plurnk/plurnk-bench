@@ -146,6 +146,12 @@ complete evidence while changing one experimental variable at a time.
   files and hashes, environment, verifier backend, and verifier timeouts. A run
   requires clean bench, service, and client commits and records those
   revisions. The complete pinned task is copied into the run artifact.
+- §benchlet-client-checkout Host-side candidates require an explicit outside
+  client checkout: `PLURNK_BENCHLET_CLIENT_ROOT` for DeepSWE and
+  `PLURNK_BENCH_ATLAS_CLIENT_ROOT` for Atlas. Portable defaults never guess a
+  sibling checkout. Missing or blank input fails before run allocation or
+  external activity; relative paths resolve from the bench root, and the exact
+  clean client revision remains part of run provenance.
 - §benchlet-oracle The harness proves the pristine baseline before invoking a
   model. The ABS diagnostic delegates preparation to the task's
   `grader.py prepare` and runs its selected suites through ordinary
@@ -177,9 +183,11 @@ complete evidence while changing one experimental variable at a time.
   advance to another number rather than nesting or reusing a run.
 
 Covered: `benchlet.test.ts [§benchlet-oracle]`,
-`[§benchlet-evidence]`, `[§benchlet-failure]`, `[§benchlet-location]`, and
-`[§benchlet-requiem-witness]`. The real `--preflight` path covers task hashes,
-repository fetch, official verifier preparation, and the pristine baseline.
+`[§benchlet-evidence]`, `[§benchlet-failure]`, `[§benchlet-location]`,
+`[§benchlet-requiem-witness]`, and
+`client-checkout.test.ts [§benchlet-client-checkout]`. The real `--preflight`
+path covers task hashes, repository fetch, official verifier preparation, and
+the pristine baseline.
 
 ## §config-carry The runner carries authoritative config, re-declaring nothing
 

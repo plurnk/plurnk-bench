@@ -19,6 +19,7 @@ import {
     runToFiles,
 } from "../deepswe/benchlet.ts";
 import { allocateRunDirectory } from "../src/run-directory.ts";
+import { requiredClientCheckout } from "../src/client-checkout.ts";
 
 interface ExactOracle {
     readonly kind: "exact";
@@ -667,7 +668,11 @@ const main = async (): Promise<void> => {
     const operatorEnv = expandHome(required("PLURNK_BENCH_ATLAS_OPERATOR_ENV"));
     const runsRoot = resolveFrom(benchRoot, required("PLURNK_BENCH_ATLAS_RUNS_ROOT"));
     const serviceRoot = resolveFrom(benchRoot, required("PLURNK_BENCH_ATLAS_SERVICE_ROOT"));
-    const clientRoot = resolveFrom(benchRoot, required("PLURNK_BENCH_ATLAS_CLIENT_ROOT"));
+    const clientRoot = requiredClientCheckout(
+        benchRoot,
+        process.env,
+        "PLURNK_BENCH_ATLAS_CLIENT_ROOT",
+    );
     const policy = resolve(serviceRoot, "plurnk-meta", "PLURNK_PERSONALITY.md");
     if (requiemEnabled && !existsSync(operatorEnv)) {
         throw new Error(`Atlas requiem environment is missing: ${operatorEnv}`);

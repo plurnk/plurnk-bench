@@ -39,11 +39,15 @@ Use the checked-in benchlet when changing Plurnk and repeatedly inspecting one
 pinned external task without Pier's full container ceremony:
 
 ```sh
+export PLURNK_BENCHLET_CLIENT_ROOT=/path/to/open-client
 deepswe/benchlet.sh --preflight
 deepswe/benchlet.sh grok
 deepswe/benchlet.sh --task happy-dom-abort-pending-body-reads --preflight
 deepswe/benchlet.sh --task happy-dom-abort-pending-body-reads glm
 ```
+
+The outside client checkout is an explicit precondition. The harness never
+guesses a sibling under the shared parent directory.
 
 The `--preflight` form verifies the selected task, upstream commit, official
 verifier, and pristine p2p/f2p baseline without calling a model. A model run

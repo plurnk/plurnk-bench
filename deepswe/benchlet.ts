@@ -20,6 +20,7 @@ import { finished } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { allocateRunDirectory } from "../src/run-directory.ts";
+import { requiredClientCheckout } from "../src/client-checkout.ts";
 
 type TestStatus = "passed" | "skipped" | "failed";
 
@@ -967,7 +968,11 @@ const main = async (): Promise<void> => {
     const repositoryCache = resolve(repositoryCacheRoot, `${manifest.task}.git`);
     const runsRoot = resolveFrom(benchRoot, process.env.PLURNK_BENCHLET_RUNS_ROOT ?? "");
     const serviceRoot = resolveFrom(benchRoot, process.env.PLURNK_BENCHLET_SERVICE_ROOT ?? "");
-    const clientRoot = resolveFrom(benchRoot, process.env.PLURNK_BENCHLET_CLIENT_ROOT ?? "");
+    const clientRoot = requiredClientCheckout(
+        benchRoot,
+        process.env,
+        "PLURNK_BENCHLET_CLIENT_ROOT",
+    );
     const operatorEnv = expandHome(process.env.PLURNK_BENCHLET_OPERATOR_ENV ?? "");
     const candidatePolicy = candidatePolicyPath(serviceRoot);
     const candidateTimeout = Number(process.env.PLURNK_BENCHLET_CANDIDATE_TIMEOUT_SEC);

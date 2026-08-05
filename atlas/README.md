@@ -20,21 +20,25 @@ while making the Plurnk-facing protocol boundary current and explicit.
 Run the documented filesystem task with the configured default model:
 
 ```sh
-npm run atlas
+PLURNK_BENCH_ATLAS_CLIENT_ROOT=/path/to/open-client npm run atlas
 ```
 
 Run a pinned public Atlas task and score its three ground-truth claims with
 Atlas's own claim-coverage scorer:
 
 ```sh
-npm run atlas -- --task fantasy-sports-average
+PLURNK_BENCH_ATLAS_CLIENT_ROOT=/path/to/open-client \
+  npm run atlas -- --task fantasy-sports-average
 ```
 
 Select another configured model alias:
 
 ```sh
-npm run atlas -- glm
+PLURNK_BENCH_ATLAS_CLIENT_ROOT=/path/to/open-client npm run atlas -- glm
 ```
+
+The outside client checkout is an explicit precondition. The harness never
+guesses a sibling under the shared parent directory.
 
 Every run is allocated directly under `../benchmarks/` as one descriptive
 `run<N>-atlas-*` directory. It contains the exact source and container
