@@ -78,6 +78,14 @@ absent — the bench never fabricates one.
 Covered: `ingest.test.ts [§digest-boundary]` ×2, `digest.test.ts [§digest-boundary]` ×2,
 `record.test.ts [§digest-boundary]`.
 
+## §platform-package-boundary Public platform dependencies follow their owners
+
+The bench imports runtime-neutral Problems, operation-result validation, and their types
+directly from the independently published `@plurnk/plurnk-contracts` package. It imports
+daemon-owned digest behavior from `@plurnk/plurnk-service/digest`. Both dependencies resolve
+from the public npm registry and the committed lockfile; a sibling checkout, workspace link,
+local path, or unpublished package is never part of the bench's install contract.
+
 ## §record-serial The record is a store row
 
 `BenchRecord` round-trips through JSON without loss — it serializes 1:1 to `record.json` /
