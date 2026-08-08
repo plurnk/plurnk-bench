@@ -43,9 +43,6 @@ flags=(--agent-env "PLURNK_MODEL=$MODEL")
 for k in $(compgen -v | grep -E '^PLURNK_|_BASE_URL$|_API_KEY$' | grep -v '^PLURNK_BENCH_'); do
   case "$k" in
     PLURNK_MODEL|PLURNK_MODEL_NAME) continue;;
-    # DeepSWE's constrained task image intentionally has no browser runtime. HTTP byte
-    # fetch remains available; only the optional Playwright fallback is disabled.
-    PLURNK_SCHEMES_HTTP_PLAYWRIGHT_METHOD) continue;;
     # A non-llama backend (xai/openrouter) can't enforce GBNF; 0.70.0's daemon refuses to
     # boot with GBNF requested-but-unenforceable. PLURNK_BENCH_NO_GBNF=1 runs unconstrained.
     PLURNK_PROVIDERS_GBNF) [ -n "${PLURNK_BENCH_NO_GBNF:-}" ] && continue;;
@@ -54,10 +51,21 @@ for k in $(compgen -v | grep -E '^PLURNK_|_BASE_URL$|_API_KEY$' | grep -v '^PLUR
   case "$k" in *_BASE_URL) v="${v//127.0.0.1/$LAN_IP}"; v="${v//localhost/$LAN_IP}";; esac
   flags+=(--agent-env "$k=$v")
 done
-flags+=(--agent-env "PLURNK_SCHEMES_HTTP_PLAYWRIGHT_METHOD=disabled")
 # SPEC §config-gbnf-optout: the container's shipped .env floor DEFAULTS PLURNK_PROVIDERS_GBNF=plurnk.gbnf, so merely
 # not forwarding it isn't enough — forward =0 to explicitly override the default OFF.
 [ -n "${PLURNK_BENCH_NO_GBNF:-}" ] && flags+=(--agent-env "PLURNK_PROVIDERS_GBNF=0")
+
+# SPEC §config-tavily-route: Tavily is ordinary optional provider configuration. Carry
+# it when configured, retain the no-key default, and record only presence + effective depth.
+TAVILY_CONFIGURED=0
+[ -n "${TAVILY_API_KEY:-}" ] && TAVILY_CONFIGURED=1
+TAVILY_DEPTH="${PLURNK_SCHEMES_HTTP_TAVILY_DEPTH:-basic}"
+case "$TAVILY_DEPTH" in
+  basic|advanced) ;;
+  *) echo "smoke: PLURNK_SCHEMES_HTTP_TAVILY_DEPTH must be basic or advanced" >&2; exit 1;;
+esac
+TAVILY_ROUTE=absent
+[ "$TAVILY_CONFIGURED" = 1 ] && TAVILY_ROUTE="configured:$TAVILY_DEPTH"
 
 # CPUs (SPEC §config-native-cpus): default to the task's native allotment (leaderboard-compliant — an --override-cpus
 # disqualifies submissions). We used to force host cores to stop the embedder thrashing its
@@ -83,7 +91,7 @@ CLIENT_VERSION="$(npm view @plurnk/plurnk version 2>/dev/null)"
 build=()
 [ -n "${PLURNK_BENCH_FORCE_BUILD:-}" ] && build+=(--force-build)
 
-echo "smoke: model=$MODEL task=$TASK service=$SERVICE_VERSION client=$CLIENT_VERSION cpus=${PLURNK_BENCH_CPUS:-native} client_timeout=${CLIENT_TIMEOUT_SEC}s (budget ${AGENT_BUDGET:-?}s)${PLURNK_BENCH_FORCE_BUILD:+ [force-build]}" >&2
+echo "smoke: model=$MODEL task=$TASK service=$SERVICE_VERSION client=$CLIENT_VERSION tavily=$TAVILY_ROUTE cpus=${PLURNK_BENCH_CPUS:-native} client_timeout=${CLIENT_TIMEOUT_SEC}s (budget ${AGENT_BUDGET:-?}s)${PLURNK_BENCH_FORCE_BUILD:+ [force-build]}" >&2
 # The default personality ships on: the daemon seeds PLURNK_PERSONALITY.md to
 # ~/.plurnk/AGENTS.md and foists it headless (confirmed via digest, PLURNK_POLICY unset).
 # So we DON'T set PLURNK_POLICY — the benchmark gets the real product default as-is.
@@ -93,6 +101,8 @@ PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
   --agent-kwarg "client_timeout_sec=$CLIENT_TIMEOUT_SEC" \
   --agent-kwarg "service_version=$SERVICE_VERSION" \
   --agent-kwarg "client_version=$CLIENT_VERSION" \
+  --agent-kwarg "tavily_configured=$TAVILY_CONFIGURED" \
+  --agent-kwarg "tavily_depth=$TAVILY_DEPTH" \
   "${cpu_flags[@]}" \
   "${build[@]}" \
   "${flags[@]}" \

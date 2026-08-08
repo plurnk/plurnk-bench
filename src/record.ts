@@ -11,6 +11,8 @@
 //   - `outcome`/`reward`/`testPassFraction`: the Pier verifier's score — how the
 //     BENCHMARK graded the produced patch. A loop can end 200 and still fail the oracle.
 
+import type { WebMaterializationProvenance } from "./web-materialization.ts";
+
 export type Outcome = "pass" | "fail" | "error" | "timeout" | "cancelled";
 
 // Token usage as the daemon reports it on the `--json` doc (authoritative snapshot).
@@ -60,5 +62,6 @@ export interface BenchRecord {
     run?: RunRef;               // digest drill-down handle (absent if the run never started)
     startedAt?: string;         // ISO 8601, when available (Pier trial timing)
     finishedAt?: string;        // ISO 8601
+    webMaterialization?: WebMaterializationProvenance;
     problem?: import("@plurnk/plurnk-contracts").ProblemDetails; // exact client or terminal failure occurrence
 }

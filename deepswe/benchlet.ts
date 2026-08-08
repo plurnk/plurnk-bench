@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { allocateRunDirectory } from "../src/run-directory.ts";
 import { requiredClientCheckout } from "../src/client-checkout.ts";
+import { webMaterializationProvenance } from "../src/web-materialization.ts";
 
 type TestStatus = "passed" | "skipped" | "failed";
 
@@ -1066,6 +1067,7 @@ const main = async (): Promise<void> => {
         },
         modelAlias: model,
         sources,
+        webMaterialization: webMaterializationProvenance(process.env),
         runtime: {
             node: process.version,
             platform: process.platform,

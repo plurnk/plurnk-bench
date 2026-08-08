@@ -16,6 +16,7 @@ live task: the daemon boots, drives a real multi-turn loop, commits, and grades.
 
 from __future__ import annotations
 
+import json
 import shlex
 from urllib.parse import urlparse
 
@@ -47,13 +48,28 @@ class PlurnkAgent(BaseInstalledAgent):
         client_timeout_sec: int = DEFAULT_CLIENT_TIMEOUT_S,
         client_version: str | None = None,   # npm version spec, e.g. "0.40.2"; None = latest
         service_version: str | None = None,
+        tavily_configured: str = "0",
+        tavily_depth: str = "basic",
         *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
+        if tavily_configured not in {"0", "1"}:
+            raise ValueError("tavily_configured must be 0 or 1")
+        if tavily_depth not in {"basic", "advanced"}:
+            raise ValueError("tavily_depth must be basic or advanced")
         self._client_timeout_sec = int(client_timeout_sec)
         self._client_version = client_version
         self._service_version = service_version
+        self._web_materialization = {
+            "schemaVersion": 1,
+            "webMaterialization": {
+                "tavily": {
+                    "configured": tavily_configured == "1",
+                    "depth": tavily_depth,
+                },
+            },
+        }
 
     @staticmethod
     def name() -> str:
@@ -112,6 +128,7 @@ class PlurnkAgent(BaseInstalledAgent):
         escaped = shlex.quote(instruction)
         agent_dir = EnvironmentPaths.agent_dir          # /logs/agent
         record = agent_dir / "plurnk.json"               # client --json document → ingest
+        bench_provenance = agent_dir / "plurnk-bench.json"
         stderr = agent_dir / "plurnk.client.stderr"
         daemon_log = agent_dir / "plurnk-service.log"
         db_dest = agent_dir / "plurnk.db"                # daemon DB → digest drill-down
@@ -142,6 +159,7 @@ snapshot_db() {{
   ' "$1" "$2"
 }}
 plurnk-service start > {shlex.quote(str(daemon_log))} 2>&1 &
+printf '%s\n' {shlex.quote(json.dumps(self._web_materialization))} > {shlex.quote(str(bench_provenance))}
 for _ in $(seq 1 {DAEMON_READY_TIMEOUT_S}); do
   if plurnk models >/dev/null 2>&1; then break; fi
   sleep 1

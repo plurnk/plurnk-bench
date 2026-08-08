@@ -12,6 +12,11 @@ test("[§config-package-version] smoke pins resolved service and client publicat
     assert.doesNotMatch(smoke, /after a @plurnk version bump/);
 });
 
-test("[§config-browser-disabled] smoke disables unavailable Playwright runtime", () => {
-    assert.match(smoke, /flags\+=\(--agent-env "PLURNK_SCHEMES_HTTP_PLAYWRIGHT_METHOD=disabled"\)/);
+test("[§config-tavily-route] smoke carries configured Tavily like other optional web providers and records the route", () => {
+    assert.doesNotMatch(smoke, /PLAYWRIGHT/);
+    assert.match(smoke, /_BASE_URL\$\|_API_KEY\$/);
+    assert.doesNotMatch(smoke, /TAVILY_API_KEY\|PLURNK_SCHEMES_HTTP_TAVILY_DEPTH\) continue/);
+    assert.match(smoke, /TAVILY_CONFIGURED/);
+    assert.match(smoke, /--agent-kwarg "tavily_configured=\$TAVILY_CONFIGURED"/);
+    assert.match(smoke, /--agent-kwarg "tavily_depth=\$TAVILY_DEPTH"/);
 });

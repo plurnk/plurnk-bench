@@ -109,6 +109,51 @@ test("[§turns-provenance] readTrial takes the turn count from the doc's turns[]
     }
 });
 
+test("[§provenance] readTrial retains the credential-free web materialization route", () => {
+    const trialDir = mkdtempSync(join(tmpdir(), "bench-web-route-"));
+    try {
+        mkdirSync(join(trialDir, "agent"), { recursive: true });
+        writeFileSync(join(trialDir, "agent", "plurnk.json"), JSON.stringify({
+            schemaVersion: 3,
+            finalStatus: 200,
+            workspace: { id: 1, name: "s" },
+            workerId: 4,
+            loopId: 2,
+        }));
+        writeFileSync(join(trialDir, "agent", "plurnk-bench.json"), JSON.stringify({
+            schemaVersion: 1,
+            webMaterialization: { tavily: { configured: true, depth: "advanced" } },
+        }));
+
+        const record = readTrial(trialDir, { harness: "deepswe", taskId: "t", model: "m" });
+        assert.deepEqual(record.webMaterialization, {
+            tavily: { configured: true, depth: "advanced" },
+        });
+    } finally {
+        rmSync(trialDir, { recursive: true, force: true });
+    }
+});
+
+test("[§provenance] readTrial rejects unowned fields in web materialization provenance", () => {
+    const trialDir = mkdtempSync(join(tmpdir(), "bench-web-route-invalid-"));
+    try {
+        mkdirSync(join(trialDir, "agent"), { recursive: true });
+        writeFileSync(join(trialDir, "agent", "plurnk-bench.json"), JSON.stringify({
+            schemaVersion: 1,
+            webMaterialization: {
+                tavily: { configured: true, depth: "basic", apiKey: "must-not-survive" },
+            },
+        }));
+
+        assert.throws(
+            () => readTrial(trialDir, { harness: "deepswe", taskId: "t", model: "m" }),
+            /invalid bench provenance artifact/,
+        );
+    } finally {
+        rmSync(trialDir, { recursive: true, force: true });
+    }
+});
+
 // Failure-mode telemetry: a pass-to-pass regression means the patch broke the build.
 test("[§attempt-broke-build] joinRecord flags p2pRegressed when a base pass-to-pass test fails", () => {
     const broke = joinRecord({

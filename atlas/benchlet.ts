@@ -20,6 +20,7 @@ import {
 } from "../deepswe/benchlet.ts";
 import { allocateRunDirectory } from "../src/run-directory.ts";
 import { requiredClientCheckout } from "../src/client-checkout.ts";
+import { webMaterializationProvenance } from "../src/web-materialization.ts";
 
 interface ExactOracle {
     readonly kind: "exact";
@@ -716,6 +717,7 @@ const main = async (): Promise<void> => {
         task,
         model,
         sources,
+        webMaterialization: webMaterializationProvenance(process.env),
         image: {
             reference: image,
             id: resolvedImageId,

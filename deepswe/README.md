@@ -68,9 +68,8 @@ env file. Results land in Pier's `jobs/<job>/<trial_id>/` (`verifier/reward.json
 and `src/digest.ts` renders each run's forensics into `<trial>/digest/` by reusing the
 daemon's own `Digest`.
 
-The task image has no Playwright browser runtime, so the runner explicitly selects
-`PLURNK_SCHEMES_HTTP_PLAYWRIGHT_METHOD=disabled`. Ordinary HTTP byte fetch remains
-available; only the optional browser-rendering fallback is absent.
+Configured Tavily follows ordinary provider carriage; no key remains the default.
+Artifacts record only its configured/absent state and effective search depth.
 
 ## status
 

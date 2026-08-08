@@ -94,6 +94,17 @@ class DriverContractTest(unittest.TestCase):
         self.assertIn('snapshot_db "$DB" /logs/agent/plurnk.db', environment.command)
         self.assertNotRegex(environment.command, r"(?m)^cp ")
 
+    def test_web_materialization_provenance_contains_no_credential(self):
+        agent = driver.PlurnkAgent(tavily_configured="1", tavily_depth="advanced")
+        environment = types.SimpleNamespace()
+
+        asyncio.run(agent.run("task", environment, object()))
+
+        self.assertIn("/logs/agent/plurnk-bench.json", environment.command)
+        self.assertIn('"configured": true', environment.command)
+        self.assertIn('"depth": "advanced"', environment.command)
+        self.assertNotIn("TAVILY_API_KEY", environment.command)
+
     def test_snapshot_includes_committed_wal_state(self):
         agent = driver.PlurnkAgent()
         environment = types.SimpleNamespace()

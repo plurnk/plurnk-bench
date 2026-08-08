@@ -1,4 +1,6 @@
 export type { BenchRecord, Outcome, Usage, RunRef } from "./record.ts";
+export type { TavilyDepth, WebMaterializationProvenance } from "./web-materialization.ts";
+export { webMaterializationProvenance } from "./web-materialization.ts";
 export { deriveOutcome, joinRecord, readTrial, readJob } from "./ingest.ts";
 export type { PlurnkDoc, RewardJson, JoinInput, PierTrialResult } from "./ingest.ts";
 export { renderDigest, digestDirFor } from "./digest.ts";
