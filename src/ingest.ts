@@ -2,7 +2,7 @@
 // `--json` document (loop side) + Pier's verifier `reward.json` (oracle side).
 //
 // Shapes mirror the producers exactly:
-//   - PlurnkDoc  <- plurnk/src/cli.ts buildJsonRecord (schemaVersion 3) / buildJsonError
+//   - PlurnkDoc  <- plurnk/src/cli.ts buildJsonRecord (schemaVersion 4) / buildJsonError
 //   - RewardJson ← deep-swe tests/grader.py reward.json
 // The dir-walking glue (which trial dir, taskId/model provenance) firms up against a
 // real Pier `jobs/` tree at smoke time; the JOIN below is the grounded, tested core.
@@ -20,7 +20,7 @@ import {
 // The subset of plurnk's `--json` document this join consumes. A failed one-shot
 // emits `{ schemaVersion, problem: ProblemDetails }` instead of a full record.
 export interface PlurnkDoc {
-    schemaVersion: 3;
+    schemaVersion: 4;
     workspace?: { id: number; name: string };
     finalStatus?: number;
     timedOut?: boolean;
@@ -29,16 +29,29 @@ export interface PlurnkDoc {
     turnCount?: number;
     turns?: unknown[];
     wallMs?: number;
-    usage?: { promptTokens: number; completionTokens: number; costUsd: number } | null;
+    usage?: Omit<Usage, "totalTokens"> | null;
     problem?: ProblemDetails;
 }
 
 const assertPlurnkDoc = (doc: PlurnkDoc): PlurnkDoc => {
-    if (doc.schemaVersion !== 3) {
-        throw new Error(`unsupported plurnk client JSON schema ${String(doc.schemaVersion)}; expected 3`);
+    if (doc.schemaVersion !== 4) {
+        throw new Error(`unsupported plurnk client JSON schema ${String(doc.schemaVersion)}; expected 4`);
     }
     if ("error" in doc) {
         throw new Error("legacy plurnk client error field is not supported; use problem");
+    }
+    if (doc.usage !== undefined && doc.usage !== null) {
+        for (const [name, value] of [
+            ["costUsd", doc.usage.costUsd],
+            ["projectedCostUsd", doc.usage.projectedCostUsd],
+        ] as const) {
+            if (value !== null && (typeof value !== "number" || !Number.isFinite(value) || value < 0)) {
+                throw new TypeError(`plurnk client usage.${name} must be a non-negative number or null`);
+            }
+        }
+        if (!Array.isArray(doc.usage.costs) || !("accounting" in doc.usage)) {
+            throw new TypeError("plurnk client usage lacks monetary evidence");
+        }
     }
     if (doc.finalStatus === undefined) {
         if (doc.problem !== undefined) Validator.assertProblemDetails(doc.problem);
@@ -81,8 +94,10 @@ export const deriveOutcome = (doc: PlurnkDoc, reward: RewardJson | null): Outcom
 
 const usageOf = (doc: PlurnkDoc): Usage | undefined => {
     if (doc.usage === undefined || doc.usage === null) return undefined;
-    const { promptTokens, completionTokens, costUsd } = doc.usage;
-    return { promptTokens, completionTokens, totalTokens: promptTokens + completionTokens, costUsd };
+    return {
+        ...doc.usage,
+        totalTokens: doc.usage.promptTokens + doc.usage.completionTokens,
+    };
 };
 
 export interface JoinInput {
@@ -221,7 +236,7 @@ const countPatchLines = (raw: string): number => {
 export const readTrial = (trialDir: string, meta: { harness: string; taskId: string; model: string }): BenchRecord => {
     const doc = readJson<PlurnkDoc>(join(trialDir, "agent", "plurnk.json"))
         ?? {
-            schemaVersion: 3,
+            schemaVersion: 4,
             problem: Problems.create(
                 "bench:ingest",
                 "client-record-missing",

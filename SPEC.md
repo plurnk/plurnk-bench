@@ -92,9 +92,10 @@ local path, or unpublished package is never part of the bench's install contract
 a JSONL line.
 Covered: `record.test.ts [§record-serial]`, `[§verdicts]`.
 
-The accepted client-document schema is version 3. Its run reference uses
-`workspaceId`/`workerId`/`loopId`; cost is the ordinary numeric `costUsd`
-reported by the daemon. A failed client document preserves its exact RFC 9457
+The accepted client-document schema is version 4. Its run reference uses
+`workspaceId`/`workerId`/`loopId`; exact `costUsd` is nullable, estimates remain
+separate under `projectedCostUsd`, and correlated accounting evidence is preserved.
+A failed client document preserves its exact RFC 9457
 Problem under `problem`; Pier exceptions are mapped once to a `bench:pier`
 Problem. Version 1, legacy session/run coordinates, pico-USD, the old `error`
 field, and flattened failure strings are rejected rather than translated.
@@ -176,7 +177,8 @@ complete evidence while changing one experimental variable at a time.
   signal, and timeout state before the harness reads its output. A complete run
   includes the database, digest, exact packet files, all provider attempts and
   their reasoning/admission errors, terminal loop Problems, both oracle
-  results, exact requiem request and response evidence, usage, and USD cost.
+  results, exact requiem request and response evidence, usage, nullable
+  provider-accounted USD cost, and separately named projection.
 - §benchlet-failure A run with no provider attempt is infrastructure, not a
   model score. A requiem is complete only when its process succeeds and both
   `requiem.md` and `requiem.json` exist. Infrastructure failures retain the

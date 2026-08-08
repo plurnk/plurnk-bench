@@ -43,13 +43,29 @@ test("[§publish-model-attempt-gate] zero provider usage is not a benchmark atte
         harness: "deepswe", taskId: "t", model: "m",
         durationMs: 1000, status: 500, outcome: "fail", turns: 2,
         run: { dbPath: "/unused/plurnk.db" },
-        usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0, costUsd: 0 },
+        usage: {
+            promptTokens: 0,
+            completionTokens: 0,
+            totalTokens: 0,
+            costUsd: 0,
+            projectedCostUsd: 0,
+            costs: [{ kind: "free", source: "fixture" }],
+            accounting: null,
+        },
     };
     assert.equal(recordHasModelAttempt(record), false);
     assert.equal(publishRun(record, mkdtempSync(join(tmpdir(), "bench-pub-"))), null);
     assert.equal(recordHasModelAttempt({
         ...record,
-        usage: { promptTokens: 1, completionTokens: 0, totalTokens: 1, costUsd: 0 },
+        usage: {
+            promptTokens: 1,
+            completionTokens: 0,
+            totalTokens: 1,
+            costUsd: 0,
+            projectedCostUsd: 0,
+            costs: [{ kind: "free", source: "fixture" }],
+            accounting: null,
+        },
     }), true);
 });
 

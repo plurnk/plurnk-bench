@@ -22,6 +22,12 @@ import { parseArgs } from "node:util";
 import { allocateRunDirectory } from "../src/run-directory.ts";
 import { requiredClientCheckout } from "../src/client-checkout.ts";
 import { webMaterializationProvenance } from "../src/web-materialization.ts";
+import {
+    addSettledUsd,
+    summarizeDigestAccounting,
+    summarizeRequiemAccounting,
+    type RequiemAccountingInput,
+} from "../src/accounting.ts";
 
 type TestStatus = "passed" | "skipped" | "failed";
 
@@ -126,6 +132,9 @@ interface OracleResult {
 }
 
 interface DigestJson {
+    workspaces: Array<{
+        cost_usd: number | null;
+    }>;
     workers: Array<{
         id: number;
         name: string;
@@ -148,15 +157,15 @@ interface DigestJson {
         usage_prompt: number;
         usage_completion: number;
         usage_cached: number;
-        usage_cost_usd: number;
+        usage_cost_usd: number | null;
     }>;
     turn_attempts: Array<{
-        accepted: boolean;
-        usage_prompt: number;
-        usage_completion: number;
-        usage_reasoning: number;
-        usage_cached: number;
-        usage_cost_usd: number;
+        accepted: boolean | null;
+        usage_prompt: number | null;
+        usage_completion: number | null;
+        usage_reasoning: number | null;
+        usage_cached: number | null;
+        usage_projected_cost_usd: number | null;
         model: string;
     }>;
     log_entries: Array<{
@@ -829,7 +838,8 @@ export const digestSummary = (digest: DigestJson): {
         completion: number;
         reasoning: number;
         cached: number;
-        costUsd: number;
+        costUsd: number | null;
+        projectedCostUsd: number | null;
     };
     loopOutcomes: Array<{
         workerId: number;
@@ -852,20 +862,19 @@ export const digestSummary = (digest: DigestJson): {
             problemTypes[type] = (problemTypes[type] ?? 0) + 1;
         }
     }
-    const attempts = digest.turn_attempts;
+    const {
+        providerAttempts,
+        rejectedAttempts,
+        models,
+        ...usage
+    } = summarizeDigestAccounting(digest);
     const workerNames = new Map(digest.workers.map((worker) => [worker.id, worker.name]));
     return {
         modelTurns: digest.turns.filter((turn) => turn.model !== null && turn.model !== "unknown").length,
-        providerAttempts: attempts.length,
-        rejectedAttempts: attempts.filter((attempt) => !attempt.accepted).length,
-        models: [...new Set(attempts.map((attempt) => attempt.model))].toSorted(),
-        usage: {
-            prompt: attempts.reduce((sum, attempt) => sum + attempt.usage_prompt, 0),
-            completion: attempts.reduce((sum, attempt) => sum + attempt.usage_completion, 0),
-            reasoning: attempts.reduce((sum, attempt) => sum + attempt.usage_reasoning, 0),
-            cached: attempts.reduce((sum, attempt) => sum + attempt.usage_cached, 0),
-            costUsd: attempts.reduce((sum, attempt) => sum + attempt.usage_cost_usd, 0),
-        },
+        providerAttempts,
+        rejectedAttempts,
+        models,
+        usage,
         loopOutcomes: digest.loops.map((loop) => ({
             workerId: loop.worker_id,
             workerName: workerNames.get(loop.worker_id) ?? null,
@@ -912,30 +921,8 @@ export const requiemModelAlias = (
 };
 
 const requiemSummary = (path: string): Record<string, unknown> => {
-    const report = JSON.parse(readFileSync(path, "utf8")) as {
-        workers?: Array<{
-            usage?: {
-                prompt?: number;
-                completion?: number;
-                reasoning?: number;
-                cached?: number;
-                total?: number;
-            };
-            costUsd?: number;
-        }>;
-    };
-    const workers = report.workers ?? [];
-    return {
-        workers: workers.length,
-        usage: workers.reduce((total, worker) => ({
-            prompt: total.prompt + (worker.usage?.prompt ?? 0),
-            completion: total.completion + (worker.usage?.completion ?? 0),
-            reasoning: total.reasoning + (worker.usage?.reasoning ?? 0),
-            cached: total.cached + (worker.usage?.cached ?? 0),
-            total: total.total + (worker.usage?.total ?? 0),
-        }), { prompt: 0, completion: 0, reasoning: 0, cached: 0, total: 0 }),
-        costUsd: workers.reduce((total, worker) => total + (worker.costUsd ?? 0), 0),
-    };
+    const report = JSON.parse(readFileSync(path, "utf8")) as RequiemAccountingInput;
+    return summarizeRequiemAccounting(report);
 };
 
 const main = async (): Promise<void> => {
@@ -1248,16 +1235,27 @@ const main = async (): Promise<void> => {
     activeStage = "finalize";
     const completedAt = new Date();
     const harnessStatus = requiemEnabled && requiem.complete !== true ? "incomplete" : "complete";
-    const requiemCostUsd = typeof requiem.summary === "object"
-        && requiem.summary !== null
-        && "costUsd" in requiem.summary
-        && typeof requiem.summary.costUsd === "number"
-        ? requiem.summary.costUsd
-        : 0;
+    const requiemCostUsd = !requiemEnabled
+        ? 0
+        : typeof requiem.summary === "object"
+            && requiem.summary !== null
+            && "costUsd" in requiem.summary
+            && (typeof requiem.summary.costUsd === "number" || requiem.summary.costUsd === null)
+            ? requiem.summary.costUsd
+            : null;
+    const requiemProjectedCostUsd = !requiemEnabled
+        ? 0
+        : typeof requiem.summary === "object"
+            && requiem.summary !== null
+            && "projectedCostUsd" in requiem.summary
+            && (typeof requiem.summary.projectedCostUsd === "number" || requiem.summary.projectedCostUsd === null)
+            ? requiem.summary.projectedCostUsd
+            : null;
     writeJson(resolve(runDir, "result.json"), {
         schemaVersion: 1,
         harnessStatus,
-        totalCostUsd: summary.usage.costUsd + requiemCostUsd,
+        totalCostUsd: addSettledUsd(summary.usage.costUsd, requiemCostUsd),
+        projectedTotalCostUsd: addSettledUsd(summary.usage.projectedCostUsd, requiemProjectedCostUsd),
         candidate: {
             status: candidate.status,
             signal: candidate.signal,

@@ -20,6 +20,7 @@ import {
 } from "../deepswe/benchlet.ts";
 import { allocateRunDirectory } from "../src/run-directory.ts";
 import { requiredClientCheckout } from "../src/client-checkout.ts";
+import { summarizeDigestAccounting } from "../src/accounting.ts";
 import { webMaterializationProvenance } from "../src/web-materialization.ts";
 
 interface ExactOracle {
@@ -47,6 +48,9 @@ interface AtlasTask {
 }
 
 interface Digest {
+    readonly workspaces: Array<{
+        readonly cost_usd: number | null;
+    }>;
     readonly loops: Array<{
         readonly prompt: string;
         readonly status: number;
@@ -56,14 +60,14 @@ interface Digest {
             readonly problem?: Record<string, unknown>;
         };
     }>;
-    readonly turn_attempts?: Array<{
-        readonly accepted: boolean;
+    readonly turn_attempts: Array<{
+        readonly accepted: boolean | null;
         readonly model: string;
-        readonly usage_prompt: number;
-        readonly usage_completion: number;
-        readonly usage_reasoning: number;
-        readonly usage_cached: number;
-        readonly usage_cost_usd: number;
+        readonly usage_prompt: number | null;
+        readonly usage_completion: number | null;
+        readonly usage_reasoning: number | null;
+        readonly usage_cached: number | null;
+        readonly usage_projected_cost_usd: number | null;
     }>;
     readonly log_entries: Array<{
         readonly origin: string;
@@ -483,17 +487,10 @@ export const successfulExecutorCalls = (
     && allowedTools.includes(entry.target)).length;
 
 const usageSummary = (digest: Digest): Record<string, unknown> => {
-    const attempts = digest.turn_attempts ?? [];
-    return {
-        providerAttempts: attempts.length,
-        rejectedAttempts: attempts.filter((attempt) => !attempt.accepted).length,
-        models: [...new Set(attempts.map((attempt) => attempt.model))].toSorted(),
-        prompt: attempts.reduce((sum, attempt) => sum + attempt.usage_prompt, 0),
-        completion: attempts.reduce((sum, attempt) => sum + attempt.usage_completion, 0),
-        reasoning: attempts.reduce((sum, attempt) => sum + attempt.usage_reasoning, 0),
-        cached: attempts.reduce((sum, attempt) => sum + attempt.usage_cached, 0),
-        costUsd: attempts.reduce((sum, attempt) => sum + attempt.usage_cost_usd, 0),
-    };
+    return summarizeDigestAccounting({
+        workspaces: digest.workspaces,
+        turn_attempts: digest.turn_attempts,
+    });
 };
 
 const runRequiem = async (
