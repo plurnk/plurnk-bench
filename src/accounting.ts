@@ -7,7 +7,6 @@ export interface DigestAccountingInput {
         usage_completion: number | null;
         usage_reasoning: number | null;
         usage_cached: number | null;
-        usage_projected_cost_usd: number | null;
     }>;
 }
 
@@ -20,7 +19,6 @@ export interface AccountingSummary {
     reasoning: number;
     cached: number;
     costUsd: number | null;
-    projectedCostUsd: number | null;
 }
 
 const settledUsd = (value: unknown, subject: string): number | null => {
@@ -60,8 +58,6 @@ export const summarizeDigestAccounting = (digest: DigestAccountingInput): Accoun
             sum + observedTokens(attempt.usage_cached, `provider attempt ${index} usage_cached`, true), 0),
         costUsd: sumSettledUsd(digest.workspaces.map((workspace, index) =>
             settledUsd(workspace.cost_usd, `workspace ${index} cost_usd`))),
-        projectedCostUsd: sumSettledUsd(attempts.map((attempt, index) =>
-            settledUsd(attempt.usage_projected_cost_usd, `provider attempt ${index} usage_projected_cost_usd`))),
     };
 };
 
@@ -75,7 +71,6 @@ export interface RequiemAccountingInput {
             total: number;
         };
         costUsd: number | null;
-        projectedCostUsd: number | null;
     }>;
 }
 
@@ -93,8 +88,6 @@ export const summarizeRequiemAccounting = (report: RequiemAccountingInput): Reco
         }), { prompt: 0, completion: 0, reasoning: 0, cached: 0, total: 0 }),
         costUsd: sumSettledUsd(workers.map((worker, index) =>
             settledUsd(worker.costUsd, `requiem worker ${index} costUsd`))),
-        projectedCostUsd: sumSettledUsd(workers.map((worker, index) =>
-            settledUsd(worker.projectedCostUsd, `requiem worker ${index} projectedCostUsd`))),
     };
 };
 

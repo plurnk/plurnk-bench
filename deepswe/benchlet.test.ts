@@ -125,19 +125,36 @@ test("[§benchlet-evidence] benchlet summary preserves the terminal loop Problem
             worker_id: 4,
             sequence: 1,
             status: 500,
-            terminal_message: "invalid emission",
             terminated_by: null,
             result: {
                 status: 500,
+                content: "invalid emission",
                 problem: {
                     type: "https://problems.plurnk.dev/engine/generation/invalid-emission-exhausted",
                     status: 500,
                 },
             },
+        }, {
+            id: 3,
+            worker_id: 4,
+            sequence: 2,
+            status: 102,
+            terminated_by: null,
+            result: null,
         }],
         turns: [],
         turn_attempts: [],
-        log_entries: [],
+        log_entries: [{
+            origin: "model",
+            op: null,
+            status_rx: 200,
+            problem: null,
+        }, {
+            origin: "model",
+            op: "PLAN",
+            status_rx: 200,
+            problem: null,
+        }],
     });
 
     assert.deepEqual(summary.loopOutcomes, [{
@@ -151,7 +168,16 @@ test("[§benchlet-evidence] benchlet summary preserves the terminal loop Problem
             type: "https://problems.plurnk.dev/engine/generation/invalid-emission-exhausted",
             status: 500,
         },
+    }, {
+        workerId: 4,
+        workerName: "model-1",
+        loop: 2,
+        status: 102,
+        terminalMessage: null,
+        terminatedBy: null,
+        problem: null,
     }]);
+    assert.deepEqual(summary.operationCounts, { PLAN: 1 });
 });
 
 test("[§benchlet-evidence] benchlet shell owns the operator environment bootstrap", () => {

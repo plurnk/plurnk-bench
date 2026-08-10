@@ -6,7 +6,7 @@ import {
     summarizeRequiemAccounting,
 } from "./accounting.ts";
 
-test("bench accounting consumes the daemon aggregate and keeps attempt projections separate", () => {
+test("bench accounting consumes the daemon aggregate emitted by the released digest", () => {
     assert.deepEqual(summarizeDigestAccounting({
         workspaces: [{ cost_usd: 0.031941728 }],
         turn_attempts: [
@@ -17,7 +17,6 @@ test("bench accounting consumes the daemon aggregate and keeps attempt projectio
                 usage_completion: 20,
                 usage_reasoning: 5,
                 usage_cached: 10,
-                usage_projected_cost_usd: 0.04,
             },
             {
                 accepted: false,
@@ -26,7 +25,6 @@ test("bench accounting consumes the daemon aggregate and keeps attempt projectio
                 usage_completion: 10,
                 usage_reasoning: 0,
                 usage_cached: 0,
-                usage_projected_cost_usd: 0.01,
             },
         ],
     }), {
@@ -38,7 +36,6 @@ test("bench accounting consumes the daemon aggregate and keeps attempt projectio
         reasoning: 5,
         cached: 10,
         costUsd: 0.031941728,
-        projectedCostUsd: 0.05,
     });
 });
 
@@ -52,7 +49,6 @@ test("pending money remains unknown and an error call is not mislabeled as a rej
             usage_completion: null,
             usage_reasoning: null,
             usage_cached: null,
-            usage_projected_cost_usd: null,
         }],
     }), {
         providerAttempts: 1,
@@ -63,7 +59,6 @@ test("pending money remains unknown and an error call is not mislabeled as a rej
         reasoning: 0,
         cached: 0,
         costUsd: null,
-        projectedCostUsd: null,
     });
 });
 
@@ -72,13 +67,11 @@ test("requiem and total accounting never coerce missing charges to zero", () => 
         workers: [{
             usage: { prompt: 10, completion: 2, reasoning: 1, cached: 0, total: 13 },
             costUsd: null,
-            projectedCostUsd: 0.002,
         }],
     }), {
         workers: 1,
         usage: { prompt: 10, completion: 2, reasoning: 1, cached: 0, total: 13 },
         costUsd: null,
-        projectedCostUsd: 0.002,
     });
     assert.equal(addSettledUsd(0.1, null), null);
     assert.equal(addSettledUsd(0.1, 0.2), 0.30000000000000004);
@@ -95,7 +88,6 @@ test("bench accounting rejects malformed provider token evidence", () => {
             usage_completion: 2,
             usage_reasoning: 1,
             usage_cached: 0,
-            usage_projected_cost_usd: 0,
         }],
     } as unknown as Parameters<typeof summarizeDigestAccounting>[0];
     assert.throws(() => summarizeDigestAccounting(digest), /usage_prompt must be a non-negative safe integer or null/);
@@ -104,7 +96,6 @@ test("bench accounting rejects malformed provider token evidence", () => {
         workers: [{
             usage: { prompt: 10, completion: Number.NaN, reasoning: 1, cached: 0, total: 13 },
             costUsd: 0,
-            projectedCostUsd: 0,
         }],
     };
     assert.throws(() => summarizeRequiemAccounting(requiem), /usage\.completion must be a non-negative safe integer/);

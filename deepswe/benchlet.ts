@@ -144,12 +144,12 @@ interface DigestJson {
         worker_id: number;
         sequence: number;
         status: number;
-        terminal_message: string | null;
         terminated_by: string | null;
         result: {
             status: number;
-            problem?: Record<string, unknown>;
-        };
+            content?: string;
+            problem?: Record<string, unknown> | null;
+        } | null;
     }>;
     turns: Array<{
         id: number;
@@ -165,14 +165,13 @@ interface DigestJson {
         usage_completion: number | null;
         usage_reasoning: number | null;
         usage_cached: number | null;
-        usage_projected_cost_usd: number | null;
         model: string;
     }>;
     log_entries: Array<{
         origin: string;
-        op: string;
+        op: string | null;
         status_rx: number;
-        problem?: { type?: string };
+        problem?: { type?: string } | null;
     }>;
 }
 
@@ -839,7 +838,6 @@ export const digestSummary = (digest: DigestJson): {
         reasoning: number;
         cached: number;
         costUsd: number | null;
-        projectedCostUsd: number | null;
     };
     loopOutcomes: Array<{
         workerId: number;
@@ -855,7 +853,8 @@ export const digestSummary = (digest: DigestJson): {
 } => {
     const operationCounts: Record<string, number> = {};
     const problemTypes: Record<string, number> = {};
-    for (const entry of digest.log_entries.filter((entry) => entry.origin === "model")) {
+    for (const entry of digest.log_entries) {
+        if (entry.origin !== "model" || entry.op === null) continue;
         operationCounts[entry.op] = (operationCounts[entry.op] ?? 0) + 1;
         if (entry.status_rx >= 400) {
             const type = entry.problem?.type ?? "unknown";
@@ -880,9 +879,9 @@ export const digestSummary = (digest: DigestJson): {
             workerName: workerNames.get(loop.worker_id) ?? null,
             loop: loop.sequence,
             status: loop.status,
-            terminalMessage: loop.terminal_message,
+            terminalMessage: typeof loop.result?.content === "string" ? loop.result.content : null,
             terminatedBy: loop.terminated_by,
-            problem: loop.result.problem ?? null,
+            problem: loop.result?.problem ?? null,
         })),
         operationCounts,
         problemTypes,
@@ -1243,19 +1242,10 @@ const main = async (): Promise<void> => {
             && (typeof requiem.summary.costUsd === "number" || requiem.summary.costUsd === null)
             ? requiem.summary.costUsd
             : null;
-    const requiemProjectedCostUsd = !requiemEnabled
-        ? 0
-        : typeof requiem.summary === "object"
-            && requiem.summary !== null
-            && "projectedCostUsd" in requiem.summary
-            && (typeof requiem.summary.projectedCostUsd === "number" || requiem.summary.projectedCostUsd === null)
-            ? requiem.summary.projectedCostUsd
-            : null;
     writeJson(resolve(runDir, "result.json"), {
         schemaVersion: 1,
         harnessStatus,
         totalCostUsd: addSettledUsd(summary.usage.costUsd, requiemCostUsd),
-        projectedTotalCostUsd: addSettledUsd(summary.usage.projectedCostUsd, requiemProjectedCostUsd),
         candidate: {
             status: candidate.status,
             signal: candidate.signal,

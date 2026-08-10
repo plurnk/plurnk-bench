@@ -67,7 +67,6 @@ interface Digest {
         readonly usage_completion: number | null;
         readonly usage_reasoning: number | null;
         readonly usage_cached: number | null;
-        readonly usage_projected_cost_usd: number | null;
     }>;
     readonly log_entries: Array<{
         readonly origin: string;

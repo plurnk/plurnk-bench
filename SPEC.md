@@ -178,7 +178,8 @@ complete evidence while changing one experimental variable at a time.
   includes the database, digest, exact packet files, all provider attempts and
   their reasoning/admission errors, terminal loop Problems, both oracle
   results, exact requiem request and response evidence, usage, nullable
-  provider-accounted USD cost, and separately named projection.
+  daemon-reported USD cost, and the ordered direct/estimated/free/unknown
+  evidence from which the daemon derived it.
 - §benchlet-failure A run with no provider attempt is infrastructure, not a
   model score. A requiem is complete only when its process succeeds and both
   `requiem.md` and `requiem.json` exist. Infrastructure failures retain the
