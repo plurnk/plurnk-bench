@@ -38,19 +38,24 @@ test("[§publish] publishRun returns null when the record has no run handle", ()
     assert.equal(publishRun(record, mkdtempSync(join(tmpdir(), "bench-pub-"))), null);
 });
 
-test("[§publish-model-attempt-gate] zero provider usage is not a benchmark attempt", () => {
+test("[§publish-model-attempt-gate] physical provider-request evidence defines a benchmark attempt", () => {
     const record: BenchRecord = {
         harness: "deepswe", taskId: "t", model: "m",
         durationMs: 1000, status: 500, outcome: "fail", turns: 2,
         run: { dbPath: "/unused/plurnk.db" },
         usage: {
-            promptTokens: 0,
-            completionTokens: 0,
-            totalTokens: 0,
-            costUsd: 0,
-            projectedCostUsd: 0,
-            costs: [{ kind: "free", source: "fixture" }],
-            accounting: null,
+            accounting: {
+                requests: [],
+                usage: {
+                    inputTokens: 0,
+                    outputTokens: 0,
+                    totalTokens: 0,
+                },
+                costUsd: "0",
+            },
+            contextTokens: 0,
+            promptBudget: 100,
+            meta: {},
         },
     };
     assert.equal(recordHasModelAttempt(record), false);
@@ -58,13 +63,14 @@ test("[§publish-model-attempt-gate] zero provider usage is not a benchmark atte
     assert.equal(recordHasModelAttempt({
         ...record,
         usage: {
-            promptTokens: 1,
-            completionTokens: 0,
-            totalTokens: 1,
-            costUsd: 0,
-            projectedCostUsd: 0,
-            costs: [{ kind: "free", source: "fixture" }],
-            accounting: null,
+            accounting: {
+                requests: [{ provider: "provider:fixture", model: "fixture/model" }],
+                usage: null,
+                costUsd: null,
+            },
+            contextTokens: null,
+            promptBudget: null,
+            meta: {},
         },
     }), true);
 });

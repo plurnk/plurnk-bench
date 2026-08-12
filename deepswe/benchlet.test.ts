@@ -118,7 +118,23 @@ test("[§benchlet-oracle] benchlet grading rejects an unapplied patch without ru
 
 test("[§benchlet-evidence] benchlet summary preserves the terminal loop Problem", () => {
     const summary = digestSummary({
-        workspaces: [{ cost_usd: 0 }],
+        workspaces: [{
+            accounting: {
+                requests: [],
+                usage: {
+                    inputTokens: 0,
+                    outputTokens: 0,
+                    totalTokens: 0,
+                    inputTokenDetails: {
+                        noCacheTokens: 0,
+                        cacheReadTokens: 0,
+                        cacheWriteTokens: 0,
+                    },
+                    outputTokenDetails: { textTokens: 0, reasoningTokens: 0 },
+                },
+                costUsd: "0",
+            },
+        }],
         workers: [{ id: 4, name: "model-1" }],
         loops: [{
             id: 2,
@@ -144,6 +160,7 @@ test("[§benchlet-evidence] benchlet summary preserves the terminal loop Problem
         }],
         turns: [],
         turn_attempts: [],
+        provider_requests: [],
         log_entries: [{
             origin: "model",
             op: null,

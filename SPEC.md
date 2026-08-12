@@ -92,13 +92,16 @@ local path, or unpublished package is never part of the bench's install contract
 a JSONL line.
 Covered: `record.test.ts [§record-serial]`, `[§verdicts]`.
 
-The accepted client-document schema is version 4. Its run reference uses
-`workspaceId`/`workerId`/`loopId`; exact `costUsd` is nullable, estimates remain
-separate under `projectedCostUsd`, and correlated accounting evidence is preserved.
+The accepted client-document schema is version 5. Its run reference uses
+`workspaceId`/`workerId`/`loopId`, and its complete `usage` envelope is preserved
+verbatim: ordered physical requests are the accounting evidence, known aggregate
+token quantities remain optional, and `costUsd` is an exact decimal string or
+`null`. Context occupancy, prompt budget, and provider metadata remain sibling
+fields; bench does not project rates, tokens, or cost.
 A failed client document preserves its exact RFC 9457
 Problem under `problem`; Pier exceptions are mapped once to a `bench:pier`
-Problem. Version 1, legacy session/run coordinates, pico-USD, the old `error`
-field, and flattened failure strings are rejected rather than translated.
+Problem. Earlier client schemas, legacy session/run coordinates, pico-USD, the
+old `error` field, and flattened failure strings are rejected rather than translated.
 
 ## §provenance Job-tree walking and trial identity
 
@@ -119,10 +122,10 @@ daemon DB), **`digest/`** (rendered from the COPY — the dir is self-contained)
 - §publish-turnless-gate A turn-less DB (infra failure — the daemon never looped) is rolled
   back, not published. Gate: the rendered digest's `turns`.
   Covered: `publish.test.ts [§publish-turnless-gate]`.
-- §publish-model-attempt-gate Automated setup/orchestration turns before the provider
-  completes do not make an infrastructure failure a benchmark attempt. A published run
-  requires positive provider token usage; zero or absent usage is skipped before copying
-  the DB into the canonical tree.
+- §publish-model-attempt-gate Automated setup/orchestration turns before the first provider
+  request do not make an infrastructure failure a benchmark attempt. A published run
+  requires cardinal physical-request evidence; a response-less request remains an attempt
+  even when its token quantities and cost are unknown.
   Covered: `publish.test.ts [§publish-model-attempt-gate]`.
 - §publish-self-referential `record.json`'s digest handle points at the PUBLISHED copy,
   never back into the gitignored `jobs/` scratch; the input record is not mutated.
@@ -175,12 +178,16 @@ complete evidence while changing one experimental variable at a time.
   as the submitted score.
 - §benchlet-evidence Every command records raw stdout, raw stderr, exit status,
   signal, and timeout state before the harness reads its output. A complete run
-  includes the database, digest, exact packet files, all provider attempts and
-  their reasoning/admission errors, terminal loop Problems, both oracle
-  results, exact requiem request and response evidence, usage, nullable
-  daemon-reported USD cost, and the ordered direct/estimated/free/unknown
-  evidence from which the daemon derived it.
-- §benchlet-failure A run with no provider attempt is infrastructure, not a
+  includes the database, digest, exact packet files, every physical provider
+  request plus logical emissions and their reasoning/admission errors, terminal
+  loop Problems, both oracle results, exact requiem request and response evidence,
+  usage, nullable daemon-reported USD cost, and the ordered
+  charged/estimated/unknown evidence from which the daemon derived it. Result
+  documents use schema version 2;
+  `providerRequests` is physical cardinality, `rejectedEmissions` is admission
+  evidence, native provider usage is preserved, and USD totals remain exact
+  decimal strings or `null`.
+- §benchlet-failure A run with no physical provider request is infrastructure, not a
   model score. A requiem is complete only when its process succeeds and both
   `requiem.md` and `requiem.json` exist. Infrastructure failures retain the
   stage, error, provenance, and all artifacts written before the failure.

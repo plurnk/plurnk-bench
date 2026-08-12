@@ -12,35 +12,20 @@
 //     BENCHMARK graded the produced patch. A loop can end 200 and still fail the oracle.
 
 import type { WebMaterializationProvenance } from "./web-materialization.ts";
-import type { ProviderCost } from "@plurnk/plurnk-contracts";
+import type {
+    ProviderAccountingProjection,
+} from "./accounting.ts";
 
 export type Outcome = "pass" | "fail" | "error" | "timeout" | "cancelled";
 
-export type AccountingEvidence = null | {
-    scopeId: string;
-    status: "open";
-} | {
-    scopeId: string;
-    status: "pending";
-    reason: string;
-    evaluatedAt?: string;
-} | {
-    scopeId: string;
-    status: "settled";
-    charge: Extract<ProviderCost, { kind: "authoritative" }>;
-    evaluatedAt: string;
-};
-
-// Usage and monetary evidence exactly as the daemon reports them on the client
-// document; an unavailable provider charge stays null rather than becoming zero.
+// The complete loop usage envelope from the client document. Physical requests
+// remain the source evidence; aggregate usage and exact-decimal USD are preserved
+// verbatim rather than projected into a bench-owned accounting representation.
 export interface Usage {
-    promptTokens: number;
-    completionTokens: number;
-    totalTokens: number;
-    costUsd: number | null;
-    projectedCostUsd: number | null;
-    costs: ProviderCost[];
-    accounting: AccountingEvidence;
+    accounting: ProviderAccountingProjection;
+    contextTokens: number | null;
+    promptBudget: number | null;
+    meta: Record<string, unknown>;
 }
 
 // Pointer into the daemon DB (SPEC §digest-boundary) — bench NEVER reads the DB

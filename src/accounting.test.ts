@@ -6,97 +6,150 @@ import {
     summarizeRequiemAccounting,
 } from "./accounting.ts";
 
-test("bench accounting consumes the daemon aggregate emitted by the released digest", () => {
+const request = (model: string) => ({
+    provider: "provider:fixture",
+    model,
+    outcome: "response",
+    cost: {
+        kind: "charged",
+        amount: { amount: "0.1", currency: "USD" },
+        source: "fixture",
+    },
+});
+
+test("bench accounting copies the one workspace's authoritative physical-request projection", () => {
+    const requests = [request("provider/model"), request("provider/model")];
     assert.deepEqual(summarizeDigestAccounting({
-        workspaces: [{ cost_usd: 0.031941728 }],
-        turn_attempts: [
-            {
-                accepted: true,
-                model: "fireworks/model",
-                usage_prompt: 100,
-                usage_completion: 20,
-                usage_reasoning: 5,
-                usage_cached: 10,
+        workspaces: [{
+            accounting: {
+                requests,
+                usage: {
+                    inputTokens: 150,
+                    outputTokens: 30,
+                    totalTokens: 180,
+                    inputTokenDetails: { cacheReadTokens: 10 },
+                    outputTokenDetails: { textTokens: 25, reasoningTokens: 5 },
+                },
+                costUsd: "0.031941728",
             },
-            {
-                accepted: false,
-                model: "fireworks/model",
-                usage_prompt: 50,
-                usage_completion: 10,
-                usage_reasoning: 0,
-                usage_cached: 0,
-            },
-        ],
+        }],
+        provider_requests: requests.map((accounting) => ({ accounting })),
+        turn_attempts: [{ accepted: true }, { accepted: false }],
     }), {
-        providerAttempts: 2,
-        rejectedAttempts: 1,
-        models: ["fireworks/model"],
-        prompt: 150,
-        completion: 30,
-        reasoning: 5,
-        cached: 10,
-        costUsd: 0.031941728,
+        providerRequests: 2,
+        rejectedEmissions: 1,
+        models: ["provider/model"],
+        usage: {
+            inputTokens: 150,
+            outputTokens: 30,
+            totalTokens: 180,
+            inputTokenDetails: { cacheReadTokens: 10 },
+            outputTokenDetails: { textTokens: 25, reasoningTokens: 5 },
+        },
+        costUsd: "0.031941728",
     });
 });
 
-test("pending money remains unknown and an error call is not mislabeled as a rejected response", () => {
+test("an unsettled physical request remains cardinal while aggregate accounting stays unknown", () => {
     assert.deepEqual(summarizeDigestAccounting({
-        workspaces: [{ cost_usd: null }],
-        turn_attempts: [{
-            accepted: null,
-            model: "fireworks/model",
-            usage_prompt: null,
-            usage_completion: null,
-            usage_reasoning: null,
-            usage_cached: null,
-        }],
+        workspaces: [{ accounting: null }],
+        provider_requests: [{ accounting: null }],
+        turn_attempts: [{ accepted: null }],
     }), {
-        providerAttempts: 1,
-        rejectedAttempts: 0,
-        models: ["fireworks/model"],
-        prompt: 0,
-        completion: 0,
-        reasoning: 0,
-        cached: 0,
+        providerRequests: 1,
+        rejectedEmissions: 0,
+        models: [],
+        usage: null,
         costUsd: null,
     });
 });
 
-test("requiem and total accounting never coerce missing charges to zero", () => {
+test("digest accounting rejects ambiguous scope and inconsistent source cardinality", () => {
+    assert.throws(
+        () => summarizeDigestAccounting({
+            workspaces: [],
+            provider_requests: [],
+            turn_attempts: [],
+        }),
+        /exactly one workspace/,
+    );
+    assert.throws(
+        () => summarizeDigestAccounting({
+            workspaces: [{
+                accounting: {
+                    requests: [request("m")],
+                    usage: { inputTokens: 1 },
+                    costUsd: "0",
+                },
+            }],
+            provider_requests: [],
+            turn_attempts: [],
+        }),
+        /request count does not match/,
+    );
+});
+
+test("requiem composes worker projections with exact decimals and unknown-field propagation", () => {
     assert.deepEqual(summarizeRequiemAccounting({
         workers: [{
-            usage: { prompt: 10, completion: 2, reasoning: 1, cached: 0, total: 13 },
-            costUsd: null,
+            accounting: {
+                requests: [request("requiem-a")],
+                usage: {
+                    inputTokens: 10,
+                    outputTokens: 2,
+                    totalTokens: 12,
+                    inputTokenDetails: { cacheReadTokens: 1 },
+                    outputTokenDetails: { textTokens: 2, reasoningTokens: 0 },
+                },
+                costUsd: "0.1",
+            },
+        }, {
+            accounting: {
+                requests: [request("requiem-b")],
+                usage: {
+                    inputTokens: 20,
+                    outputTokens: 4,
+                    totalTokens: 24,
+                    inputTokenDetails: { cacheReadTokens: 3 },
+                    outputTokenDetails: { textTokens: 3 },
+                },
+                costUsd: "0.2",
+            },
         }],
     }), {
-        workers: 1,
-        usage: { prompt: 10, completion: 2, reasoning: 1, cached: 0, total: 13 },
-        costUsd: null,
+        workers: 2,
+        providerRequests: 2,
+        usage: {
+            inputTokens: 30,
+            outputTokens: 6,
+            totalTokens: 36,
+            inputTokenDetails: { cacheReadTokens: 4 },
+            outputTokenDetails: { textTokens: 5 },
+        },
+        costUsd: "0.3",
     });
-    assert.equal(addSettledUsd(0.1, null), null);
-    assert.equal(addSettledUsd(0.1, 0.2), 0.30000000000000004);
-    assert.throws(() => addSettledUsd(Number.NaN), /non-negative number or null/);
+    assert.equal(addSettledUsd("0.1", null), null);
+    assert.equal(addSettledUsd("0.1", "0.2"), "0.3");
 });
 
-test("bench accounting rejects malformed provider token evidence", () => {
-    const digest = {
-        workspaces: [{ cost_usd: 0 }],
-        turn_attempts: [{
-            accepted: true,
-            model: "provider/model",
-            usage_prompt: "10",
-            usage_completion: 2,
-            usage_reasoning: 1,
-            usage_cached: 0,
+test("bench accounting rejects malformed token and exact-decimal evidence", () => {
+    const malformed = {
+        workspaces: [{
+            accounting: {
+                requests: [],
+                usage: { inputTokens: "10" },
+                costUsd: "0",
+            },
         }],
+        provider_requests: [],
+        turn_attempts: [],
     } as unknown as Parameters<typeof summarizeDigestAccounting>[0];
-    assert.throws(() => summarizeDigestAccounting(digest), /usage_prompt must be a non-negative safe integer or null/);
-
-    const requiem = {
-        workers: [{
-            usage: { prompt: 10, completion: Number.NaN, reasoning: 1, cached: 0, total: 13 },
-            costUsd: 0,
-        }],
-    };
-    assert.throws(() => summarizeRequiemAccounting(requiem), /usage\.completion must be a non-negative safe integer/);
+    assert.throws(
+        () => summarizeDigestAccounting(malformed),
+        /usage\.inputTokens must be a non-negative safe integer/,
+    );
+    assert.throws(
+        () => addSettledUsd("1e-3"),
+        /canonical non-negative decimal string/,
+    );
 });

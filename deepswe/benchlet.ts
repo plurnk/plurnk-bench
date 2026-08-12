@@ -26,7 +26,10 @@ import {
     addSettledUsd,
     summarizeDigestAccounting,
     summarizeRequiemAccounting,
+    type ProviderAccountingProjection,
+    type ProviderUsageProjection,
     type RequiemAccountingInput,
+    type RequiemAccountingSummary,
 } from "../src/accounting.ts";
 
 type TestStatus = "passed" | "skipped" | "failed";
@@ -133,7 +136,7 @@ interface OracleResult {
 
 interface DigestJson {
     workspaces: Array<{
-        cost_usd: number | null;
+        accounting: ProviderAccountingProjection | null;
     }>;
     workers: Array<{
         id: number;
@@ -154,18 +157,12 @@ interface DigestJson {
     turns: Array<{
         id: number;
         model: string | null;
-        usage_prompt: number;
-        usage_completion: number;
-        usage_cached: number;
-        usage_cost_usd: number | null;
     }>;
     turn_attempts: Array<{
         accepted: boolean | null;
-        usage_prompt: number | null;
-        usage_completion: number | null;
-        usage_reasoning: number | null;
-        usage_cached: number | null;
-        model: string;
+    }>;
+    provider_requests: Array<{
+        accounting: { model: string } | null;
     }>;
     log_entries: Array<{
         origin: string;
@@ -829,16 +826,11 @@ const gradePatch = (
 
 export const digestSummary = (digest: DigestJson): {
     modelTurns: number;
-    providerAttempts: number;
-    rejectedAttempts: number;
+    providerRequests: number;
+    rejectedEmissions: number;
     models: string[];
-    usage: {
-        prompt: number;
-        completion: number;
-        reasoning: number;
-        cached: number;
-        costUsd: number | null;
-    };
+    usage: ProviderUsageProjection | null;
+    costUsd: string | null;
     loopOutcomes: Array<{
         workerId: number;
         workerName: string | null;
@@ -861,19 +853,15 @@ export const digestSummary = (digest: DigestJson): {
             problemTypes[type] = (problemTypes[type] ?? 0) + 1;
         }
     }
-    const {
-        providerAttempts,
-        rejectedAttempts,
-        models,
-        ...usage
-    } = summarizeDigestAccounting(digest);
+    const accounting = summarizeDigestAccounting(digest);
     const workerNames = new Map(digest.workers.map((worker) => [worker.id, worker.name]));
     return {
         modelTurns: digest.turns.filter((turn) => turn.model !== null && turn.model !== "unknown").length,
-        providerAttempts,
-        rejectedAttempts,
-        models,
-        usage,
+        providerRequests: accounting.providerRequests,
+        rejectedEmissions: accounting.rejectedEmissions,
+        models: accounting.models,
+        usage: accounting.usage,
+        costUsd: accounting.costUsd,
         loopOutcomes: digest.loops.map((loop) => ({
             workerId: loop.worker_id,
             workerName: workerNames.get(loop.worker_id) ?? null,
@@ -919,7 +907,7 @@ export const requiemModelAlias = (
     return configured;
 };
 
-const requiemSummary = (path: string): Record<string, unknown> => {
+const requiemSummary = (path: string): RequiemAccountingSummary => {
     const report = JSON.parse(readFileSync(path, "utf8")) as RequiemAccountingInput;
     return summarizeRequiemAccounting(report);
 };
@@ -1149,7 +1137,7 @@ const main = async (): Promise<void> => {
     if (!existsSync(digestPath)) throw new Error("candidate did not produce a digest");
     const digest = JSON.parse(readFileSync(digestPath, "utf8")) as DigestJson;
     const summary = digestSummary(digest);
-    if ((summary.providerAttempts as number) === 0) {
+    if (summary.providerRequests === 0) {
         throw new Error("candidate completed no provider exchange; the run is infrastructure, not an oracle attempt");
     }
 
@@ -1235,17 +1223,17 @@ const main = async (): Promise<void> => {
     const completedAt = new Date();
     const harnessStatus = requiemEnabled && requiem.complete !== true ? "incomplete" : "complete";
     const requiemCostUsd = !requiemEnabled
-        ? 0
+        ? "0"
         : typeof requiem.summary === "object"
             && requiem.summary !== null
             && "costUsd" in requiem.summary
-            && (typeof requiem.summary.costUsd === "number" || requiem.summary.costUsd === null)
+            && (typeof requiem.summary.costUsd === "string" || requiem.summary.costUsd === null)
             ? requiem.summary.costUsd
             : null;
     writeJson(resolve(runDir, "result.json"), {
-        schemaVersion: 1,
+        schemaVersion: 2,
         harnessStatus,
-        totalCostUsd: addSettledUsd(summary.usage.costUsd, requiemCostUsd),
+        totalCostUsd: addSettledUsd(summary.costUsd, requiemCostUsd),
         candidate: {
             status: candidate.status,
             signal: candidate.signal,
@@ -1285,7 +1273,7 @@ if (import.meta.main) {
             const completedAt = new Date();
             writeFileSync(resolve(activeRunDir, "infrastructure-error.log"), `${rendered}\n`);
             writeJson(resolve(activeRunDir, "result.json"), {
-                schemaVersion: 1,
+                schemaVersion: 2,
                 harnessStatus: "infrastructure_error",
                 infrastructure: {
                     stage: activeStage,

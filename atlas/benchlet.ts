@@ -20,7 +20,11 @@ import {
 } from "../deepswe/benchlet.ts";
 import { allocateRunDirectory } from "../src/run-directory.ts";
 import { requiredClientCheckout } from "../src/client-checkout.ts";
-import { summarizeDigestAccounting } from "../src/accounting.ts";
+import {
+    summarizeDigestAccounting,
+    type AccountingSummary,
+    type ProviderAccountingProjection,
+} from "../src/accounting.ts";
 import { webMaterializationProvenance } from "../src/web-materialization.ts";
 
 interface ExactOracle {
@@ -49,7 +53,7 @@ interface AtlasTask {
 
 interface Digest {
     readonly workspaces: Array<{
-        readonly cost_usd: number | null;
+        readonly accounting: ProviderAccountingProjection | null;
     }>;
     readonly loops: Array<{
         readonly prompt: string;
@@ -62,11 +66,9 @@ interface Digest {
     }>;
     readonly turn_attempts: Array<{
         readonly accepted: boolean | null;
-        readonly model: string;
-        readonly usage_prompt: number | null;
-        readonly usage_completion: number | null;
-        readonly usage_reasoning: number | null;
-        readonly usage_cached: number | null;
+    }>;
+    readonly provider_requests: Array<{
+        readonly accounting: { readonly model: string } | null;
     }>;
     readonly log_entries: Array<{
         readonly origin: string;
@@ -485,9 +487,10 @@ export const successfulExecutorCalls = (
     && typeof entry.target === "string"
     && allowedTools.includes(entry.target)).length;
 
-const usageSummary = (digest: Digest): Record<string, unknown> => {
+const usageSummary = (digest: Digest): AccountingSummary => {
     return summarizeDigestAccounting({
         workspaces: digest.workspaces,
+        provider_requests: digest.provider_requests,
         turn_attempts: digest.turn_attempts,
     });
 };
@@ -762,7 +765,7 @@ const main = async (): Promise<void> => {
         activeContainer = undefined;
         const completedAt = new Date();
         writeJson(resolve(runDir, "result.json"), {
-            schemaVersion: 1,
+            schemaVersion: 2,
             harnessStatus: "skipped",
             passed: null,
             task: task.name,
@@ -907,7 +910,7 @@ const main = async (): Promise<void> => {
     activeContainer = undefined;
     const completedAt = new Date();
     writeJson(resolve(runDir, "result.json"), {
-        schemaVersion: 1,
+        schemaVersion: 2,
         harnessStatus: requiemComplete ? "complete" : "incomplete",
         passed,
         task: task.name,
@@ -967,7 +970,7 @@ if (import.meta.main) {
                 `${rendered}\n`,
             );
             writeJson(resolve(activeRunDir, "result.json"), {
-                schemaVersion: 1,
+                schemaVersion: 2,
                 harnessStatus: "infrastructure_error",
                 stage: activeStage,
                 message: error instanceof Error ? error.message : String(error),

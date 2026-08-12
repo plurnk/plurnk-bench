@@ -38,10 +38,10 @@ export const digestHasTurns = (digestDir: string): boolean => {
 };
 
 // SPEC §publish-model-attempt-gate. Automated setup/orchestration turns can exist
-// before the first provider completion. Positive provider usage is the boundary
-// between that infrastructure activity and an actual model benchmark attempt.
+// before the first provider request. The cardinal request evidence, including a
+// response-less failure with unknown usage, defines an actual model attempt.
 export const recordHasModelAttempt = (record: BenchRecord): boolean =>
-    (record.usage?.totalTokens ?? 0) > 0;
+    (record.usage?.accounting.requests.length ?? 0) > 0;
 
 // SPEC §publish-self-referential. The record persisted into benchmarks/run<N>/record.json: the joined record with its
 // digest handle re-pointed at the published (copied) DB, so it never references jobs/ scratch.

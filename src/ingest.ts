@@ -2,7 +2,7 @@
 // `--json` document (loop side) + Pier's verifier `reward.json` (oracle side).
 //
 // Shapes mirror the producers exactly:
-//   - PlurnkDoc  <- plurnk/src/cli.ts buildJsonRecord (schemaVersion 4) / buildJsonError
+//   - PlurnkDoc  <- plurnk/src/cli.ts buildJsonRecord (schemaVersion 5) / buildJsonError
 //   - RewardJson ← deep-swe tests/grader.py reward.json
 // The dir-walking glue (which trial dir, taskId/model provenance) firms up against a
 // real Pier `jobs/` tree at smoke time; the JOIN below is the grounded, tested core.
@@ -10,6 +10,7 @@
 import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import type { BenchRecord, Outcome, Usage } from "./record.ts";
+import { assertProviderAccountingProjection } from "./accounting.ts";
 import type { WebMaterializationProvenance } from "./web-materialization.ts";
 import {
     Problems,
@@ -20,7 +21,7 @@ import {
 // The subset of plurnk's `--json` document this join consumes. A failed one-shot
 // emits `{ schemaVersion, problem: ProblemDetails }` instead of a full record.
 export interface PlurnkDoc {
-    schemaVersion: 4;
+    schemaVersion: 5;
     workspace?: { id: number; name: string };
     finalStatus?: number;
     timedOut?: boolean;
@@ -29,28 +30,32 @@ export interface PlurnkDoc {
     turnCount?: number;
     turns?: unknown[];
     wallMs?: number;
-    usage?: Omit<Usage, "totalTokens"> | null;
+    usage?: Usage | null;
     problem?: ProblemDetails;
 }
 
 const assertPlurnkDoc = (doc: PlurnkDoc): PlurnkDoc => {
-    if (doc.schemaVersion !== 4) {
-        throw new Error(`unsupported plurnk client JSON schema ${String(doc.schemaVersion)}; expected 4`);
+    if (doc.schemaVersion !== 5) {
+        throw new Error(`unsupported plurnk client JSON schema ${String(doc.schemaVersion)}; expected 5`);
     }
     if ("error" in doc) {
         throw new Error("legacy plurnk client error field is not supported; use problem");
     }
     if (doc.usage !== undefined && doc.usage !== null) {
+        assertProviderAccountingProjection(
+            doc.usage.accounting,
+            "plurnk client usage.accounting",
+        );
         for (const [name, value] of [
-            ["costUsd", doc.usage.costUsd],
-            ["projectedCostUsd", doc.usage.projectedCostUsd],
+            ["contextTokens", doc.usage.contextTokens],
+            ["promptBudget", doc.usage.promptBudget],
         ] as const) {
-            if (value !== null && (typeof value !== "number" || !Number.isFinite(value) || value < 0)) {
-                throw new TypeError(`plurnk client usage.${name} must be a non-negative number or null`);
+            if (value !== null && (!Number.isSafeInteger(value) || value < 0)) {
+                throw new TypeError(`plurnk client usage.${name} must be a non-negative safe integer or null`);
             }
         }
-        if (!Array.isArray(doc.usage.costs) || !("accounting" in doc.usage)) {
-            throw new TypeError("plurnk client usage lacks monetary evidence");
+        if (typeof doc.usage.meta !== "object" || doc.usage.meta === null || Array.isArray(doc.usage.meta)) {
+            throw new TypeError("plurnk client usage.meta must be an object");
         }
     }
     if (doc.finalStatus === undefined) {
@@ -94,10 +99,7 @@ export const deriveOutcome = (doc: PlurnkDoc, reward: RewardJson | null): Outcom
 
 const usageOf = (doc: PlurnkDoc): Usage | undefined => {
     if (doc.usage === undefined || doc.usage === null) return undefined;
-    return {
-        ...doc.usage,
-        totalTokens: doc.usage.promptTokens + doc.usage.completionTokens,
-    };
+    return doc.usage;
 };
 
 export interface JoinInput {
@@ -236,7 +238,7 @@ const countPatchLines = (raw: string): number => {
 export const readTrial = (trialDir: string, meta: { harness: string; taskId: string; model: string }): BenchRecord => {
     const doc = readJson<PlurnkDoc>(join(trialDir, "agent", "plurnk.json"))
         ?? {
-            schemaVersion: 4,
+            schemaVersion: 5,
             problem: Problems.create(
                 "bench:ingest",
                 "client-record-missing",

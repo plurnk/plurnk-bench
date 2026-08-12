@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { deriveOutcome, joinRecord, readJob, readTrial, type PlurnkDoc, type RewardJson } from "./ingest.ts";
 
 const doc = (overrides: Partial<PlurnkDoc> = {}): PlurnkDoc => ({
-    schemaVersion: 4,
+    schemaVersion: 5,
     workspace: { id: 1, name: "s" },
     finalStatus: 200,
     timedOut: false,
@@ -15,12 +15,20 @@ const doc = (overrides: Partial<PlurnkDoc> = {}): PlurnkDoc => ({
     turnCount: 9,
     wallMs: 4200,
     usage: {
-        promptTokens: 800,
-        completionTokens: 200,
-        costUsd: null,
-        projectedCostUsd: 0.0042,
-        costs: [{ kind: "estimated", usd: "0.0042", source: "catalog" }],
-        accounting: { scopeId: "scope-7", status: "pending", reason: "provider ledger pending" },
+        accounting: {
+            requests: [{
+                provider: "provider:fixture",
+                model: "fixture/model",
+                outcome: "response",
+                usage: { inputTokens: 800, outputTokens: 200, totalTokens: 1000 },
+                cost: { kind: "unknown", reason: "fixture has no charge" },
+            }],
+            usage: { inputTokens: 800, outputTokens: 200, totalTokens: 1000 },
+            costUsd: null,
+        },
+        contextTokens: 700,
+        promptBudget: 32_768,
+        meta: { provider: "fixture" },
     },
     ...overrides,
 });
@@ -34,7 +42,7 @@ test("[§verdicts-oracle-outranks] reward 1 is pass even when the loop was cance
 
 test("[§verdicts-failure-class] non-pass is classified by the loop's failure mode", () => {
     assert.equal(deriveOutcome({
-        schemaVersion: 4,
+        schemaVersion: 5,
         problem: {
             type: "https://problems.plurnk.dev/client/rpc/error",
             title: "Error",
@@ -60,13 +68,20 @@ test("[§verdicts] joinRecord maps loop side from the plurnk doc, oracle side fr
     assert.equal(record.turns, 9);
     assert.equal(record.durationMs, 4200);
     assert.deepEqual(record.usage, {
-        promptTokens: 800,
-        completionTokens: 200,
-        totalTokens: 1000,
-        costUsd: null,
-        projectedCostUsd: 0.0042,
-        costs: [{ kind: "estimated", usd: "0.0042", source: "catalog" }],
-        accounting: { scopeId: "scope-7", status: "pending", reason: "provider ledger pending" },
+        accounting: {
+            requests: [{
+                provider: "provider:fixture",
+                model: "fixture/model",
+                outcome: "response",
+                usage: { inputTokens: 800, outputTokens: 200, totalTokens: 1000 },
+                cost: { kind: "unknown", reason: "fixture has no charge" },
+            }],
+            usage: { inputTokens: 800, outputTokens: 200, totalTokens: 1000 },
+            costUsd: null,
+        },
+        contextTokens: 700,
+        promptBudget: 32_768,
+        meta: { provider: "fixture" },
     });
     assert.deepEqual(record.run, { workspaceId: 1, workerId: 9, loopId: 7, dbPath: "/jobs/t1/agent/plurnk.db" });
 });
@@ -77,11 +92,11 @@ test("joinRecord rejects superseded client JSON instead of guessing its fields",
             harness: "deepswe",
             taskId: "t",
             model: "m",
-            doc: { ...doc(), schemaVersion: 1 as 4 },
+            doc: { ...doc(), schemaVersion: 1 as 5 },
             reward: null,
             dbPath: "/jobs/t/agent/plurnk.db",
         }),
-        /unsupported plurnk client JSON schema 1; expected 4/,
+        /unsupported plurnk client JSON schema 1; expected 5/,
     );
 });
 
@@ -92,12 +107,18 @@ test("joinRecord rejects malformed monetary evidence instead of treating it as u
             taskId: "t",
             model: "m",
             doc: doc({
-                usage: { ...doc().usage!, costUsd: undefined as unknown as null },
+                usage: {
+                    ...doc().usage!,
+                    accounting: {
+                        ...doc().usage!.accounting,
+                        costUsd: undefined as unknown as null,
+                    },
+                },
             }),
             reward: null,
             dbPath: "/jobs/t/agent/plurnk.db",
         }),
-        /usage\.costUsd must be a non-negative number or null/,
+        /usage\.accounting\.costUsd must be a canonical non-negative decimal string or null/,
     );
 });
 
@@ -123,7 +144,7 @@ test("[§turns-provenance] readTrial takes the turn count from the doc's turns[]
         mkdirSync(join(trialDir, "agent"), { recursive: true });
         // turnCount lies (0) though 9 turns really ran; the turns[] array is the honest count.
         writeFileSync(join(trialDir, "agent", "plurnk.json"), JSON.stringify({
-            schemaVersion: 4,
+            schemaVersion: 5,
             finalStatus: 500,
             problem: {
                 type: "https://problems.plurnk.dev/daemon/drain/loop-threw",
@@ -145,7 +166,7 @@ test("[§provenance] readTrial retains the credential-free web materialization r
     try {
         mkdirSync(join(trialDir, "agent"), { recursive: true });
         writeFileSync(join(trialDir, "agent", "plurnk.json"), JSON.stringify({
-            schemaVersion: 4,
+            schemaVersion: 5,
             finalStatus: 200,
             workspace: { id: 1, name: "s" },
             workerId: 4,
@@ -208,7 +229,7 @@ test("[§attempt-files-modified] readTrial records patchLines + filesModified, d
     try {
         mkdirSync(join(trialDir, "agent"), { recursive: true });
         mkdirSync(join(trialDir, "artifacts"), { recursive: true });
-        writeFileSync(join(trialDir, "agent", "plurnk.json"), JSON.stringify({ schemaVersion: 4, finalStatus: 200, workspace: { id: 1 }, workerId: 4, loopId: 2, turnCount: 3 }));
+        writeFileSync(join(trialDir, "agent", "plurnk.json"), JSON.stringify({ schemaVersion: 5, finalStatus: 200, workspace: { id: 1 }, workerId: 4, loopId: 2, turnCount: 3 }));
 
         writeFileSync(patch, "");                                                    // empty → no-attempt
         assert.deepEqual([read().patchLines, read().filesModified], [0, 0]);
@@ -247,7 +268,7 @@ test("[§digest-boundary] readTrial carries a dbPath-only digest handle when the
     try {
         mkdirSync(join(trialDir, "agent"), { recursive: true });
         writeFileSync(join(trialDir, "agent", "plurnk.json"), JSON.stringify({
-            schemaVersion: 4,
+            schemaVersion: 5,
             problem: {
                 type: "https://problems.plurnk.dev/client/runtime/error",
                 title: "Error",
@@ -293,7 +314,7 @@ test("[§provenance] readJob walks a job tree → one record per trial, provenan
             started_at: "2026-06-30T01:00:00Z", finished_at: "2026-06-30T01:05:00Z",
         }));
         writeFileSync(join(pass, "agent", "plurnk.json"), JSON.stringify({
-            schemaVersion: 4, workspace: { id: 1, name: "s" }, finalStatus: 200,
+            schemaVersion: 5, workspace: { id: 1, name: "s" }, finalStatus: 200,
             workerId: 9, loopId: 7, turnCount: 3, wallMs: 1000, usage: null,
         }));
         writeFileSync(join(pass, "verifier", "reward.json"), JSON.stringify({ reward: 1, partial: 1 }));
@@ -341,7 +362,7 @@ test("[§verdicts-failure-class] a client Problem doc yields an error record wit
     const record = joinRecord({
         harness: "deepswe", taskId: "t", model: "gemma",
         doc: {
-            schemaVersion: 4,
+            schemaVersion: 5,
             problem: {
                 type: "https://problems.plurnk.dev/client/connection/refused",
                 title: "Refused",
@@ -365,7 +386,7 @@ test("legacy client error documents are rejected instead of translated", () => {
             taskId: "t",
             model: "gemma",
             doc: {
-                schemaVersion: 4,
+                schemaVersion: 5,
                 error: {
                     type: "https://problems.plurnk.dev/client/connection/refused",
                     title: "Refused",
