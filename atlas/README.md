@@ -7,7 +7,7 @@ keeping the protocol claim precise:
 - `adapter.ts` projects only the task's enabled tools through MCP revision
   `2026-07-28`.
 - Plurnk connects as a strict current MCP host and exposes the server as
-  `## EXEC1 [atlas]`.
+  `## EXEC0 [atlas]`.
 - The candidate workspace is headless and Git-free, with every executor except
   `atlas` disabled, matching Atlas's task-tool boundary.
 - The model must call an executable tool; an answer without an `EXEC` does not
