@@ -82,7 +82,7 @@ export interface RewardJson {
 // SPEC §verdicts-oracle-outranks / §verdicts-failure-class. The oracle is ground truth
 // for PASS: reward===1 wins regardless of how the loop
 // ended. A non-pass is then classified by the loop's own failure mode (client error
-// doc → error, timed out → timeout, cancelled SEND[499] → cancelled, else fail).
+// doc → error, timed out → timeout, final status 499 → cancelled, else fail).
 export const deriveOutcome = (doc: PlurnkDoc, reward: RewardJson | null): Outcome => {
     if (reward?.reward === 1) return "pass";
     if (doc.problem !== undefined && doc.finalStatus === undefined) return "error";
