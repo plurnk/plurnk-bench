@@ -165,11 +165,41 @@ interface DigestJson {
         accounting: { model: string } | null;
     }>;
     log_entries: Array<{
+        id: number;
+        worker_id: number;
         origin: string;
         op: string | null;
+        target: string | null;
         status_rx: number;
-        problem?: { type?: string } | null;
+        attrs: Record<string, unknown>;
+        problem?: {
+            type?: string;
+            title?: string;
+            detail?: string;
+            instance?: string;
+            [key: string]: unknown;
+        } | null;
     }>;
+}
+
+interface FailureIncident {
+    kind: "operation" | "stream";
+    workerId: number;
+    address: string;
+    operation: string | null;
+    operationEntryId: number | null;
+    status: number;
+    problemType: string;
+    title: string | null;
+    detail: string | null;
+    observationRows: number;
+    channels: string[];
+}
+
+interface FailureSummary {
+    observationRows: number;
+    problemTypes: Record<string, number>;
+    incidents: FailureIncident[];
 }
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
@@ -824,6 +854,104 @@ const gradePatch = (
         ? gradeGoPatch(label, patchPath, artifactDir, repositoryCache, manifest, taskDir, config)
         : Promise.reject(new Error("benchlet manifest environment and verifier are incompatible"));
 
+const failureText = (
+    problem: DigestJson["log_entries"][number]["problem"],
+    field: "type" | "title" | "detail" | "instance",
+): string | null => typeof problem?.[field] === "string" ? problem[field] : null;
+
+const terminalStreamObservation = (
+    entry: DigestJson["log_entries"][number],
+): { address: string; channel: string | null } | null => {
+    if (entry.origin !== "plurnk"
+        || entry.op !== "READ"
+        || entry.attrs.terminal !== true
+        || entry.target === null
+        || !URL.canParse(entry.target)) return null;
+    const address = new URL(entry.target);
+    const channel = address.hash.length > 1 ? address.hash.slice(1) : null;
+    address.hash = "";
+    return { address: address.toString(), channel };
+};
+
+const summarizeFailures = (entries: DigestJson["log_entries"]): FailureSummary => {
+    const streamOwners = new Map<string, DigestJson["log_entries"][number]>();
+    for (const entry of entries) {
+        const stream = entry.attrs.stream;
+        if (typeof stream !== "string") continue;
+        const key = `${entry.worker_id}\u0000${stream}`;
+        const previous = streamOwners.get(key);
+        if (previous !== undefined && previous.id !== entry.id) {
+            throw new Error(`digest assigns stream ${stream} to multiple log entries for worker ${entry.worker_id}`);
+        }
+        streamOwners.set(key, entry);
+    }
+
+    let observationRows = 0;
+    const incidents: FailureIncident[] = [];
+    const streamIncidents = new Map<string, FailureIncident>();
+    for (const entry of entries) {
+        if (entry.status_rx < 400) continue;
+        observationRows += 1;
+        const problemType = failureText(entry.problem, "type") ?? "unknown";
+        const title = failureText(entry.problem, "title");
+        const detail = failureText(entry.problem, "detail");
+        const stream = terminalStreamObservation(entry);
+        if (stream === null) {
+            incidents.push({
+                kind: "operation",
+                workerId: entry.worker_id,
+                address: failureText(entry.problem, "instance") ?? `log-entry:${entry.id}`,
+                operation: entry.op,
+                operationEntryId: entry.id,
+                status: entry.status_rx,
+                problemType,
+                title,
+                detail,
+                observationRows: 1,
+                channels: [],
+            });
+            continue;
+        }
+
+        const key = `${entry.worker_id}\u0000${stream.address}`;
+        const existing = streamIncidents.get(key);
+        if (existing !== undefined) {
+            if (existing.status !== entry.status_rx || existing.problemType !== problemType) {
+                throw new Error(`digest reports conflicting terminal failures for stream ${stream.address}`);
+            }
+            existing.observationRows += 1;
+            if (stream.channel !== null && !existing.channels.includes(stream.channel)) {
+                existing.channels.push(stream.channel);
+                existing.channels.sort();
+            }
+            continue;
+        }
+
+        const owner = streamOwners.get(key);
+        const incident: FailureIncident = {
+            kind: "stream",
+            workerId: entry.worker_id,
+            address: stream.address,
+            operation: owner?.op ?? null,
+            operationEntryId: owner?.id ?? null,
+            status: entry.status_rx,
+            problemType,
+            title,
+            detail,
+            observationRows: 1,
+            channels: stream.channel === null ? [] : [stream.channel],
+        };
+        streamIncidents.set(key, incident);
+        incidents.push(incident);
+    }
+
+    const problemTypes: Record<string, number> = {};
+    for (const incident of incidents) {
+        problemTypes[incident.problemType] = (problemTypes[incident.problemType] ?? 0) + 1;
+    }
+    return { observationRows, problemTypes, incidents };
+};
+
 export const digestSummary = (digest: DigestJson): {
     modelTurns: number;
     providerRequests: number;
@@ -841,17 +969,12 @@ export const digestSummary = (digest: DigestJson): {
         problem: Record<string, unknown> | null;
     }>;
     operationCounts: Record<string, number>;
-    problemTypes: Record<string, number>;
+    failures: FailureSummary;
 } => {
     const operationCounts: Record<string, number> = {};
-    const problemTypes: Record<string, number> = {};
     for (const entry of digest.log_entries) {
         if (entry.origin !== "model" || entry.op === null) continue;
         operationCounts[entry.op] = (operationCounts[entry.op] ?? 0) + 1;
-        if (entry.status_rx >= 400) {
-            const type = entry.problem?.type ?? "unknown";
-            problemTypes[type] = (problemTypes[type] ?? 0) + 1;
-        }
     }
     const accounting = summarizeDigestAccounting(digest);
     const workerNames = new Map(digest.workers.map((worker) => [worker.id, worker.name]));
@@ -872,7 +995,7 @@ export const digestSummary = (digest: DigestJson): {
             problem: loop.result?.problem ?? null,
         })),
         operationCounts,
-        problemTypes,
+        failures: summarizeFailures(digest.log_entries),
     };
 };
 

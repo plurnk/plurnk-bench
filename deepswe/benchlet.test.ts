@@ -162,14 +162,22 @@ test("[§benchlet-evidence] benchlet summary preserves the terminal loop Problem
         turn_attempts: [],
         provider_requests: [],
         log_entries: [{
+            id: 1,
+            worker_id: 4,
             origin: "model",
             op: null,
+            target: null,
             status_rx: 200,
+            attrs: {},
             problem: null,
         }, {
+            id: 2,
+            worker_id: 4,
             origin: "model",
             op: "PLAN",
+            target: null,
             status_rx: 200,
+            attrs: {},
             problem: null,
         }],
     });
@@ -195,6 +203,123 @@ test("[§benchlet-evidence] benchlet summary preserves the terminal loop Problem
         problem: null,
     }]);
     assert.deepEqual(summary.operationCounts, { PLAN: 1 });
+});
+
+test("[§benchlet-evidence] benchlet groups terminal stream channels into one causal failure", () => {
+    const nonzeroExit = "https://problems.plurnk.dev/executor/subprocess/nonzero-exit";
+    const entryNotFound = "https://problems.plurnk.dev/scheme/sh/entry-not-found";
+    const summary = digestSummary({
+        workspaces: [{
+            accounting: {
+                requests: [],
+                usage: {
+                    inputTokens: 0,
+                    outputTokens: 0,
+                    totalTokens: 0,
+                    inputTokenDetails: {
+                        noCacheTokens: 0,
+                        cacheReadTokens: 0,
+                        cacheWriteTokens: 0,
+                    },
+                    outputTokenDetails: { textTokens: 0, reasoningTokens: 0 },
+                },
+                costUsd: "0",
+            },
+        }],
+        workers: [{ id: 4, name: "model-1" }],
+        loops: [],
+        turns: [],
+        turn_attempts: [],
+        provider_requests: [],
+        log_entries: [{
+            id: 10,
+            worker_id: 4,
+            origin: "model",
+            op: "EXEC",
+            target: null,
+            status_rx: 200,
+            attrs: { stream: "sh:///1/2/3" },
+            problem: null,
+        }, {
+            id: 11,
+            worker_id: 4,
+            origin: "plurnk",
+            op: "READ",
+            target: "sh:///1/2/3#stdout",
+            status_rx: 500,
+            attrs: { terminal: true },
+            problem: {
+                type: nonzeroExit,
+                title: "Nonzero exit",
+                status: 500,
+                detail: "'sh' exited with code 2.",
+                instance: "log:///1/3/1/READ",
+            },
+        }, {
+            id: 12,
+            worker_id: 4,
+            origin: "plurnk",
+            op: "READ",
+            target: "sh:///1/2/3#stderr",
+            status_rx: 500,
+            attrs: { terminal: true },
+            problem: {
+                type: nonzeroExit,
+                title: "Nonzero exit",
+                status: 500,
+                detail: "'sh' exited with code 2.",
+                instance: "log:///1/3/2/READ",
+            },
+        }, {
+            id: 13,
+            worker_id: 4,
+            origin: "model",
+            op: "EXEC",
+            target: "sh:///1/1/9",
+            status_rx: 404,
+            attrs: { stream: "sh:///1/3/3" },
+            problem: {
+                type: entryNotFound,
+                title: "Entry not found",
+                status: 404,
+                detail: "No entry exists at sh:///1/1/9.",
+                instance: "log:///1/3/3/EXEC",
+            },
+        }],
+    });
+
+    assert.deepEqual(summary.failures, {
+        observationRows: 3,
+        problemTypes: {
+            [nonzeroExit]: 1,
+            [entryNotFound]: 1,
+        },
+        incidents: [{
+            kind: "stream",
+            workerId: 4,
+            address: "sh:///1/2/3",
+            operation: "EXEC",
+            operationEntryId: 10,
+            status: 500,
+            problemType: nonzeroExit,
+            title: "Nonzero exit",
+            detail: "'sh' exited with code 2.",
+            observationRows: 2,
+            channels: ["stderr", "stdout"],
+        }, {
+            kind: "operation",
+            workerId: 4,
+            address: "log:///1/3/3/EXEC",
+            operation: "EXEC",
+            operationEntryId: 13,
+            status: 404,
+            problemType: entryNotFound,
+            title: "Entry not found",
+            detail: "No entry exists at sh:///1/1/9.",
+            observationRows: 1,
+            channels: [],
+        }],
+    });
 });
 
 test("[§benchlet-evidence] benchlet shell owns the operator environment bootstrap", () => {

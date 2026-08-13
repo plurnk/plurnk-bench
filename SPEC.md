@@ -186,7 +186,11 @@ complete evidence while changing one experimental variable at a time.
   documents use schema version 2;
   `providerRequests` is physical cardinality, `rejectedEmissions` is admission
   evidence, native provider usage is preserved, and USD totals remain exact
-  decimal strings or `null`.
+  decimal strings or `null`. Failure summaries count causal incidents rather
+  than log projections: a failed operation is one incident, and terminal
+  channel observations sharing one worker-owned stream address are one stream
+  incident whose channels remain listed as evidence. The summary reports both
+  incident counts by Problem type and the number of underlying observation rows.
 - §benchlet-failure A run with no physical provider request is infrastructure, not a
   model score. A requiem is complete only when its process succeeds and both
   `requiem.md` and `requiem.json` exist. Infrastructure failures retain the
