@@ -37,7 +37,15 @@ export interface AccountingSummary {
     rejectedEmissions: number;
     models: string[];
     usage: ProviderUsageProjection | null;
+    cacheEffectiveness: CacheEffectiveness | null;
     costUsd: string | null;
+}
+
+export interface CacheEffectiveness {
+    inputTokens: number;
+    cacheReadTokens: number;
+    cacheWriteTokens?: number;
+    cacheReadTokenRatio: number | null;
 }
 
 export interface RequiemAccountingInput {
@@ -48,6 +56,7 @@ export interface RequiemAccountingSummary {
     workers: number;
     providerRequests: number;
     usage: ProviderUsageProjection | null;
+    cacheEffectiveness: CacheEffectiveness | null;
     costUsd: string | null;
 }
 
@@ -113,6 +122,25 @@ export const assertProviderAccountingProjection = (
     return value as unknown as ProviderAccountingProjection;
 };
 
+export const cacheEffectivenessOf = (
+    usage: ProviderUsageProjection | null,
+): CacheEffectiveness | null => {
+    if (usage === null) return null;
+    const inputTokens = usage.inputTokens;
+    const cacheReadTokens = usage.inputTokenDetails?.cacheReadTokens;
+    if (inputTokens === undefined || cacheReadTokens === undefined) return null;
+    if (cacheReadTokens > inputTokens) {
+        throw new TypeError("cache-read tokens cannot exceed total input tokens");
+    }
+    const cacheWriteTokens = usage.inputTokenDetails?.cacheWriteTokens;
+    return {
+        inputTokens,
+        cacheReadTokens,
+        ...(cacheWriteTokens === undefined ? {} : { cacheWriteTokens }),
+        cacheReadTokenRatio: inputTokens === 0 ? null : cacheReadTokens / inputTokens,
+    };
+};
+
 const providerModel = (value: unknown, subject: string): string => {
     const request = recordOf(value, subject);
     if (typeof request.model !== "string" || request.model.trim() === "") {
@@ -162,11 +190,13 @@ export const summarizeDigestAccounting = (digest: DigestAccountingInput): Accoun
     }
     const rejectedEmissions = digest.turn_attempts.filter((attempt, index) =>
         acceptedEmission(attempt.accepted, `turn attempt ${index}`) === false).length;
+    const usage = workspaceAccounting?.usage ?? null;
     return {
         providerRequests: digest.provider_requests.length,
         rejectedEmissions,
         models: [...new Set(requestModels.filter((model): model is string => model !== null))].toSorted(),
-        usage: workspaceAccounting?.usage ?? null,
+        usage,
+        cacheEffectiveness: cacheEffectivenessOf(usage),
         costUsd: workspaceAccounting?.costUsd ?? null,
     };
 };
@@ -252,10 +282,12 @@ export const summarizeRequiemAccounting = (
     }
     const accountings = report.workers.map((worker, index) =>
         assertProviderAccountingProjection(worker.accounting, `requiem worker ${index} accounting`));
+    const usage = aggregateUsage(accountings);
     return {
         workers: accountings.length,
         providerRequests: accountings.reduce((sum, accounting) => sum + accounting.requests.length, 0),
-        usage: aggregateUsage(accountings),
+        usage,
+        cacheEffectiveness: cacheEffectivenessOf(usage),
         costUsd: addSettledUsd(...accountings.map(({ costUsd }) => costUsd)),
     };
 };

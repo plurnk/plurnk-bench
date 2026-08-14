@@ -46,6 +46,11 @@ test("bench accounting copies the one workspace's authoritative physical-request
             inputTokenDetails: { cacheReadTokens: 10 },
             outputTokenDetails: { textTokens: 25, reasoningTokens: 5 },
         },
+        cacheEffectiveness: {
+            inputTokens: 150,
+            cacheReadTokens: 10,
+            cacheReadTokenRatio: 10 / 150,
+        },
         costUsd: "0.031941728",
     });
 });
@@ -60,6 +65,7 @@ test("an unsettled physical request remains cardinal while aggregate accounting 
         rejectedEmissions: 0,
         models: [],
         usage: null,
+        cacheEffectiveness: null,
         costUsd: null,
     });
 });
@@ -126,10 +132,69 @@ test("requiem composes worker projections with exact decimals and unknown-field 
             inputTokenDetails: { cacheReadTokens: 4 },
             outputTokenDetails: { textTokens: 5 },
         },
+        cacheEffectiveness: {
+            inputTokens: 30,
+            cacheReadTokens: 4,
+            cacheReadTokenRatio: 4 / 30,
+        },
         costUsd: "0.3",
     });
     assert.equal(addSettledUsd("0.1", null), null);
     assert.equal(addSettledUsd("0.1", "0.2"), "0.3");
+});
+
+test("{§accounting-cache-effectiveness}: cache reporting is token-weighted, exact about zero, and rejects impossible evidence", () => {
+    const summary = summarizeDigestAccounting({
+        workspaces: [{
+            accounting: {
+                requests: [],
+                usage: {
+                    inputTokens: 100,
+                    inputTokenDetails: { cacheReadTokens: 75, cacheWriteTokens: 10 },
+                },
+                costUsd: "0",
+            },
+        }],
+        provider_requests: [],
+        turn_attempts: [],
+    });
+    assert.deepEqual(summary.cacheEffectiveness, {
+        inputTokens: 100,
+        cacheReadTokens: 75,
+        cacheWriteTokens: 10,
+        cacheReadTokenRatio: 0.75,
+    });
+
+    assert.deepEqual(summarizeDigestAccounting({
+        workspaces: [{
+            accounting: {
+                requests: [],
+                usage: { inputTokens: 0, inputTokenDetails: { cacheReadTokens: 0 } },
+                costUsd: "0",
+            },
+        }],
+        provider_requests: [],
+        turn_attempts: [],
+    }).cacheEffectiveness, {
+        inputTokens: 0,
+        cacheReadTokens: 0,
+        cacheReadTokenRatio: null,
+    });
+
+    assert.throws(
+        () => summarizeDigestAccounting({
+            workspaces: [{
+                accounting: {
+                    requests: [],
+                    usage: { inputTokens: 4, inputTokenDetails: { cacheReadTokens: 5 } },
+                    costUsd: "0",
+                },
+            }],
+            provider_requests: [],
+            turn_attempts: [],
+        }),
+        /cache-read tokens cannot exceed total input tokens/,
+    );
 });
 
 test("bench accounting rejects malformed token and exact-decimal evidence", () => {

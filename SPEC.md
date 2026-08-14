@@ -103,6 +103,15 @@ Problem under `problem`; Pier exceptions are mapped once to a `bench:pier`
 Problem. Earlier client schemas, legacy session/run coordinates, pico-USD, the
 old `error` field, and flattened failure strings are rejected rather than translated.
 
+§accounting-cache-effectiveness Benchlet summaries derive one diagnostic cache
+metric from the daemon's authoritative aggregate usage. When both total input
+tokens and cache-read tokens are known, `cacheEffectiveness` preserves those
+counts, any known cache-write count, and reports
+`cacheReadTokenRatio = cacheReadTokens / inputTokens`. Zero input has a `null`
+ratio; missing quantities make the complete projection `null`. The ratio is
+token-weighted, not a request hit rate, and never substitutes for the retained
+accounting evidence.
+
 ## §provenance Job-tree walking and trial identity
 
 A trial dir is any child of `jobs/<job>/` holding a `result.json` with a `trial_name` (the
