@@ -92,12 +92,14 @@ local path, or unpublished package is never part of the bench's install contract
 a JSONL line.
 Covered: `record.test.ts [§record-serial]`, `[§verdicts]`.
 
-The accepted client-document schema is version 5. Its run reference uses
+The accepted client-document schema is version 6. Its run reference uses
 `workspaceId`/`workerId`/`loopId`, and its complete `usage` envelope is preserved
 verbatim: ordered physical requests are the accounting evidence, known aggregate
 token quantities remain optional, and `costUsd` is an exact decimal string or
-`null`. Context occupancy, prompt budget, and provider metadata remain sibling
-fields; bench does not project rates, tokens, or cost.
+`null`. Curation `curationWeight`/`curationBudget`, physical context
+`contextTokens`/`contextCapacity`, and provider metadata remain sibling fields;
+bench never compares model-independent weight with provider tokens and does not
+project rates, tokens, or cost.
 A failed client document preserves its exact RFC 9457
 Problem under `problem`; Pier exceptions are mapped once to a `bench:pier`
 Problem. Earlier client schemas, legacy session/run coordinates, pico-USD, the

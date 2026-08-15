@@ -53,8 +53,10 @@ test("[§publish-model-attempt-gate] physical provider-request evidence defines 
                 },
                 costUsd: "0",
             },
+            curationWeight: 0,
+            curationBudget: 100,
             contextTokens: 0,
-            promptBudget: 100,
+            contextCapacity: 200,
             meta: {},
         },
     };
@@ -68,8 +70,10 @@ test("[§publish-model-attempt-gate] physical provider-request evidence defines 
                 usage: null,
                 costUsd: null,
             },
+            curationWeight: null,
+            curationBudget: null,
             contextTokens: null,
-            promptBudget: null,
+            contextCapacity: null,
             meta: {},
         },
     }), true);

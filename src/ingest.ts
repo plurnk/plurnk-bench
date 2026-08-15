@@ -2,7 +2,7 @@
 // `--json` document (loop side) + Pier's verifier `reward.json` (oracle side).
 //
 // Shapes mirror the producers exactly:
-//   - PlurnkDoc  <- plurnk/src/cli.ts buildJsonRecord (schemaVersion 5) / buildJsonError
+//   - PlurnkDoc  <- plurnk/src/cli.ts buildJsonRecord (schemaVersion 6) / buildJsonError
 //   - RewardJson ← deep-swe tests/grader.py reward.json
 // The dir-walking glue (which trial dir, taskId/model provenance) firms up against a
 // real Pier `jobs/` tree at smoke time; the JOIN below is the grounded, tested core.
@@ -21,7 +21,7 @@ import {
 // The subset of plurnk's `--json` document this join consumes. A failed one-shot
 // emits `{ schemaVersion, problem: ProblemDetails }` instead of a full record.
 export interface PlurnkDoc {
-    schemaVersion: 5;
+    schemaVersion: 6;
     workspace?: { id: number; name: string };
     finalStatus?: number;
     timedOut?: boolean;
@@ -35,8 +35,8 @@ export interface PlurnkDoc {
 }
 
 const assertPlurnkDoc = (doc: PlurnkDoc): PlurnkDoc => {
-    if (doc.schemaVersion !== 5) {
-        throw new Error(`unsupported plurnk client JSON schema ${String(doc.schemaVersion)}; expected 5`);
+    if (doc.schemaVersion !== 6) {
+        throw new Error(`unsupported plurnk client JSON schema ${String(doc.schemaVersion)}; expected 6`);
     }
     if ("error" in doc) {
         throw new Error("legacy plurnk client error field is not supported; use problem");
@@ -47,8 +47,10 @@ const assertPlurnkDoc = (doc: PlurnkDoc): PlurnkDoc => {
             "plurnk client usage.accounting",
         );
         for (const [name, value] of [
+            ["curationWeight", doc.usage.curationWeight],
+            ["curationBudget", doc.usage.curationBudget],
             ["contextTokens", doc.usage.contextTokens],
-            ["promptBudget", doc.usage.promptBudget],
+            ["contextCapacity", doc.usage.contextCapacity],
         ] as const) {
             if (value !== null && (!Number.isSafeInteger(value) || value < 0)) {
                 throw new TypeError(`plurnk client usage.${name} must be a non-negative safe integer or null`);
@@ -238,7 +240,7 @@ const countPatchLines = (raw: string): number => {
 export const readTrial = (trialDir: string, meta: { harness: string; taskId: string; model: string }): BenchRecord => {
     const doc = readJson<PlurnkDoc>(join(trialDir, "agent", "plurnk.json"))
         ?? {
-            schemaVersion: 5,
+            schemaVersion: 6,
             problem: Problems.create(
                 "bench:ingest",
                 "client-record-missing",

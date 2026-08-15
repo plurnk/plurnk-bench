@@ -23,8 +23,10 @@ export type Outcome = "pass" | "fail" | "error" | "timeout" | "cancelled";
 // verbatim rather than projected into a bench-owned accounting representation.
 export interface Usage {
     accounting: ProviderAccountingProjection;
+    curationWeight: number | null;
+    curationBudget: number | null;
     contextTokens: number | null;
-    promptBudget: number | null;
+    contextCapacity: number | null;
     meta: Record<string, unknown>;
 }
 
@@ -63,7 +65,7 @@ export interface BenchRecord {
                                 // real "did it edit the source?" signal; 0 = no genuine repo attempt
     p2pRegressed?: boolean;     // a base pass-to-pass test now fails — the patch broke build/existing behavior
     turns: number;              // plurnk turnCount — loop turns consumed
-    usage?: Usage;              // daemon-reported tokens, if the doc carried them
+    usage?: Usage;              // daemon-reported usage envelope, if the doc carried it
     run?: RunRef;               // digest drill-down handle (absent if the run never started)
     startedAt?: string;         // ISO 8601, when available (Pier trial timing)
     finishedAt?: string;        // ISO 8601
