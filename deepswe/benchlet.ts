@@ -1234,8 +1234,7 @@ const main = async (): Promise<void> => {
         "--auto",
         "--project-root",
         repository,
-        "--timeout",
-        String(candidateTimeout),
+        ...(candidateTimeout === -1 ? [] : ["--timeout", String(candidateTimeout)]),
         instruction,
     ];
     const candidateEnvironmentOverrides = {
