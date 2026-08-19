@@ -1019,6 +1019,15 @@ export const requiemIsComplete = (
     reportExists: boolean,
 ): boolean => status === 0 && markdownExists && reportExists;
 
+// {§benchlet-candidate-timeout} — -1 is the no-limit idiom; the returned
+// undefined means "no timer" for the spawn helper.
+export const candidateTimeoutMs = (
+    candidateTimeout: number,
+    candidateOverhead: number,
+): number | undefined => candidateTimeout === -1
+    ? undefined
+    : (candidateTimeout + candidateOverhead) * 1_000;
+
 export const requiemModelAlias = (
     enabled: boolean,
     configured: string | undefined,
@@ -1081,8 +1090,9 @@ const main = async (): Promise<void> => {
         requiemEnabled,
         process.env.PLURNK_BENCHLET_REQUIEM_MODEL,
     );
-    if (!Number.isSafeInteger(candidateTimeout) || candidateTimeout <= 0) {
-        throw new Error("PLURNK_BENCHLET_CANDIDATE_TIMEOUT_SEC must be a positive integer");
+    // -1 is the plurnk "no limit" idiom ({§benchlet-candidate-timeout}).
+    if (!Number.isSafeInteger(candidateTimeout) || candidateTimeout === 0 || candidateTimeout < -1) {
+        throw new Error("PLURNK_BENCHLET_CANDIDATE_TIMEOUT_SEC must be a positive integer, or -1 for no limit");
     }
     if (!Number.isSafeInteger(candidateOverhead) || candidateOverhead <= 0) {
         throw new Error("PLURNK_BENCHLET_CANDIDATE_OVERHEAD_SEC must be a positive integer");
@@ -1250,7 +1260,7 @@ const main = async (): Promise<void> => {
         stdoutPath: resolve(runDir, "candidate.stdout.log"),
         stderrPath: resolve(runDir, "candidate.stderr.log"),
         tee: true,
-        timeoutMs: (candidateTimeout + candidateOverhead) * 1_000,
+        timeoutMs: candidateTimeoutMs(candidateTimeout, candidateOverhead),
     });
 
     activeStage = "capture";

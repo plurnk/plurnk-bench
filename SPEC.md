@@ -214,10 +214,13 @@ complete evidence while changing one experimental variable at a time.
 - §benchlet-location Runs are atomically allocated as sibling
   `../benchmarks/run<N>-deepswe-<task>-<model>/` directories. Concurrent claims
   advance to another number rather than nesting or reusing a run.
+- §benchlet-candidate-timeout `PLURNK_BENCHLET_CANDIDATE_TIMEOUT_SEC` accepts
+  the positive cap, or `-1` — the plurnk no-limit idiom — which removes the
+  candidate timer entirely; the overhead still applies to the run's records.
 
 Covered: `benchlet.test.ts [§benchlet-oracle]`,
 `[§benchlet-evidence]`, `[§benchlet-failure]`, `[§benchlet-location]`,
-`[§benchlet-requiem-witness]`, and
+`[§benchlet-requiem-witness]`, `[§benchlet-candidate-timeout]`, and
 `client-checkout.test.ts [§benchlet-client-checkout]`. The real `--preflight`
 path covers task hashes, repository fetch, official verifier preparation, and
 the pristine baseline.

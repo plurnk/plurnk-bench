@@ -10,6 +10,7 @@ import { basename, resolve } from "node:path";
 import test from "node:test";
 import {
     allocateRun,
+    candidateTimeoutMs,
     candidatePolicyPath,
     candidatePolicySnapshotPath,
     digestSummary,
@@ -467,4 +468,8 @@ test("[§benchlet-requiem-witness] requiem selection is independent and explicit
         () => requiemModelAlias(true, undefined),
         /PLURNK_BENCHLET_REQUIEM_MODEL must name a model alias/,
     );
+});
+test("[§benchlet-candidate-timeout] -1 disables the candidate timer; positive values add the overhead", () => {
+    assert.equal(candidateTimeoutMs(-1, 900), undefined);
+    assert.equal(candidateTimeoutMs(5280, 900), 6_180_000);
 });
