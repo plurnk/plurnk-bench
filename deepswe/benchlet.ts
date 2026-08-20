@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { allocateRunDirectory } from "../src/run-directory.ts";
 import { requiredClientCheckout } from "../src/client-checkout.ts";
+import { operatorConfigPath } from "../src/host-paths.ts";
 import { webMaterializationProvenance } from "../src/web-materialization.ts";
 import {
     addSettledUsd,
@@ -1080,7 +1081,7 @@ const main = async (): Promise<void> => {
         process.env,
         "PLURNK_BENCHLET_CLIENT_ROOT",
     );
-    const operatorEnv = expandHome(process.env.PLURNK_BENCHLET_OPERATOR_ENV ?? "");
+    const operatorEnv = operatorConfigPath(process.env.PLURNK_BENCHLET_OPERATOR_ENV);
     const candidatePolicy = candidatePolicyPath(serviceRoot);
     const candidateTimeout = Number(process.env.PLURNK_BENCHLET_CANDIDATE_TIMEOUT_SEC);
     const candidateOverhead = Number(process.env.PLURNK_BENCHLET_CANDIDATE_OVERHEAD_SEC);

@@ -228,7 +228,7 @@ the pristine baseline.
 ## §config-carry The runner carries authoritative config, re-declaring nothing
 
 `deepswe/smoke.sh` reads the daemon's config from its authoritative sources IN PLACE —
-model layer from `~/.plurnk/.env`, provider env from the shell — and forwards every set
+model layer from `${XDG_CONFIG_HOME:-$HOME/.config}/plurnk/.env`, provider env from the shell — and forwards every set
 `PLURNK_*` / `*_BASE_URL` / `*_API_KEY` to the in-container daemon via `--agent-env`. The one
 container-boundary transform: loopback (`127.0.0.1`/`localhost`) in a `*_BASE_URL` rewrites
 to the host LAN IP. Child contracts:

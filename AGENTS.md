@@ -47,7 +47,7 @@ PLURNK_BENCH_FORCE_BUILD=1 \
   deepswe/smoke.sh abs-module-cache-flags firefast
 ```
 
-The `firefast` model alias is operator configuration from `~/.plurnk/.env`.
+The `firefast` model alias is operator configuration from the XDG Plurnk config.
 `deepswe/smoke.sh` carries model aliases from that file and provider
 credentials/endpoints from the calling shell into Pier's container. Read the
 runner and inspect the actual carried environment and daemon log before assigning

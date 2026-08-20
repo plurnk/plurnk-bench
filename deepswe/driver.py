@@ -143,7 +143,7 @@ class PlurnkAgent(BaseInstalledAgent):
         # outcome, so the client's exit is tolerated; snapshot failure is not.
         command = f"""
 set -uo pipefail
-DB="${{PLURNK_SERVICE_DB_PATH:-${{PLURNK_DB_PATH:-$HOME/.plurnk/plurnk.db}}}}"
+DB="${{PLURNK_SERVICE_DB_PATH:-${{PLURNK_DB_PATH:-${{XDG_DATA_HOME:-$HOME/.local/share}}/plurnk/plurnk.db}}}}"
 snapshot_db() {{
   rm -f "$2" "$2-wal" "$2-shm"
   node -e '

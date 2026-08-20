@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Diagnostic smoke (SPEC §config-carry): drive one DeepSWE task through plurnk. Reads the AUTHORITATIVE daemon
 # config IN PLACE — bench re-declares nothing:
-#   • model layer   ← ~/.plurnk/.env   (PLURNK_MODEL_<alias>, PLURNK_PROVIDERS_GBNF)
+#   • model layer   ← $XDG_CONFIG_HOME/plurnk/.env (aliases and model controls)
 #   • provider env  ← your shell        (.bashrc: OPENAI_BASE_URL, XAI_*, keys, …)
 # and forwards it to the in-container daemon via --agent-env (Pier does NOT interpolate
 # ${VAR} in --config — that resolver is dead code). A *_BASE_URL on host loopback is
@@ -10,7 +10,7 @@
 #
 # Usage: deepswe/smoke.sh [task-glob] [model-alias]
 #   task-glob    default: abs-module-cache-flags
-#   model-alias  default: PLURNK_MODEL from ~/.plurnk/.env  (e.g. turboderp, grok)
+#   model-alias  default: PLURNK_MODEL from the XDG user config (e.g. turboderp, grok)
 # Bench's own knobs are namespaced PLURNK_BENCH_ (SPEC §config-bench-namespace — never forwarded to the daemon):
 #   PLURNK_BENCH_TIMEOUT_SEC  override the client timeout (default: task's [agent] budget − headroom)
 #   PLURNK_BENCH_CPUS         override container cpus (default: task native — leaderboard-compliant)
@@ -19,12 +19,16 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-set -a; . "$HOME/.plurnk/.env"; set +a   # model layer; provider env already present via .bashrc
+CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+case "$CONFIG_HOME" in /*) ;; *) CONFIG_HOME="$HOME/.config";; esac
+OPERATOR_ENV="$CONFIG_HOME/plurnk/.env"
+[ -r "$OPERATOR_ENV" ] || { echo "smoke: operator config is missing: $OPERATOR_ENV" >&2; exit 1; }
+set -a; . "$OPERATOR_ENV"; set +a   # model layer; provider env already present via .bashrc
 # Transport (service 1.0.0): single listener — PLURNK_PORT=3044 is THE client surface
 # (AG-UI); the separate WS listener is gone. The in-container daemon+client pair share the
 # shipped default, so bench sets NOTHING here (a stale port export silently kills the loop).
 TASK="${1:-abs-module-cache-flags}"
-MODEL="${2:-${PLURNK_MODEL:?set PLURNK_MODEL in ~/.plurnk/.env or pass a model alias}}"
+MODEL="${2:-${PLURNK_MODEL:?set PLURNK_MODEL in $OPERATOR_ENV or pass a model alias}}"
 LAN_IP="$(hostname -I | awk '{print $1}')"
 
 # Give the agent the BENCHMARK's own budget, not an arbitrary cap: read the task's
@@ -93,7 +97,7 @@ build=()
 
 echo "smoke: model=$MODEL task=$TASK service=$SERVICE_VERSION client=$CLIENT_VERSION tavily=$TAVILY_ROUTE cpus=${PLURNK_BENCH_CPUS:-native} client_timeout=${CLIENT_TIMEOUT_SEC}s (budget ${AGENT_BUDGET:-?}s)${PLURNK_BENCH_FORCE_BUILD:+ [force-build]}" >&2
 # The default personality ships on: the daemon seeds PLURNK_PERSONALITY.md to
-# ~/.plurnk/AGENTS.md and foists it headless (confirmed via digest, PLURNK_POLICY unset).
+# the XDG policy file and foists it headless (confirmed via digest, PLURNK_POLICY unset).
 # So we DON'T set PLURNK_POLICY — the benchmark gets the real product default as-is.
 PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
   --agent-import-path driver:PlurnkAgent \
@@ -111,7 +115,7 @@ PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
 # Publish the run to the shared benchmarks tree (<plurnk>/benchmarks/run<N>) so it can be
 # referenced by name — "check out run<N> with me". Publish also banks the requiem (the model's
 # exit interview), which RE-INVOKES the model — so run it under the full authoritative provider
-# config (shipped defaults floor < ~/.plurnk/.env < this run's model), in a subshell so those
+# config (shipped defaults floor < XDG user config < this run's model), in a subshell so those
 # defaults never leak back into the --agent-env forwarding already sent above.
 (
   set -a
@@ -119,7 +123,7 @@ PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
   # and the platform assembles them into ONE floor (bench#2). Source them ALL — a knob now
   # lives with its owner (e.g. PLURNK_PROVIDERS_FETCH_TIMEOUT in @plurnk/plurnk-providers).
   for f in node_modules/@plurnk/*/.env.defaults; do [ -f "$f" ] && . "$f"; done
-  . "$HOME/.plurnk/.env"
+  . "$OPERATOR_ENV"
   set +a
   export PLURNK_MODEL="$MODEL"
   node src/publish.ts "$(ls -dt jobs/*/ | head -1)"
