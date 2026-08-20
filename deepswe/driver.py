@@ -147,15 +147,11 @@ DB="${{PLURNK_SERVICE_DB_PATH:-${{PLURNK_DB_PATH:-$HOME/.plurnk/plurnk.db}}}}"
 snapshot_db() {{
   rm -f "$2" "$2-wal" "$2-shm"
   node -e '
-    const {{ DatabaseSync }} = require("node:sqlite");
+    const {{ backup, DatabaseSync }} = require("node:sqlite");
     const source = new DatabaseSync(process.argv[1], {{ readOnly: true }});
-    const quote = String.fromCharCode(39);
-    const destination = process.argv[2].replaceAll(quote, quote + quote);
-    try {{
-      source.exec(`VACUUM INTO ${{quote}}${{destination}}${{quote}}`);
-    }} finally {{
-      source.close();
-    }}
+    backup(source, process.argv[2])
+      .finally(() => source.close())
+      .catch((error) => {{ console.error(error); process.exitCode = 1; }});
   ' "$1" "$2"
 }}
 plurnk-service start > {shlex.quote(str(daemon_log))} 2>&1 &

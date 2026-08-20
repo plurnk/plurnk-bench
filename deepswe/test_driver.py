@@ -90,7 +90,8 @@ class DriverContractTest(unittest.TestCase):
 
         self.assertIn("plurnk --json --auto ", environment.command)
         self.assertNotIn(" --yolo ", environment.command)
-        self.assertIn("VACUUM INTO", environment.command)
+        self.assertIn("backup(source, process.argv[2])", environment.command)
+        self.assertNotIn("VACUUM INTO", environment.command)
         self.assertIn('snapshot_db "$DB" /logs/agent/plurnk.db', environment.command)
         self.assertNotRegex(environment.command, r"(?m)^cp ")
 
