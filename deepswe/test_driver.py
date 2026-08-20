@@ -107,6 +107,7 @@ class DriverContractTest(unittest.TestCase):
         self.assertNotIn("TAVILY_API_KEY", environment.command)
 
     def test_snapshot_includes_committed_wal_state(self):
+        # Keep the fixture and oracle independent of the Node backup path under test.
         agent = driver.PlurnkAgent()
         environment = types.SimpleNamespace()
         asyncio.run(agent.run("task", environment, object()))
