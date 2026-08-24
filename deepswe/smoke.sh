@@ -177,7 +177,7 @@ build=()
 
 # Task selection: one named task, or the whole corpus at bounded concurrency.
 select_flags=(-i "$TASK" --n-tasks 1)
-[ "$TASK" = all ] && select_flags=(-j "${PLURNK_BENCH_JOBS:-4}")
+[ "$TASK" = all ] && select_flags=(--n-concurrent "${PLURNK_BENCH_JOBS:-4}")
 
 echo "smoke: model=$MODEL task=$TASK service=$SERVICE_VERSION client=$CLIENT_VERSION tavily=$TAVILY_ROUTE egress=$EGRESS_DOMAINS cpus=${PLURNK_BENCH_CPUS:-native} client_timeout=${CLIENT_TIMEOUT_SEC}s (budget ${AGENT_BUDGET:-?}s)${PLURNK_BENCH_FORCE_BUILD:+ [force-build]}" >&2
 # The default personality ships on: the daemon seeds PLURNK_PERSONALITY.md to

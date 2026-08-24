@@ -33,6 +33,6 @@ test("[§config-carry] the MCP fleet never rides into the container", () => {
 
 test("[§config-carry] `all` mode runs the corpus web-free on the minimal manifest, skipping the per-task publisher", () => {
     assert.match(smoke, /\[ "\$TASK" = all \] && TAVILY_API_KEY=""/);
-    assert.match(smoke, /\[ "\$TASK" = all \] && select_flags=\(-j/);
+    assert.match(smoke, /\[ "\$TASK" = all \] && select_flags=\(--n-concurrent/);
     assert.match(smoke, /\[ "\$TASK" = all \] && exit 0/);
 });
