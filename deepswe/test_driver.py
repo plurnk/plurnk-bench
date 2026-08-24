@@ -173,6 +173,17 @@ class DriverContractTest(unittest.TestCase):
 
         self.assertEqual(environment.env["NODE_USE_ENV_PROXY"], "1")
 
+    def test_instruction_rides_after_the_option_terminator(self):
+        # A task instruction may open with '-' (markdown bullets): strict parseArgs
+        # reads a bare dash positional as an unknown option, so the invocation must
+        # terminate options with '--' before the prompt (ink-grid-box-layout, run 19-11-33).
+        agent = driver.PlurnkAgent()
+        environment = types.SimpleNamespace()
+
+        asyncio.run(agent.run("- Update the display style property.", environment, object()))
+
+        self.assertIn(" -- '- Update the display style property.' ", environment.command)
+
     def test_loop_flags_default_web_free_and_never_interactive(self):
         agent = driver.PlurnkAgent()
         environment = types.SimpleNamespace()
