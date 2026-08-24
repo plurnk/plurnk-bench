@@ -46,7 +46,7 @@ test("[§verdicts-failure-class] non-pass is classified by the loop's failure mo
     assert.equal(deriveOutcome({
         schemaVersion: 6,
         problem: {
-            type: "https://problems.plurnk.dev/client/rpc/error",
+            type: "https://problems.plurnk.xyz/client/rpc/error",
             title: "Error",
             status: 502,
             detail: "x",
@@ -151,7 +151,7 @@ test("[§turns-provenance] readTrial takes the turn count from the doc's turns[]
             schemaVersion: 6,
             finalStatus: 500,
             problem: {
-                type: "https://problems.plurnk.dev/daemon/drain/loop-threw",
+                type: "https://problems.plurnk.xyz/daemon/drain/loop-threw",
                 title: "Loop threw",
                 status: 500,
                 detail: "The loop failed.",
@@ -274,7 +274,7 @@ test("[§digest-boundary] readTrial carries a dbPath-only digest handle when the
         writeFileSync(join(trialDir, "agent", "plurnk.json"), JSON.stringify({
             schemaVersion: 6,
             problem: {
-                type: "https://problems.plurnk.dev/client/runtime/error",
+                type: "https://problems.plurnk.xyz/client/runtime/error",
                 title: "Error",
                 status: 500,
                 detail: "undefined.length",
@@ -348,7 +348,7 @@ test("[§provenance] readJob walks a job tree → one record per trial, provenan
         assert.equal(bar.outcome, "timeout");                       // AgentTimeoutError reclassified
         assert.equal(bar.status, 504);
         assert.equal(bar.problem?.detail, "AgentTimeoutError: 1800s");
-        assert.equal(bar.problem?.type, "https://problems.plurnk.dev/bench/pier/agent-timeout-error");
+        assert.equal(bar.problem?.type, "https://problems.plurnk.xyz/bench/pier/agent-timeout-error");
         assert.equal(bar.problem?.upstreamType, "AgentTimeoutError");
         assert.equal(bar.startedAt, "2026-06-30T02:00:00Z");
         assert.equal(bar.run, undefined);                           // empty doc → no digest handle
@@ -368,7 +368,7 @@ test("[§verdicts-failure-class] a client Problem doc yields an error record wit
         doc: {
             schemaVersion: 6,
             problem: {
-                type: "https://problems.plurnk.dev/client/connection/refused",
+                type: "https://problems.plurnk.xyz/client/connection/refused",
                 title: "Refused",
                 status: 503,
                 detail: "refused",
@@ -379,7 +379,7 @@ test("[§verdicts-failure-class] a client Problem doc yields an error record wit
     });
     assert.equal(record.outcome, "error");
     assert.equal(record.status, 503);
-    assert.equal(record.problem?.type, "https://problems.plurnk.dev/client/connection/refused");
+    assert.equal(record.problem?.type, "https://problems.plurnk.xyz/client/connection/refused");
     assert.equal(record.run, undefined);         // no workspace/worker identity -> no scoped digest handle
 });
 
@@ -392,7 +392,7 @@ test("legacy client error documents are rejected instead of translated", () => {
             doc: {
                 schemaVersion: 6,
                 error: {
-                    type: "https://problems.plurnk.dev/client/connection/refused",
+                    type: "https://problems.plurnk.xyz/client/connection/refused",
                     title: "Refused",
                     status: 503,
                     detail: "refused",

@@ -147,7 +147,7 @@ test("[§benchlet-evidence] benchlet summary preserves the terminal loop Problem
                 status: 500,
                 content: "invalid emission",
                 problem: {
-                    type: "https://problems.plurnk.dev/engine/generation/invalid-emission-exhausted",
+                    type: "https://problems.plurnk.xyz/engine/generation/invalid-emission-exhausted",
                     status: 500,
                 },
             },
@@ -191,7 +191,7 @@ test("[§benchlet-evidence] benchlet summary preserves the terminal loop Problem
         terminalMessage: "invalid emission",
         terminatedBy: null,
         problem: {
-            type: "https://problems.plurnk.dev/engine/generation/invalid-emission-exhausted",
+            type: "https://problems.plurnk.xyz/engine/generation/invalid-emission-exhausted",
             status: 500,
         },
     }, {
@@ -207,8 +207,8 @@ test("[§benchlet-evidence] benchlet summary preserves the terminal loop Problem
 });
 
 test("[§benchlet-evidence] benchlet groups terminal stream channels into one causal failure", () => {
-    const nonzeroExit = "https://problems.plurnk.dev/executor/subprocess/nonzero-exit";
-    const entryNotFound = "https://problems.plurnk.dev/scheme/sh/entry-not-found";
+    const nonzeroExit = "https://problems.plurnk.xyz/executor/subprocess/nonzero-exit";
+    const entryNotFound = "https://problems.plurnk.xyz/scheme/sh/entry-not-found";
     const summary = digestSummary({
         workspaces: [{
             accounting: {
