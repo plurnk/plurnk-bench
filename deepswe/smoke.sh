@@ -35,12 +35,15 @@ OPERATOR_ENV="$CONFIG_HOME/plurnk/.env"
 # Model layer; provider env already present via .bashrc. The daemon reads .env with
 # Node's parseEnv semantics — values with spaces/parens are legal there and blow up a
 # bash `source`, so parse it the way the product does and re-emit shell-safe exports.
-eval "$(node -e '
-  const { parseEnv } = require("node:util");
-  const parsed = parseEnv(require("node:fs").readFileSync(process.argv[1], "utf8"));
-  for (const [key, value] of Object.entries(parsed))
-    console.log("export " + key + "=" + "\x27" + value.replaceAll("\x27", "\x27\\\x27\x27") + "\x27");
-' "$OPERATOR_ENV")"
+source_env_file() {
+  eval "$(node -e '
+    const { parseEnv } = require("node:util");
+    const parsed = parseEnv(require("node:fs").readFileSync(process.argv[1], "utf8"));
+    for (const [key, value] of Object.entries(parsed))
+      console.log("export " + key + "=" + "\x27" + value.replaceAll("\x27", "\x27\\\x27\x27") + "\x27");
+  ' "$1")"
+}
+source_env_file "$OPERATOR_ENV"
 # Transport (service 1.0.0): single listener — PLURNK_PORT=3044 is THE client surface
 # (AG-UI); the separate WS listener is gone. The in-container daemon+client pair share the
 # shipped default, so bench sets NOTHING here (a stale port export silently kills the loop).
@@ -203,13 +206,11 @@ PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
 # config (shipped defaults floor < XDG user config < this run's model), in a subshell so those
 # defaults never leak back into the --agent-env forwarding already sent above.
 (
-  set -a
   # The 1.0 floor is READER-DECLARES: every installed member ships its own .env.defaults
   # and the platform assembles them into ONE floor (bench#2). Source them ALL — a knob now
   # lives with its owner (e.g. PLURNK_PROVIDERS_FETCH_TIMEOUT in @plurnk/plurnk-providers).
-  for f in node_modules/@plurnk/*/.env.defaults; do [ -f "$f" ] && . "$f"; done
-  . "$OPERATOR_ENV"
-  set +a
+  for f in node_modules/@plurnk/*/.env.defaults; do [ -f "$f" ] && source_env_file "$f"; done
+  source_env_file "$OPERATOR_ENV"
   export PLURNK_MODEL="$MODEL"
   node src/publish.ts "$(ls -dt jobs/*/ | head -1)"
 )
