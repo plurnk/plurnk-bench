@@ -55,6 +55,9 @@ class PlurnkAgent(BaseInstalledAgent):
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
+        # Pier parses --agent-kwarg values as JSON/Python literals, so `0` arrives
+        # as an int — normalize the presence flag back to its string contract.
+        tavily_configured = str(tavily_configured)
         if tavily_configured not in {"0", "1"}:
             raise ValueError("tavily_configured must be 0 or 1")
         if tavily_depth not in {"basic", "advanced"}:

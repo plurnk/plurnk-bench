@@ -143,6 +143,13 @@ class DriverContractTest(unittest.TestCase):
 
             self.assertEqual(row, ("from-wal",))
 
+    def test_kwargs_survive_pier_literal_parsing(self):
+        # Pier parses --agent-kwarg values as JSON/Python literals: `0` arrives as int.
+        agent = driver.PlurnkAgent(tavily_configured=0)
+
+        self.assertFalse(agent._tavily)
+        self.assertFalse(agent._web_materialization["webMaterialization"]["tavily"]["configured"])
+
     def test_network_allowlist_merges_runner_domains_and_base_url(self):
         agent = driver.PlurnkAgent(egress_domains="api.deepseek.com, api.tavily.com")
         agent._extra_env = {"PLURNK_BASE_URL": "http://192.168.1.20:8080/v1"}
