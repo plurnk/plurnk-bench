@@ -143,6 +143,49 @@ class DriverContractTest(unittest.TestCase):
 
             self.assertEqual(row, ("from-wal",))
 
+    def test_network_allowlist_merges_runner_domains_and_base_url(self):
+        agent = driver.PlurnkAgent(egress_domains="api.deepseek.com, api.tavily.com")
+        agent._extra_env = {"PLURNK_BASE_URL": "http://192.168.1.20:8080/v1"}
+
+        self.assertEqual(
+            agent.network_allowlist().domains,
+            ["api.deepseek.com", "api.tavily.com", "192.168.1.20"],
+        )
+
+    def test_network_allowlist_fails_hard_without_model_egress(self):
+        agent = driver.PlurnkAgent()
+
+        with self.assertRaisesRegex(ValueError, "no model egress"):
+            agent.network_allowlist()
+
+    def test_run_env_enables_proxy_for_node_fetch(self):
+        agent = driver.PlurnkAgent()
+        environment = types.SimpleNamespace()
+
+        asyncio.run(agent.run("task", environment, object()))
+
+        self.assertEqual(environment.env["NODE_USE_ENV_PROXY"], "1")
+
+    def test_loop_flags_default_web_free_and_never_interactive(self):
+        agent = driver.PlurnkAgent()
+        environment = types.SimpleNamespace()
+
+        asyncio.run(agent.run("task", environment, object()))
+
+        self.assertIn(
+            "--flags '{\"noWeb\": true, \"noInteraction\": true}'", environment.command
+        )
+
+    def test_loop_flags_open_web_for_a_configured_tavily_route(self):
+        agent = driver.PlurnkAgent(tavily_configured="1")
+        environment = types.SimpleNamespace()
+
+        asyncio.run(agent.run("task", environment, object()))
+
+        self.assertIn(
+            "--flags '{\"noWeb\": false, \"noInteraction\": true}'", environment.command
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
