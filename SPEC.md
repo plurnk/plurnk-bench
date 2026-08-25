@@ -328,6 +328,15 @@ never reproduces an agent loop.
   so the corpus is grouped by budget into dataset views (`.cache/enterprise-groups/<budget>/`,
   copies of the pinned task directories) and each group runs as its own job with that budget
   minus headroom; every job is published. Covered: `enterprise/smoke.test.ts [§enterprise-budget-groups]`.
+- §enterprise-specimen `enterprise/specimen.sh <task> [model]` runs ONE task against a daemon
+  built from a checkout (the service repo's `scripts/candidate.mjs`, client from
+  `PLURNK_CLIENT_CHECKOUT`) — unreleased engine and teaching — while the benchmark keeps its
+  truth: the pinned task container hosts the submission endpoint and runs the official judge
+  over the pinned tests. The daemon runs on the host, so the model's shell runs on the host;
+  the run dir (`run<N>-enterprise-specimen-<task>-<model>`) records service/client/corpus
+  provenance, the client record, the digest, the submitted answer, and the verifier output.
+  It is the iteration instrument; `enterprise/smoke.sh` remains the isolated, publishable one.
+  Covered: `enterprise/specimen.test.ts [§enterprise-specimen]`.
 - §enterprise-spend The live route and the judge are explicit spending decisions: the
   candidate is the run's alias (`deepdumb` first — the whole corpus must complete before
   any same-model comparison against TrueForge's GLM-5.2 figure on the `glm` alias), and
