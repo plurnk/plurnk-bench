@@ -123,6 +123,7 @@ class DriverContractTest(unittest.TestCase):
         self.assertEqual(environment.env["PLURNK_MODEL"], "deepdumb")
         self.assertEqual(environment.env["DEEPSEEK_API_KEY"], "k")
         self.assertEqual(environment.env["PLURNK_CLIENT_PROJECT_ROOT"], "")
+        self.assertEqual(environment.env["PLURNK_SERVICE_MAX_EMBED_SIZE"], "262144")
         self.assertEqual(environment.env["PLURNK_MCP_CRM"], "http://10.0.0.5:8012/mcp")
         self.assertEqual(environment.env["PLURNK_EXECS_ONLY"], "sh,pm,crm,fileserver")
 
@@ -135,6 +136,7 @@ class DriverContractTest(unittest.TestCase):
         self.assertIn("/logs/agent/plurnk-mcp.json", environment.command)
         self.assertIn('"host": "10.0.0.5"', environment.command)
         self.assertIn('"PLURNK_MCP_FILESERVER": "http://10.0.0.5:8013/mcp"', environment.command)
+        self.assertIn('"embedCapBytes": 262144', environment.command)
         self.assertNotIn("plurnk-bench.json", environment.command)
 
     def test_kwargs_survive_harbor_literal_parsing(self):

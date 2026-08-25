@@ -293,7 +293,11 @@ never reproduces an agent loop.
 - §enterprise-posture The candidate runs headless (no project root), web-free and
   non-interactive, with executors limited to the shell and the benchmark's MCP aliases.
   The shell is the task's own submission path: every instruction tells the agent to POST
-  its answer to the container's `/submit_agent_response`. Covered: `test_driver.py`.
+  its answer to the container's `/submit_agent_response`. Vector embedding is capped at
+  256 KB per channel (`PLURNK_SERVICE_MAX_EMBED_SIZE`, recorded in provenance): the
+  daemon's unlimited default let one unfiltered 8.4 MB SOQL result stall a loop for seven
+  minutes of synchronous embedding on the task's two CPUs; the cap rejects vectors only,
+  leaving FTS, READ, and the graph exhaustive over such dumps. Covered: `test_driver.py`.
 - §enterprise-answer The harness never submits on the model's behalf. An unsubmitted or
   duplicated answer is the model's failure and the benchmark's judge records it as such;
   the submitted answer, when present, is kept beside the record as `agent/responses.jsonl`.

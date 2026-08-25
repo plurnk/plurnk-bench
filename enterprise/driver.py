@@ -38,6 +38,11 @@ BENCH_MCP_HOST = "host.docker.internal"
 ALIAS = re.compile(r"^[a-z][a-z0-9]*$")
 # The shell executor is the task's own submission path (its instruction shows curl).
 SHELL_RUNTIME = "sh"
+# Vector embedding is capped per channel (bytes). The daemon's default is unlimited, and one
+# unfiltered SOQL result (8.4 MB, 11,089 records, a single line) held a loop for seven
+# minutes of synchronous embedding on the task's two CPUs. Rejection is vector-only: FTS,
+# READ, and the graph stay exhaustive over the dump (SPEC §enterprise-posture).
+EMBED_CAP_BYTES = 262144
 
 
 class PlurnkAgent(BaseInstalledAgent):
@@ -143,6 +148,7 @@ class PlurnkAgent(BaseInstalledAgent):
             **mcp_env,
             # Headless: no project root, file ops 400. The task is retrieval and an answer.
             "PLURNK_CLIENT_PROJECT_ROOT": "",
+            "PLURNK_SERVICE_MAX_EMBED_SIZE": str(EMBED_CAP_BYTES),
         }
         # Enterprise-Bench posture: never interactive, never the open web — the corpus is
         # answerable only through its MCP services. The daemon 403-teaches gated schemes.
@@ -155,6 +161,7 @@ class PlurnkAgent(BaseInstalledAgent):
                 "enabled": json.loads(mcp_env["PLURNK_MCP_ENABLED"]),
             },
             "executors": mcp_env["PLURNK_EXECS_ONLY"],
+            "embedCapBytes": EMBED_CAP_BYTES,
         }
 
         # One shell exec: start daemon → wait for the client surface → drive one headless
