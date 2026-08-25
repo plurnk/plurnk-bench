@@ -201,7 +201,7 @@ PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
 [ "$TASK" = all ] && exit 0
 
 # Publish the run to the shared benchmarks tree (<plurnk>/benchmarks/run<N>) so it can be
-# referenced by name — "check out run<N> with me". Publish also banks the requiem (the model's
+# referenced by name — "check out run<N> with me". With PLURNK_BENCH_REQUIEM=1 publish also banks the requiem (the model's
 # exit interview), which RE-INVOKES the model — so run it under the full authoritative provider
 # config (shipped defaults floor < XDG user config < this run's model), in a subshell so those
 # defaults never leak back into the --agent-env forwarding already sent above.

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeFileSync } from "node:fs";
@@ -117,4 +117,12 @@ test("[§publish-self-referential] publishedRecord re-points the DB handle and p
 test("[§results-canon] defaultBenchmarksDir resolves to a sibling 'benchmarks' dir", () => {
     assert.match(defaultBenchmarksDir(), /\/benchmarks$/);
     assert.doesNotMatch(defaultBenchmarksDir(), /plurnk-bench\/benchmarks$/);
+});
+
+// The requiem re-invokes the model once per published run; it is an investigation
+// instrument the operator asks for, never an automatic cost of publishing.
+test("[§publish-requiem] the requiem is banked only on PLURNK_BENCH_REQUIEM=1", () => {
+    const source = readFileSync(new URL("./publish.ts", import.meta.url), "utf8");
+    assert.match(source, /if \(process\.env\.PLURNK_BENCH_REQUIEM === "1"\) \{\s*try \{\s*await Digest\.requiem\(/);
+    assert.equal((source.match(/Digest\.requiem\(/g) ?? []).length, 1);
 });

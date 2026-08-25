@@ -141,10 +141,12 @@ daemon DB), **`digest/`** (rendered from the COPY — the dir is self-contained)
 - §publish-self-referential `record.json`'s digest handle points at the PUBLISHED copy,
   never back into the gitignored `jobs/` scratch; the input record is not mutated.
   Covered: `publish.test.ts [§publish-self-referential]`.
-- §publish-requiem Publish banks the requiem (`digest/requiem.md` — the model's exit
-  interview, which re-invokes the model) BEST-EFFORT under the carried provider config: a
-  missing witness is a skip, never a publish failure.
-  **Uncovered** (requiem needs a live provider; validated against real runs only).
+- §publish-requiem The requiem (`digest/requiem.md` — the model's exit interview, which
+  re-invokes the model once per published run) is an investigation instrument, banked only
+  when the operator asks: `PLURNK_BENCH_REQUIEM=1` (SPEC §config-bench-namespace). When
+  requested it is BEST-EFFORT under the carried provider config: a missing witness is a
+  skip, never a publish failure. Covered: `src/publish.test.ts [§publish-requiem]` (the
+  opt-in gate); the live requiem itself is validated against real runs only.
 - No run handle → nothing to publish (`null`) — the bench never fabricates a run dir.
   Covered: `publish.test.ts [§publish]`.
 

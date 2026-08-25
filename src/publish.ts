@@ -90,15 +90,18 @@ if (import.meta.main) {
             console.log(`skipped ${record.taskId} (no publishable model run)`);
             continue;
         }
-        // SPEC §publish-requiem. Bank the model's exit interview alongside the digest. Best-effort: requiem re-invokes
-        // the model (needs the daemon's provider config present), so a missing witness is a
-        // skip, not a publish failure — the run is already published.
+        // SPEC §publish-requiem. The model's exit interview is an investigation instrument,
+        // banked only on request (PLURNK_BENCH_REQUIEM=1): it re-invokes the model once per
+        // published run. When requested it stays best-effort — a missing witness is a skip,
+        // never a publish failure — the run is already published.
         let note = "";
-        try {
-            await Digest.requiem({ dbPath: join(dir, "plurnk.db"), digestDir: join(dir, "digest") });
-            note = " + requiem";
-        } catch (e) {
-            note = ` (requiem skipped: ${(e as Error).message.slice(0, 70)})`;
+        if (process.env.PLURNK_BENCH_REQUIEM === "1") {
+            try {
+                await Digest.requiem({ dbPath: join(dir, "plurnk.db"), digestDir: join(dir, "digest") });
+                note = " + requiem";
+            } catch (e) {
+                note = ` (requiem skipped: ${(e as Error).message.slice(0, 70)})`;
+            }
         }
         console.log(`published ${record.taskId} (${record.outcome}) → ${dir}${note}`);
     }
