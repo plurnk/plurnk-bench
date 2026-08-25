@@ -48,12 +48,16 @@ class PlurnkAgent(BaseInstalledAgent):
         client_timeout_sec: int = DEFAULT_CLIENT_TIMEOUT_S,
         client_version: str | None = None,   # npm version spec, e.g. "0.40.2"; None = latest
         service_version: str | None = None,
+        egress_domains: str = "",            # comma-separated model-endpoint hosts beyond PLURNK_BASE_URL
         tavily_configured: str = "0",
         tavily_depth: str = "basic",
         *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
+        # Pier parses --agent-kwarg values as JSON/Python literals, so `0` arrives
+        # as an int — normalize the presence flag back to its string contract.
+        tavily_configured = str(tavily_configured)
         if tavily_configured not in {"0", "1"}:
             raise ValueError("tavily_configured must be 0 or 1")
         if tavily_depth not in {"basic", "advanced"}:
@@ -61,6 +65,8 @@ class PlurnkAgent(BaseInstalledAgent):
         self._client_timeout_sec = int(client_timeout_sec)
         self._client_version = client_version
         self._service_version = service_version
+        self._egress_domains = [d.strip() for d in egress_domains.split(",") if d.strip()]
+        self._tavily = tavily_configured == "1"
         self._web_materialization = {
             "schemaVersion": 1,
             "webMaterialization": {
@@ -106,17 +112,22 @@ class PlurnkAgent(BaseInstalledAgent):
             verification_command="command -v plurnk && command -v plurnk-service",
         )
 
-    # ---- runtime egress: only the model endpoint the daemon calls ----
+    # ---- runtime egress: only the model endpoint(s) the daemon calls ----
     def network_allowlist(self) -> NetworkAllowlist:
         # Air-gap is kept (reproducibility-honest). The daemon's only outbound need
-        # is its model endpoint — allowlist exactly that host, derived from the
-        # operator-configured PLURNK_BASE_URL (mirrors Pier's built-in drivers).
-        domains: list[str] = []
+        # is its model endpoint(s): the PLURNK_BASE_URL host when one is named, plus
+        # the provider-default hosts the runner resolved (a cloud provider like
+        # deepseek carries no *_BASE_URL — its base is implicit in the registry).
+        domains = list(self._egress_domains)
         base_url = self._get_env("PLURNK_BASE_URL")
         if base_url:
             host = urlparse(base_url).hostname
             if host:
                 domains.append(host)
+        if not domains:
+            raise ValueError(
+                "plurnk agent has no model egress: set PLURNK_BASE_URL or pass egress_domains"
+            )
         return NetworkAllowlist(domains=domains)
 
     # Scoring ingests /logs/agent/plurnk.json directly; no ATIF context to populate.
@@ -135,7 +146,18 @@ class PlurnkAgent(BaseInstalledAgent):
 
         # All PLURNK_* the operator set in the job config's env: flow through here
         # (build_process_env merges self._extra_env), configuring the daemon.
-        env = self.build_process_env({"PLURNK_PROJECT_ROOT": "/app"})
+        env = self.build_process_env({
+            "PLURNK_PROJECT_ROOT": "/app",
+            # Model egress rides Pier's squid sidecar via HTTP(S)_PROXY; Node's
+            # fetch ignores proxy env unless told (NODE_USE_ENV_PROXY, Node >= 24).
+            # Pier's NO_PROXY keeps the client->daemon loopback direct. No-op in
+            # a proxyless (allow_internet) environment.
+            "NODE_USE_ENV_PROXY": "1",
+        })
+
+        # DeepSWE posture: never interactive, and no web unless the run's tavily
+        # route is deliberately configured. The daemon 403-teaches gated schemes.
+        loop_flags = json.dumps({"noWeb": not self._tavily, "noInteraction": True})
 
         # One shell exec: start daemon → wait for AG-UI → drive client at /app → commit
         # so `git diff base..HEAD` (Pier's pre_artifacts.sh) captures the work →
@@ -160,7 +182,7 @@ for _ in $(seq 1 {DAEMON_READY_TIMEOUT_S}); do
   if plurnk models >/dev/null 2>&1; then break; fi
   sleep 1
 done
-plurnk --json --auto --project-root /app --timeout {self._client_timeout_sec} {escaped} \
+plurnk --json --auto --flags {shlex.quote(loop_flags)} --project-root /app --timeout {self._client_timeout_sec} -- {escaped} \
   > {shlex.quote(str(record))} 2> {shlex.quote(str(stderr))} || true
 cd /app
 git add -A

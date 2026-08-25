@@ -20,3 +20,19 @@ test("[§config-tavily-route] smoke carries configured Tavily like other optiona
     assert.match(smoke, /--agent-kwarg "tavily_configured=\$TAVILY_CONFIGURED"/);
     assert.match(smoke, /--agent-kwarg "tavily_depth=\$TAVILY_DEPTH"/);
 });
+
+test("[§config-egress] smoke derives the allowlist from the run's aliases and forwards it to the driver", () => {
+    assert.match(smoke, /providers\.json/);
+    assert.match(smoke, /--agent-kwarg "egress_domains=\$EGRESS_DOMAINS"/);
+    assert.match(smoke, /api\.tavily\.com/);
+});
+
+test("[§config-carry] the MCP fleet never rides into the container", () => {
+    assert.match(smoke, /PLURNK_MCP_\*\) continue;;/);
+});
+
+test("[§config-carry] `all` mode runs the corpus web-free on the minimal manifest, skipping the per-task publisher", () => {
+    assert.match(smoke, /\[ "\$TASK" = all \] && TAVILY_API_KEY=""/);
+    assert.match(smoke, /\[ "\$TASK" = all \] && select_flags=\(--n-concurrent/);
+    assert.match(smoke, /\[ "\$TASK" = all \] && exit 0/);
+});
