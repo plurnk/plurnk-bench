@@ -94,7 +94,8 @@ fi
 # Give the agent the BENCHMARK's own budget, not an arbitrary cap (SPEC §config-budget):
 # every task's [agent] timeout_sec, minus headroom (daemon boot + DB snapshot) — the model gets
 # the whole budget the benchmark grants; an arbitrary shorter cap understates every result.
-AGENT_BUDGET="$(awk -F= '/^\[/{s=$0} s=="[agent]" && $1 ~ /timeout_sec/ {v=$2; gsub(/[^0-9.]/,"",v); print int(v)}' "$TASK_PATH"/*/task.toml "$TASK_PATH"/task.toml 2>/dev/null | sort -u)"
+if [ "$TASK" = all ]; then BUDGET_FILES=("$TASK_PATH"/*/task.toml); else BUDGET_FILES=("$TASK_PATH/task.toml"); fi
+AGENT_BUDGET="$(awk -F= '/^\[/{s=$0} s=="[agent]" && $1 ~ /timeout_sec/ {v=$2; gsub(/[^0-9.]/,"",v); print int(v)}' "${BUDGET_FILES[@]}" | sort -u)"
 [ "$(printf '%s\n' "$AGENT_BUDGET" | wc -l)" -eq 1 ] || {
   echo "enterprise: task budgets are not uniform ($(echo $AGENT_BUDGET)); refusing one global client timeout" >&2; exit 1;
 }
