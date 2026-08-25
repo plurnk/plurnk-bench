@@ -172,9 +172,10 @@ for i in "${!RUN_PATHS[@]}"; do
   JOB_DIRS+=("$(ls -dt jobs/*/ | head -1)")
 done
 
-# Publish every trial of every job to the shared benchmarks tree (<plurnk>/benchmarks/run<N>),
-# banking the requiem under the full authoritative provider config in a subshell so those
-# defaults never leak back into the forwarding above.
+# Publish every trial of every job to the shared benchmarks tree (<plurnk>/benchmarks/run<N>):
+# record + digest; the requiem only with PLURNK_BENCH_REQUIEM=1 (SPEC §publish-requiem). The
+# subshell carries the full authoritative provider config for that case without leaking those
+# defaults back into the forwarding above.
 (
   for f in node_modules/@plurnk/*/.env.defaults; do [ -f "$f" ] && source_env_file "$f"; done
   source_env_file "$OPERATOR_ENV"
