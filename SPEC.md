@@ -243,8 +243,13 @@ model layer from `${XDG_CONFIG_HOME:-$HOME/.config}/plurnk/.env`, provider env f
 container-boundary transform: loopback (`127.0.0.1`/`localhost`) in a `*_BASE_URL` rewrites
 to the host LAN IP. Child contracts:
 
+- §config-model-default Every model a harness selects — candidate, requiem witness, child —
+  is configurable: an explicit alias argument, else the harness's own knob, else
+  `PLURNK_BENCH_MODEL`; when nothing configures it, the local `turboderp` route runs. No
+  runner refuses for want of a model. Covered: `host-paths.test.ts`, `smoke.test.ts`,
+  `benchlet.test.ts [§config-model-default]`.
 - §config-bench-namespace Bench-invented knobs are namespaced `PLURNK_BENCH_*` (`PLURNK_BENCH_HOME`,
-  `PLURNK_BENCH_HARNESS`, `PLURNK_BENCH_REQUIEM`, …)
+  `PLURNK_BENCH_MODEL`, `PLURNK_BENCH_HARNESS`, `PLURNK_BENCH_REQUIEM`, …)
   (TIMEOUT_SEC, CPUS, FORCE_BUILD, NO_GBNF) and are orchestration, never daemon config —
   excluded from forwarding.
 - §config-gbnf-optout `PLURNK_BENCH_NO_GBNF=1` forwards `PLURNK_PROVIDERS_GBNF=0` — an

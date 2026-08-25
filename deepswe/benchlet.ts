@@ -20,7 +20,7 @@ import { finished } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { allocateRunDirectory } from "../src/run-directory.ts";
-import { benchmarksHome } from "../src/host-paths.ts";
+import { benchModel, benchmarksHome } from "../src/host-paths.ts";
 import { requiredClientCheckout } from "../src/client-checkout.ts";
 import { operatorConfigPath } from "../src/host-paths.ts";
 import { webMaterializationProvenance } from "../src/web-materialization.ts";
@@ -1035,10 +1035,8 @@ export const requiemModelAlias = (
     configured: string | undefined,
 ): string | null => {
     if (!enabled) return null;
-    if (configured === undefined || configured.trim() === "") {
-        throw new Error("PLURNK_BENCHLET_REQUIEM_MODEL must name a model alias when requiems are enabled");
-    }
-    return configured;
+    // SPEC §config-model-default: the requiem witness is configurable; unset runs the bench default.
+    return benchModel(configured);
 };
 
 const requiemSummary = (path: string): RequiemAccountingSummary => {
@@ -1066,8 +1064,8 @@ const main = async (): Promise<void> => {
     assert.equal(manifest.task, task, "benchlet manifest task must match its selection");
 
     const preflightOnly = values.preflight;
-    const model = positionals[0] ?? process.env.PLURNK_BENCHLET_MODEL;
-    if (model === undefined || model.trim() === "") throw new Error("benchlet requires a model alias");
+    // SPEC §config-model-default: explicit alias, else the benchlet's own knob, else the bench default.
+    const model = benchModel(positionals[0] ?? process.env.PLURNK_BENCHLET_MODEL);
     const taskCache = resolveFrom(benchRoot, process.env.PLURNK_BENCHLET_TASK_CACHE ?? "");
     const taskDir = resolve(taskCache, manifest.task);
     const repositoryCacheRoot = resolveFrom(

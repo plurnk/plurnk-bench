@@ -19,7 +19,7 @@ import {
     runToFiles,
 } from "../deepswe/benchlet.ts";
 import { allocateRunDirectory } from "../src/run-directory.ts";
-import { benchmarksHome } from "../src/host-paths.ts";
+import { benchModel, benchmarksHome } from "../src/host-paths.ts";
 import { requiredClientCheckout } from "../src/client-checkout.ts";
 import { operatorConfigPath } from "../src/host-paths.ts";
 import {
@@ -640,7 +640,7 @@ const main = async (): Promise<void> => {
 
     const taskName = values.task ?? required("PLURNK_BENCH_ATLAS_TASK");
     const { path: selectedTaskPath, task } = readTask(taskName);
-    const model = positionals[0] ?? required("PLURNK_BENCH_ATLAS_MODEL");
+    const model = benchModel(positionals[0] ?? process.env.PLURNK_BENCH_ATLAS_MODEL);
     const image = required("PLURNK_BENCH_ATLAS_IMAGE");
     const containerPort = positiveInteger("PLURNK_BENCH_ATLAS_CONTAINER_PORT");
     const listTimeoutMs = positiveInteger("PLURNK_BENCH_ATLAS_LIST_TIMEOUT_MS");
@@ -655,7 +655,7 @@ const main = async (): Promise<void> => {
         throw new Error("PLURNK_BENCH_ATLAS_FILES_ITEMS must be -1, 0, or a positive integer.");
     }
     const requiemEnabled = required("PLURNK_BENCH_ATLAS_REQUIEM") === "1";
-    const requiemModel = required("PLURNK_BENCH_ATLAS_REQUIEM_MODEL");
+    const requiemModel = benchModel(process.env.PLURNK_BENCH_ATLAS_REQUIEM_MODEL);
     const requiemTimeout = positiveInteger("PLURNK_BENCH_ATLAS_REQUIEM_TIMEOUT_SEC");
     const sourceRepository = required("PLURNK_BENCH_ATLAS_SOURCE_REPOSITORY");
     const sourceRevision = required("PLURNK_BENCH_ATLAS_SOURCE_REVISION");

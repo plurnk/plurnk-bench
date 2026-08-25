@@ -17,7 +17,8 @@ Atlas's bundled servers use older and mixed MCP revisions. The adapter does not
 claim that they are current. It preserves Atlas's task and sandbox boundary
 while making the Plurnk-facing protocol boundary current and explicit.
 
-Run the documented filesystem task with the configured default model:
+Run the documented filesystem task with the configured model (`PLURNK_BENCH_ATLAS_MODEL`,
+else `PLURNK_BENCH_MODEL`, else `turboderp`):
 
 ```sh
 PLURNK_BENCH_ATLAS_CLIENT_ROOT=/path/to/open-client npm run atlas

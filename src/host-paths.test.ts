@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { benchmarksHome, jobsRoot, operatorConfigPath } from "./host-paths.ts";
+import { DEFAULT_MODEL, benchModel, benchmarksHome, jobsRoot, operatorConfigPath } from "./host-paths.ts";
 
 test("operatorConfigPath follows XDG while preserving an explicit bench override", () => {
     assert.equal(operatorConfigPath(undefined, {}, "/home/ada"), "/home/ada/.config/plurnk/.env");
@@ -20,4 +20,12 @@ test("[§results-canon] jobsRoot keeps every harness's job scratch under the ben
     assert.equal(benchmarksHome({}, "/home/ada"), "/home/ada/benchmarks");
     assert.equal(jobsRoot("enterprise", {}, "/home/ada"), "/home/ada/benchmarks/jobs/enterprise");
     assert.equal(jobsRoot("deepswe", { PLURNK_BENCH_HOME: "/srv/bench" }, "/home/ada"), "/srv/bench/jobs/deepswe");
+});
+
+test("[§config-model-default] a model alias is explicit, else PLURNK_BENCH_MODEL, else turboderp", () => {
+    assert.equal(DEFAULT_MODEL, "turboderp");
+    assert.equal(benchModel(undefined, {}), "turboderp");
+    assert.equal(benchModel(undefined, { PLURNK_BENCH_MODEL: "deepdumb" }), "deepdumb");
+    assert.equal(benchModel("glm", { PLURNK_BENCH_MODEL: "deepdumb" }), "glm");
+    assert.equal(benchModel("  ", { PLURNK_BENCH_MODEL: " " }), "turboderp");
 });

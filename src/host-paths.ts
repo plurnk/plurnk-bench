@@ -41,3 +41,16 @@ export const jobsRoot = (
     env: NodeJS.ProcessEnv = process.env,
     home: string = homedir(),
 ): string => resolve(benchmarksHome(env, home), "jobs", harness);
+
+// SPEC §config-model-default. Every model a harness selects — candidate, requiem, child —
+// is configurable; when nothing configures it, the local turboderp route runs.
+export const DEFAULT_MODEL = "turboderp";
+export const benchModel = (
+    explicit: string | undefined,
+    env: NodeJS.ProcessEnv = process.env,
+): string => {
+    for (const candidate of [explicit, env.PLURNK_BENCH_MODEL]) {
+        if (candidate !== undefined && candidate.trim() !== "") return candidate.trim();
+    }
+    return DEFAULT_MODEL;
+};

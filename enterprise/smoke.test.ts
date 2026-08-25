@@ -65,3 +65,8 @@ test("[§results-canon][§publish-live] job scratch lives under the benchmarks h
     assert.match(smoke, /PLURNK_BENCH_HARNESS=enterprise node src\/publish\.ts --watch "\$JOB" --pid "\$HARBOR_PID"/);
     assert.doesNotMatch(smoke, /-o jobs\b|ls -dt jobs\//);
 });
+
+test("[§config-model-default] the runner's model is explicit, else PLURNK_BENCH_MODEL, else turboderp", () => {
+    assert.match(smoke, /MODEL="\$\{2:-\$\{PLURNK_BENCH_MODEL:-turboderp\}\}"/);
+    assert.doesNotMatch(smoke, /PLURNK_MODEL:\?set PLURNK_MODEL/);
+});
