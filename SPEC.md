@@ -265,3 +265,45 @@ The driver snapshots the live daemon database with SQLite `VACUUM INTO`. It neve
 back to copying the main file without its WAL and fails the trial if a consolidated
 snapshot cannot be produced.
 Covered: `test_driver.py [§snapshot-wal]`.
+
+## §enterprise Enterprise-Bench L1-L2 is a first-class family beside DeepSWE and Atlas
+
+DevRev Enterprise-Bench measures cross-system retrieval and joins over three MCP services
+(Jira-style PM, Salesforce-style CRM, Drive-style file server), judged by the benchmark's
+own LLM judge against per-task criteria. The family drives each task through the ordinary
+plurnk client/service boundary under Harbor, the benchmark's execution harness; the bench
+never reproduces an agent loop.
+
+- §enterprise-provenance The runner pins `devrev/enterprise-bench` at one commit, checks it
+  out detached, refuses a modified checkout, and builds the benchmark's own base image and
+  MCP services from the pinned artifacts. TrueForge's published comparison kit
+  (`truefoundry/trueforge@b11cfc3b`) is a reproducibility reference only — never a
+  dependency, never an alternate corpus. Covered: `enterprise/smoke.test.ts [§enterprise-provenance]`.
+- §enterprise-profiles `single` (1 trial per task) is the diagnostic default; `comparison`
+  (3) reproduces the shape of TrueForge's published 14-task comparison; `canonical` (10)
+  follows Enterprise-Bench's reliability methodology (140 observations). Reporting never
+  conflates the three. Covered: `enterprise/smoke.test.ts [§enterprise-profiles]`.
+- §enterprise-mcp-carry Harbor hands the benchmark's `mcp.json` to the driver, which
+  declares each service as a plurnk HTTP MCP server (`PLURNK_MCP_<ALIAS>=<url>`), enables
+  and expands exactly those, and derives the alias from the benchmark's server name by
+  keeping its letters and digits (`file-server` → `fileserver`). `host.docker.internal` is
+  rewritten to the host LAN IP for Linux Docker; the exact carriage is recorded as
+  `agent/plurnk-mcp.json`. The operator's own MCP fleet never rides. Covered:
+  `test_driver.py`, `enterprise/smoke.test.ts [§enterprise-mcp-carry]`.
+- §enterprise-posture The candidate runs headless (no project root), web-free and
+  non-interactive, with executors limited to the shell and the benchmark's MCP aliases.
+  The shell is the task's own submission path: every instruction tells the agent to POST
+  its answer to the container's `/submit_agent_response`. Covered: `test_driver.py`.
+- §enterprise-answer The harness never submits on the model's behalf. An unsubmitted or
+  duplicated answer is the model's failure and the benchmark's judge records it as such;
+  the submitted answer, when present, is kept beside the record as `agent/responses.jsonl`.
+  Covered: `test_driver.py`.
+- §enterprise-oracle The oracle is Harbor's `verifier/reward.txt` (binary at one), joined
+  like DeepSWE's `reward.json`; `judge_result.json` stays in the trial for forensics. The
+  judge key comes from the invoking shell (Harbor interpolates the task's `[verifier.env]`);
+  its absence refuses the run before any spend rather than scoring an agent failure.
+  Covered: `src/ingest.test.ts [§enterprise-oracle]`, `enterprise/smoke.test.ts [§enterprise-oracle]`.
+- §enterprise-spend The live route and the judge are explicit spending decisions: the
+  candidate is the run's alias (`deepdumb` first — the whole corpus must complete before
+  any same-model comparison against TrueForge's GLM-5.2 figure on the `glm` alias), and
+  usage is the daemon's exact accounting; estimates stay classified as estimates.

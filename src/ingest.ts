@@ -230,6 +230,16 @@ const countPatchLines = (raw: string): number => {
     return lines;
 };
 
+// Harbor's text reward convention (`verifier/reward.txt`: "1.0" | "0" | "0.0") — the
+// Enterprise-Bench judge writes only this and its `judge_result.json`. A binary oracle:
+// one means PASS, anything else is a fail; unreadable text is an absent oracle.
+const readRewardText = (path: string): RewardJson | null => {
+    if (!existsSync(path)) return null;
+    const value = Number(readFileSync(path, "utf8").trim());
+    if (!Number.isFinite(value)) return null;
+    return { reward: value >= 1 ? 1 : 0 };
+};
+
 // Read one Pier trial directory's artifacts and join them. `reward.json` absent
 // (verifier crash / disabled) joins as a null oracle → an `error` outcome. The digest
 // handle is the DB POINTER, never a bench-side DB read - plurnk owns DB->forensics
@@ -249,7 +259,8 @@ export const readTrial = (trialDir: string, meta: { harness: string; taskId: str
                 { stage: "ingest", retryable: false },
             ),
         };
-    const reward = readJson<RewardJson>(join(trialDir, "verifier", "reward.json"));
+    const reward = readJson<RewardJson>(join(trialDir, "verifier", "reward.json"))
+        ?? readRewardText(join(trialDir, "verifier", "reward.txt"));
     const dbPath = join(trialDir, "agent", "plurnk.db");
     const record = joinRecord({ ...meta, doc, reward, dbPath });
     const webMaterialization = readWebMaterialization(join(trialDir, "agent", "plurnk-bench.json"));

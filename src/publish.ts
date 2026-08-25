@@ -82,7 +82,9 @@ if (import.meta.main) {
         process.stderr.write("usage: node src/publish.ts <jobDir> [benchmarksDir]\n");
         process.exit(1);
     }
-    for (const record of readJob(jobDir, { harness: "deepswe" })) {
+    // SPEC §config-bench-namespace: the harness label is a bench knob, never daemon config.
+    const harness = process.env.PLURNK_BENCH_HARNESS ?? "deepswe";
+    for (const record of readJob(jobDir, { harness })) {
         const dir = publishRun(record, benchmarksDir);
         if (dir === null) {
             console.log(`skipped ${record.taskId} (no publishable model run)`);

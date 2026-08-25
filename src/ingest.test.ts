@@ -165,6 +165,27 @@ test("[§turns-provenance] readTrial takes the turn count from the doc's turns[]
     }
 });
 
+// Harbor's verifier writes reward.txt (Enterprise-Bench's judge); the oracle joins from it
+// when no reward.json exists, binary at one.
+test("[§enterprise-oracle] readTrial joins Harbor's reward.txt as the binary oracle", () => {
+    const trialDir = mkdtempSync(join(tmpdir(), "bench-reward-text-"));
+    try {
+        mkdirSync(join(trialDir, "agent"), { recursive: true });
+        mkdirSync(join(trialDir, "verifier"), { recursive: true });
+        writeFileSync(join(trialDir, "agent", "plurnk.json"), JSON.stringify(doc()));
+        writeFileSync(join(trialDir, "verifier", "reward.txt"), "1.0");
+        const passed = readTrial(trialDir, { harness: "enterprise", taskId: "eng-l1-a", model: "m" });
+        assert.equal(passed.reward, 1);
+        assert.equal(passed.outcome, "pass");
+        writeFileSync(join(trialDir, "verifier", "reward.txt"), "0");
+        assert.equal(readTrial(trialDir, { harness: "enterprise", taskId: "eng-l1-a", model: "m" }).reward, 0);
+        writeFileSync(join(trialDir, "verifier", "reward.txt"), "not a score");
+        assert.equal(readTrial(trialDir, { harness: "enterprise", taskId: "eng-l1-a", model: "m" }).reward, undefined);
+    } finally {
+        rmSync(trialDir, { recursive: true, force: true });
+    }
+});
+
 test("[§provenance] readTrial retains the credential-free web materialization route", () => {
     const trialDir = mkdtempSync(join(tmpdir(), "bench-web-route-"));
     try {
