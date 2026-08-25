@@ -45,7 +45,7 @@ test("[§config-carry] the minimal manifest carries the alias layer and its cred
 });
 
 test("[§config-budget] the client timeout tracks the task's own [agent] budget minus headroom", () => {
-    assert.match(smoke, /HEADROOM_SEC=120/);
+    assert.match(smoke, /HEADROOM_SEC=30/);
     assert.match(smoke, /s=="\[agent\]" && \$1 ~ \/timeout_sec\//);
     assert.match(smoke, /CLIENT_TIMEOUT_SEC="\$\{PLURNK_BENCH_TIMEOUT_SEC:-\$\(\( AGENT_BUDGET - HEADROOM_SEC \)\)\}"/);
 });

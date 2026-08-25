@@ -30,7 +30,7 @@ NODE_MAJOR = "26"
 # Seconds to wait for the daemon's client surface before driving.
 DAEMON_READY_TIMEOUT_S = 60
 # Default client wall-clock budget per task; override via the `client_timeout_sec` kwarg.
-DEFAULT_CLIENT_TIMEOUT_S = 480
+DEFAULT_CLIENT_TIMEOUT_S = 570
 # The host name the benchmark's mcp.json uses for its Docker-hosted services.
 BENCH_MCP_HOST = "host.docker.internal"
 # plurnk MCP server names derive from the env-key suffix and must be [a-z][a-z0-9-]*;

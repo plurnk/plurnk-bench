@@ -28,7 +28,8 @@ BENCH_COMMIT="5a79ad04237d786414be0473da79fb1754574aff"
 BENCH_ROOT=".cache/enterprise-bench"
 BENCH_IMAGE="enterprise-bench/conversational-base:latest"
 MCP_PORTS="8011 8012 8013"
-HEADROOM_SEC=120
+# Daemon boot + DB snapshot take well under 10 s; agent setup is outside the task's [agent] budget.
+HEADROOM_SEC=30
 
 CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
 case "$CONFIG_HOME" in /*) ;; *) CONFIG_HOME="$HOME/.config";; esac
@@ -91,7 +92,8 @@ else
 fi
 
 # Give the agent the BENCHMARK's own budget, not an arbitrary cap (SPEC §config-budget):
-# every task's [agent] timeout_sec, minus headroom (daemon boot + DB snapshot).
+# every task's [agent] timeout_sec, minus headroom (daemon boot + DB snapshot) — the model gets
+# the whole budget the benchmark grants; an arbitrary shorter cap understates every result.
 AGENT_BUDGET="$(awk -F= '/^\[/{s=$0} s=="[agent]" && $1 ~ /timeout_sec/ {v=$2; gsub(/[^0-9.]/,"",v); print int(v)}' "$TASK_PATH"/*/task.toml "$TASK_PATH"/task.toml 2>/dev/null | sort -u)"
 [ "$(printf '%s\n' "$AGENT_BUDGET" | wc -l)" -eq 1 ] || {
   echo "enterprise: task budgets are not uniform ($(echo $AGENT_BUDGET)); refusing one global client timeout" >&2; exit 1;
