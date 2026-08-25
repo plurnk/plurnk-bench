@@ -1,35 +1,36 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, readFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { writeFileSync } from "node:fs";
 import {
     defaultBenchmarksDir,
     digestHasTurns,
-    nextRunNumber,
+    runLabels,
+    digestHasModelTurns,
     publishRun,
     publishedRecord,
-    recordHasModelAttempt,
 } from "./publish.ts";
 import type { BenchRecord } from "./record.ts";
+import { allocateRunDirectory } from "./run-directory.ts";
+import { benchmarksHome } from "./host-paths.ts";
 
 // run<N> auto-increments off the highest existing run, ignoring non-run dirs.
-test("[§publish-numbering] nextRunNumber picks max(runN)+1, else 1", () => {
+test("[§publish-numbering] a published run is named run<N>-<harness>-<task>-<model>, N continuing the tree", () => {
+    const labels = runLabels({ harness: "enterprise", taskId: "Enterprise-Bench/eng-l1-a", model: "plurnk/deepdumb" } as BenchRecord);
+    assert.deepEqual(labels, ["enterprise", "eng-l1-a", "deepdumb"]);
     const root = mkdtempSync(join(tmpdir(), "bench-pub-"));
     try {
-        assert.equal(nextRunNumber(root), 1);                 // empty tree
-        assert.equal(nextRunNumber(join(root, "nope")), 1);   // missing tree
-        mkdirSync(join(root, "run1"));
-        mkdirSync(join(root, "run4"));
-        mkdirSync(join(root, "notes"));                       // ignored
-        assert.equal(nextRunNumber(root), 5);
+        mkdirSync(join(root, "run21-deepswe-abs-module-cache-flags-deepdumb"));
+        const dir = allocateRunDirectory(root, labels);
+        assert.equal(dir, join(root, "run22-enterprise-eng-l1-a-deepdumb"));
+        assert.deepEqual(readdirSync(root).toSorted(), ["run21-deepswe-abs-module-cache-flags-deepdumb", "run22-enterprise-eng-l1-a-deepdumb"]);
     } finally {
         rmSync(root, { recursive: true, force: true });
     }
 });
 
-// No run handle (no DB copied) → nothing to publish; bench never fabricates a run dir.
 test("[§publish] publishRun returns null when the record has no run handle", () => {
     const record: BenchRecord = {
         harness: "deepswe", taskId: "t", model: "m",
@@ -38,48 +39,19 @@ test("[§publish] publishRun returns null when the record has no run handle", ()
     assert.equal(publishRun(record, mkdtempSync(join(tmpdir(), "bench-pub-"))), null);
 });
 
-test("[§publish-model-attempt-gate] physical provider-request evidence defines a benchmark attempt", () => {
-    const record: BenchRecord = {
-        harness: "deepswe", taskId: "t", model: "m",
-        durationMs: 1000, status: 500, outcome: "fail", turns: 2,
-        run: { dbPath: "/unused/plurnk.db" },
-        usage: {
-            accounting: {
-                requests: [],
-                usage: {
-                    inputTokens: 0,
-                    outputTokens: 0,
-                    totalTokens: 0,
-                },
-                costUsd: "0",
-            },
-            curationWeight: 0,
-            curationBudget: 100,
-            contextTokens: 0,
-            contextCapacity: 200,
-            meta: {},
-        },
-    };
-    assert.equal(recordHasModelAttempt(record), false);
-    assert.equal(publishRun(record, mkdtempSync(join(tmpdir(), "bench-pub-"))), null);
-    assert.equal(recordHasModelAttempt({
-        ...record,
-        usage: {
-            accounting: {
-                requests: [{ provider: "provider:fixture", model: "fixture/model" }],
-                usage: null,
-                costUsd: null,
-            },
-            curationWeight: null,
-            curationBudget: null,
-            contextTokens: null,
-            contextCapacity: null,
-            meta: {},
-        },
-    }), true);
+test("[§publish-model-attempt-gate] the DB's own model turn defines a benchmark attempt", () => {
+    const dir = mkdtempSync(join(tmpdir(), "bench-digest-"));
+    try {
+        assert.equal(digestHasModelTurns(dir), false);                                                           // no digest.json
+        writeFileSync(join(dir, "digest.json"), JSON.stringify({ turns: [{ producer: "_plurnk", kind: "initialization" }] }));
+        assert.equal(digestHasModelTurns(dir), false);                                                           // setup only
+        writeFileSync(join(dir, "digest.json"), JSON.stringify({ turns: [{ producer: "_plurnk" }, { producer: "model", kind: "inference" }] }));
+        assert.equal(digestHasModelTurns(dir), true);                                                            // a client record that died mid-loop still counts
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
 });
 
-// An infra-failure run (turn-less DB) must not be published — gated on the digest.
 test("[§publish-turnless-gate] digestHasTurns is false for an absent or empty digest, true with turns", () => {
     const dir = mkdtempSync(join(tmpdir(), "bench-dig-"));
     try {
@@ -114,13 +86,15 @@ test("[§publish-self-referential] publishedRecord re-points the DB handle and p
 });
 
 // The shared tree is a sibling of the bench repo.
-test("[§results-canon] defaultBenchmarksDir resolves to a sibling 'benchmarks' dir", () => {
+test("[§results-canon] the one benchmarks home is ~/benchmarks unless PLURNK_BENCH_HOME says otherwise", () => {
+    assert.equal(benchmarksHome({}, "/home/ada"), "/home/ada/benchmarks");
+    assert.equal(benchmarksHome({ PLURNK_BENCH_HOME: "~/runs" }, "/home/ada"), "/home/ada/runs");
+    assert.equal(benchmarksHome({ PLURNK_BENCH_HOME: "/srv/bench" }, "/home/ada"), "/srv/bench");
+    assert.equal(benchmarksHome({ PLURNK_BENCH_HOME: "  " }, "/home/ada"), "/home/ada/benchmarks");
     assert.match(defaultBenchmarksDir(), /\/benchmarks$/);
-    assert.doesNotMatch(defaultBenchmarksDir(), /plurnk-bench\/benchmarks$/);
+    assert.doesNotMatch(defaultBenchmarksDir(), /plurnk-bench\/benchmarks$|\/ptl\/benchmarks$/);
 });
 
-// The requiem re-invokes the model once per published run; it is an investigation
-// instrument the operator asks for, never an automatic cost of publishing.
 test("[§publish-requiem] the requiem is banked only on PLURNK_BENCH_REQUIEM=1", () => {
     const source = readFileSync(new URL("./publish.ts", import.meta.url), "utf8");
     assert.match(source, /if \(process\.env\.PLURNK_BENCH_REQUIEM === "1"\) \{\s*try \{\s*await Digest\.requiem\(/);

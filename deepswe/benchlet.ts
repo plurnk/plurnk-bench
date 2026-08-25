@@ -20,6 +20,7 @@ import { finished } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { allocateRunDirectory } from "../src/run-directory.ts";
+import { benchmarksHome } from "../src/host-paths.ts";
 import { requiredClientCheckout } from "../src/client-checkout.ts";
 import { operatorConfigPath } from "../src/host-paths.ts";
 import { webMaterializationProvenance } from "../src/web-materialization.ts";
@@ -1074,7 +1075,7 @@ const main = async (): Promise<void> => {
         process.env.PLURNK_BENCHLET_REPOSITORY_CACHE_ROOT ?? "",
     );
     const repositoryCache = resolve(repositoryCacheRoot, `${manifest.task}.git`);
-    const runsRoot = resolveFrom(benchRoot, process.env.PLURNK_BENCHLET_RUNS_ROOT ?? "");
+    const runsRoot = resolveFrom(benchRoot, process.env.PLURNK_BENCHLET_RUNS_ROOT ?? benchmarksHome());
     const serviceRoot = resolveFrom(benchRoot, process.env.PLURNK_BENCHLET_SERVICE_ROOT ?? "");
     const clientRoot = requiredClientCheckout(
         benchRoot,

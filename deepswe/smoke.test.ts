@@ -31,8 +31,15 @@ test("[§config-carry] the MCP fleet never rides into the container", () => {
     assert.match(smoke, /PLURNK_MCP_\*\) continue;;/);
 });
 
-test("[§config-carry] `all` mode runs the corpus web-free on the minimal manifest, skipping the per-task publisher", () => {
+test("[§config-carry] `all` mode runs the corpus web-free on the minimal manifest", () => {
     assert.match(smoke, /\[ "\$TASK" = all \] && TAVILY_API_KEY=""/);
     assert.match(smoke, /\[ "\$TASK" = all \] && select_flags=\(--n-concurrent/);
-    assert.match(smoke, /\[ "\$TASK" = all \] && exit 0/);
+    assert.doesNotMatch(smoke, /\[ "\$TASK" = all \] && exit 0/);
+});
+
+test("[§results-canon][§publish-live] job scratch lives under the benchmarks home and every trial publishes as it lands", () => {
+    assert.match(smoke, /JOBS_ROOT="\$\(node src\/publish\.ts --jobs deepswe\)"/);
+    assert.match(smoke, /"\$\{select_flags\[@\]\}" -o "\$JOBS_ROOT" --env docker &/);
+    assert.match(smoke, /PLURNK_BENCH_HARNESS=deepswe node src\/publish\.ts --watch "\$JOB" --pid "\$PIER_PID"/);
+    assert.doesNotMatch(smoke, /ls -dt jobs\//);
 });

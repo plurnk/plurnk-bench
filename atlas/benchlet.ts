@@ -19,6 +19,7 @@ import {
     runToFiles,
 } from "../deepswe/benchlet.ts";
 import { allocateRunDirectory } from "../src/run-directory.ts";
+import { benchmarksHome } from "../src/host-paths.ts";
 import { requiredClientCheckout } from "../src/client-checkout.ts";
 import { operatorConfigPath } from "../src/host-paths.ts";
 import {
@@ -667,7 +668,7 @@ const main = async (): Promise<void> => {
     const judgeConcurrency = positiveInteger("PLURNK_BENCH_ATLAS_JUDGE_CONCURRENCY");
     const passCoverage = ratio("PLURNK_BENCH_ATLAS_PASS_COVERAGE");
     const operatorEnv = operatorConfigPath(process.env.PLURNK_BENCH_ATLAS_OPERATOR_ENV);
-    const runsRoot = resolveFrom(benchRoot, required("PLURNK_BENCH_ATLAS_RUNS_ROOT"));
+    const runsRoot = resolveFrom(benchRoot, process.env.PLURNK_BENCH_ATLAS_RUNS_ROOT ?? benchmarksHome());
     const serviceRoot = resolveFrom(benchRoot, required("PLURNK_BENCH_ATLAS_SERVICE_ROOT"));
     const clientRoot = requiredClientCheckout(
         benchRoot,

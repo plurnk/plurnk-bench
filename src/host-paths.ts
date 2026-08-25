@@ -22,3 +22,22 @@ export const operatorConfigPath = (
         : resolve(home, ".config");
     return resolve(configHome, "plurnk", ".env");
 };
+
+// SPEC §results-canon. The ONE tree every harness writes into: published runs at its root,
+// each harness's job scratch under jobs/<harness>/. PLURNK_BENCH_HOME overrides the
+// default ~/benchmarks; nothing lands inside a repository or elsewhere.
+export const benchmarksHome = (
+    env: NodeJS.ProcessEnv = process.env,
+    home: string = homedir(),
+): string => {
+    const configured = env.PLURNK_BENCH_HOME;
+    return configured !== undefined && configured.trim() !== ""
+        ? resolve(expandHome(configured.trim(), home))
+        : resolve(home, "benchmarks");
+};
+
+export const jobsRoot = (
+    harness: string,
+    env: NodeJS.ProcessEnv = process.env,
+    home: string = homedir(),
+): string => resolve(benchmarksHome(env, home), "jobs", harness);

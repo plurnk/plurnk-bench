@@ -128,16 +128,21 @@ Covered: `ingest.test.ts [§provenance]`.
 daemon DB), **`digest/`** (rendered from the COPY — the dir is self-contained), and
 **`record.json`** (the joined landing: the oracle side the DB+digest cannot carry).
 
-- §publish-numbering `run<N>` auto-increments: max existing + 1, else 1; non-run dirs ignored.
-  Covered: `publish.test.ts [§publish-numbering]`.
+- §publish-numbering `run<N>-<harness>-<task>-<model>`: N continues the tree (max existing + 1,
+  else 1; non-run dirs ignored), the task is its last path segment, the model its alias — the
+  same shape the benchlets allocate.
 - §publish-turnless-gate A turn-less DB (infra failure — the daemon never looped) is rolled
   back, not published. Gate: the rendered digest's `turns`.
   Covered: `publish.test.ts [§publish-turnless-gate]`.
-- §publish-model-attempt-gate Automated setup/orchestration turns before the first provider
-  request do not make an infrastructure failure a benchmark attempt. A published run
-  requires cardinal physical-request evidence; a response-less request remains an attempt
-  even when its token quantities and cost are unknown.
-  Covered: `publish.test.ts [§publish-model-attempt-gate]`.
+- §publish-model-attempt-gate The DB's own evidence decides: a published run holds at least
+  one model turn in its digest. Setup/maintenance turns alone are no attempt; a trial whose
+  client record died mid-loop (a bridge error stub) still publishes, because its model turns
+  are in the DB.
+- §publish-live Each trial publishes the moment it finishes: the runner starts its harness in
+  the background and `publish.ts --watch <job> --pid <harness>` follows the job, publishing
+  every finished trial (record + digest) and sweeping once more when the harness exits — a
+  corpus can be followed run by run while it is still going. A trial publishes exactly once:
+  its `.plurnk-bench-published` marker names the run dir (empty when nothing was publishable).
 - §publish-self-referential `record.json`'s digest handle points at the PUBLISHED copy,
   never back into the gitignored `jobs/` scratch; the input record is not mutated.
   Covered: `publish.test.ts [§publish-self-referential]`.
@@ -152,11 +157,14 @@ daemon DB), **`digest/`** (rendered from the COPY — the dir is self-contained)
 
 ## §results-canon Where results are read
 
-Published runs under `<plurnk>/benchmarks/run<N>/` (a sibling of the bench repo) are the
-canonical results source — landings from `record.json`, forensics through `digest/`.
-`jobs/` is gitignored Pier scratch; its ONLY read is the daemon log of a 0-turn boot failure,
-which never publishes (§publish-turnless-gate).
-Covered: `publish.test.ts [§results-canon]` (tree location).
+ONE tree — the benchmarks home, `~/benchmarks` unless `PLURNK_BENCH_HOME` says otherwise —
+holds everything a run produces: published runs at its root
+(`run<N>-<harness>-<task>-<model>/`, landings from `record.json`, forensics through
+`digest/`), and each harness's job scratch under `jobs/<harness>/` (Pier's and Harbor's own
+trees, needed by their verifiers and resume). Nothing lands inside a repository or anywhere
+else. Published runs are the canonical results source; `jobs/` is scratch whose ONLY read is
+the daemon log of a 0-turn boot failure, which never publishes (§publish-turnless-gate).
+Covered: `host-paths.test.ts`, `publish.test.ts [§results-canon]`.
 
 ## §benchlet-diagnostic Pinned host-side diagnostics
 
@@ -235,7 +243,8 @@ model layer from `${XDG_CONFIG_HOME:-$HOME/.config}/plurnk/.env`, provider env f
 container-boundary transform: loopback (`127.0.0.1`/`localhost`) in a `*_BASE_URL` rewrites
 to the host LAN IP. Child contracts:
 
-- §config-bench-namespace Bench-invented knobs are namespaced `PLURNK_BENCH_*`
+- §config-bench-namespace Bench-invented knobs are namespaced `PLURNK_BENCH_*` (`PLURNK_BENCH_HOME`,
+  `PLURNK_BENCH_HARNESS`, `PLURNK_BENCH_REQUIEM`, …)
   (TIMEOUT_SEC, CPUS, FORCE_BUILD, NO_GBNF) and are orchestration, never daemon config —
   excluded from forwarding.
 - §config-gbnf-optout `PLURNK_BENCH_NO_GBNF=1` forwards `PLURNK_PROVIDERS_GBNF=0` — an

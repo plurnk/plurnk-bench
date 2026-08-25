@@ -61,6 +61,9 @@ JOBS="${PLURNK_BENCH_JOBS:-3}"
 for tool in harbor docker node npm unzip; do
   command -v "$tool" >/dev/null 2>&1 || { echo "enterprise: $tool is required" >&2; exit 1; }
 done
+# SPEC §results-canon: Harbor's job scratch and the published runs share ONE tree.
+JOBS_ROOT="$(node src/publish.ts --jobs enterprise)"
+mkdir -p "$JOBS_ROOT"
 
 # ---- corpus: pinned clone, extracted artifacts, base image, MCP services (idempotent) ----
 if [ ! -d "$BENCH_ROOT/.git" ]; then
@@ -157,8 +160,13 @@ CLIENT_VERSION="$(npm view @plurnk/plurnk version 2>/dev/null)"
 
 echo "enterprise: model=$MODEL task=$TASK profile=$PROFILE trials=$TRIALS jobs=$JOBS service=$SERVICE_VERSION client=$CLIENT_VERSION mcp_host=$MCP_HOST groups=${#RUN_PATHS[@]} client_timeouts=${RUN_TIMEOUTS[*]}s${PLURNK_BENCH_FORCE_BUILD:+ [force-build]}" >&2
 # The default personality ships on; PLURNK_POLICY stays unset so the benchmark gets the product default.
-declare -a JOB_DIRS=()
+# SPEC §publish-live: each group's Harbor job runs in the background while the publisher
+# follows it, publishing every trial (record + digest) the moment it finishes; the requiem
+# only with PLURNK_BENCH_REQUIEM=1 (SPEC §publish-requiem). The publisher's subshell carries
+# the full authoritative provider config for that case without leaking those defaults back
+# into the forwarding above.
 for i in "${!RUN_PATHS[@]}"; do
+  before="$(ls -d "$JOBS_ROOT"/*/ 2>/dev/null | sort || true)"
   PYTHONPATH=enterprise harbor run -p "${RUN_PATHS[$i]}" \
     -a driver:PlurnkAgent \
     -m "plurnk/$MODEL" \
@@ -168,17 +176,20 @@ for i in "${!RUN_PATHS[@]}"; do
     --ak "client_version=$CLIENT_VERSION" \
     --ak "mcp_host=$MCP_HOST" \
     "${flags[@]}" \
-    -k "$TRIALS" -n "$JOBS" -o jobs --yes
-  JOB_DIRS+=("$(ls -dt jobs/*/ | head -1)")
+    -k "$TRIALS" -n "$JOBS" -o "$JOBS_ROOT" --yes &
+  HARBOR_PID=$!
+  JOB=""
+  for _ in $(seq 1 120); do
+    JOB="$(comm -13 <(printf '%s\n' "$before") <(ls -d "$JOBS_ROOT"/*/ 2>/dev/null | sort) | head -1)"
+    [ -n "$JOB" ] && break
+    sleep 1
+  done
+  [ -n "$JOB" ] || { echo "enterprise: harbor opened no job directory under $JOBS_ROOT" >&2; kill "$HARBOR_PID" 2>/dev/null || true; exit 1; }
+  (
+    for f in node_modules/@plurnk/*/.env.defaults; do [ -f "$f" ] && source_env_file "$f"; done
+    source_env_file "$OPERATOR_ENV"
+    export PLURNK_MODEL="$MODEL"
+    PLURNK_BENCH_HARNESS=enterprise node src/publish.ts --watch "$JOB" --pid "$HARBOR_PID"
+  )
+  wait "$HARBOR_PID" || { echo "enterprise: harbor exited nonzero for $JOB" >&2; exit 1; }
 done
-
-# Publish every trial of every job to the shared benchmarks tree (<plurnk>/benchmarks/run<N>):
-# record + digest; the requiem only with PLURNK_BENCH_REQUIEM=1 (SPEC §publish-requiem). The
-# subshell carries the full authoritative provider config for that case without leaking those
-# defaults back into the forwarding above.
-(
-  for f in node_modules/@plurnk/*/.env.defaults; do [ -f "$f" ] && source_env_file "$f"; done
-  source_env_file "$OPERATOR_ENV"
-  export PLURNK_MODEL="$MODEL"
-  for job in "${JOB_DIRS[@]}"; do PLURNK_BENCH_HARNESS=enterprise node src/publish.ts "$job"; done
-)

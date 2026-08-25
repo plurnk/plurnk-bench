@@ -8,7 +8,7 @@
 // real Pier `jobs/` tree at smoke time; the JOIN below is the grounded, tested core.
 
 import { readFileSync, readdirSync, existsSync } from "node:fs";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import type { BenchRecord, Outcome, Usage } from "./record.ts";
 import { assertProviderAccountingProjection } from "./accounting.ts";
 import type { WebMaterializationProvenance } from "./web-materialization.ts";
@@ -288,47 +288,54 @@ export const readTrial = (trialDir: string, meta: { harness: string; taskId: str
 // none). result.json is the provenance source — task_name + model_name + Pier-level
 // timing/exception; the artifact join (loop doc + oracle) delegates to readTrial.
 // Trials are walked in directory-name order for deterministic output.
-export const readJob = (jobDir: string, { harness }: { harness: string }): BenchRecord[] => {
-    const dirs = readdirSync(jobDir, { withFileTypes: true })
-        .filter((e) => e.isDirectory())
-        .map((e) => e.name)
-        .toSorted();
-    const records: BenchRecord[] = [];
-    for (const name of dirs) {
-        const trialDir = join(jobDir, name);
-        const result = readJson<PierTrialResult>(join(trialDir, "result.json"));
-        if (result?.trial_name === undefined) continue;   // not a trial dir
-        const record = readTrial(trialDir, {
-            harness,
-            taskId: result.task_name ?? name,
-            model: result.config?.agent?.model_name ?? "unknown",
-        });
-        if (result.started_at !== undefined) record.startedAt = result.started_at;
-        if (result.finished_at !== undefined) record.finishedAt = result.finished_at;
-        // A Pier-level failure (build/timeout/cancel) the loop doc never saw: map
-        // the external exception once and reclassify a timeout - but only when the join
-        // didn't already land a verdict from a real loop doc (outcome still "error").
-        const ex = result.exception_info;
-        if (ex?.exception_type !== undefined && record.outcome === "error") {
-            const detail = ex.exception_message
-                ? `${ex.exception_type}: ${ex.exception_message}`
-                : ex.exception_type;
-            const timedOut = TIMEOUT_EXCEPTIONS.has(ex.exception_type);
-            record.problem = Problems.create(
-                "bench:pier",
-                problemCode(ex.exception_type),
-                timedOut ? 504 : 500,
-                detail,
-                {
-                    stage: "trial",
-                    upstreamType: ex.exception_type,
-                    retryable: false,
-                },
-            );
-            record.status = record.problem.status;
-            if (timedOut) record.outcome = "timeout";
-        }
-        records.push(record);
+// A trial dir is any directory holding a result.json with a `trial_name` (the job-level
+// result.json has none). Present only once the harness has finished the trial.
+export const isTrialDir = (dir: string): boolean =>
+    readJson<PierTrialResult>(join(dir, "result.json"))?.trial_name !== undefined;
+
+// SPEC §provenance. One trial dir → one BenchRecord, or null when it is not a trial dir.
+// result.json is the provenance source — task_name + model_name + harness-level
+// timing/exception; the artifact join (loop doc + oracle) delegates to readTrial.
+export const readTrialDir = (trialDir: string, { harness }: { harness: string }): BenchRecord | null => {
+    const result = readJson<PierTrialResult>(join(trialDir, "result.json"));
+    if (result?.trial_name === undefined) return null;   // not a trial dir
+    const record = readTrial(trialDir, {
+        harness,
+        taskId: result.task_name ?? basename(trialDir),
+        model: result.config?.agent?.model_name ?? "unknown",
+    });
+    if (result.started_at !== undefined) record.startedAt = result.started_at;
+    if (result.finished_at !== undefined) record.finishedAt = result.finished_at;
+    // A Pier-level failure (build/timeout/cancel) the loop doc never saw: map
+    // the external exception once and reclassify a timeout - but only when the join
+    // didn't already land a verdict from a real loop doc (outcome still "error").
+    const ex = result.exception_info;
+    if (ex?.exception_type !== undefined && record.outcome === "error") {
+        const detail = ex.exception_message
+            ? `${ex.exception_type}: ${ex.exception_message}`
+            : ex.exception_type;
+        const timedOut = TIMEOUT_EXCEPTIONS.has(ex.exception_type);
+        record.problem = Problems.create(
+            "bench:pier",
+            problemCode(ex.exception_type),
+            timedOut ? 504 : 500,
+            detail,
+            {
+                stage: "trial",
+                upstreamType: ex.exception_type,
+                retryable: false,
+            },
+        );
+        record.status = record.problem.status;
+        if (timedOut) record.outcome = "timeout";
     }
-    return records;
+    return record;
 };
+
+// SPEC §provenance. Walk a `jobs/<harness>/<job>/` tree → one BenchRecord per trial, in
+// directory-name order for deterministic output.
+export const readJob = (jobDir: string, { harness }: { harness: string }): BenchRecord[] =>
+    readdirSync(jobDir, { withFileTypes: true })
+        .filter((e) => e.isDirectory())
+        .map((e) => readTrialDir(join(jobDir, e.name), { harness }))
+        .filter((record): record is BenchRecord => record !== null);

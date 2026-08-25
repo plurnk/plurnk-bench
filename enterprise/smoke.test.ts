@@ -52,10 +52,16 @@ test("[§config-budget] the client timeout tracks each task's own [agent] budget
     assert.doesNotMatch(smoke, /refusing one global client timeout/);
 });
 
-test("[§enterprise-budget-groups] the corpus runs as one Harbor job per budget group, every job published", () => {
+test("[§enterprise-budget-groups] the corpus runs as one Harbor job per budget group, each followed live", () => {
     assert.match(smoke, /GROUPS_ROOT="\.cache\/enterprise-groups"/);
     assert.match(smoke, /cp -a "\$dir" "\$GROUPS_ROOT\/\$budget\/"/);
     assert.match(smoke, /for i in "\$\{!RUN_PATHS\[@\]\}"; do/);
-    assert.match(smoke, /JOB_DIRS\+=\("\$\(ls -dt jobs\/\*\/ \| head -1\)"\)/);
-    assert.match(smoke, /for job in "\$\{JOB_DIRS\[@\]\}"; do PLURNK_BENCH_HARNESS=enterprise node src\/publish\.ts "\$job"; done/);
+    assert.match(smoke, /-k "\$TRIALS" -n "\$JOBS" -o "\$JOBS_ROOT" --yes &/);
+    assert.match(smoke, /wait "\$HARBOR_PID" \|\|/);
+});
+
+test("[§results-canon][§publish-live] job scratch lives under the benchmarks home and every trial publishes as it lands", () => {
+    assert.match(smoke, /JOBS_ROOT="\$\(node src\/publish\.ts --jobs enterprise\)"/);
+    assert.match(smoke, /PLURNK_BENCH_HARNESS=enterprise node src\/publish\.ts --watch "\$JOB" --pid "\$HARBOR_PID"/);
+    assert.doesNotMatch(smoke, /-o jobs\b|ls -dt jobs\//);
 });

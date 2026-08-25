@@ -183,6 +183,10 @@ echo "smoke: model=$MODEL task=$TASK service=$SERVICE_VERSION client=$CLIENT_VER
 # The default personality ships on: the daemon seeds PLURNK_PERSONALITY.md to
 # the XDG policy file and foists it headless (confirmed via digest, PLURNK_POLICY unset).
 # So we DON'T set PLURNK_POLICY — the benchmark gets the real product default as-is.
+# SPEC §results-canon: Pier's job scratch and the published runs share ONE tree.
+JOBS_ROOT="$(node src/publish.ts --jobs deepswe)"
+mkdir -p "$JOBS_ROOT"
+before="$(ls -d "$JOBS_ROOT"/*/ 2>/dev/null | sort || true)"
 PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
   --agent-import-path driver:PlurnkAgent \
   --model "plurnk/$MODEL" \
@@ -195,15 +199,21 @@ PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
   "${cpu_flags[@]}" \
   "${build[@]}" \
   "${flags[@]}" \
-  "${select_flags[@]}" --env docker
+  "${select_flags[@]}" -o "$JOBS_ROOT" --env docker &
+PIER_PID=$!
+JOB=""
+for _ in $(seq 1 120); do
+  JOB="$(comm -13 <(printf '%s\n' "$before") <(ls -d "$JOBS_ROOT"/*/ 2>/dev/null | sort) | head -1)"
+  [ -n "$JOB" ] && break
+  sleep 1
+done
+[ -n "$JOB" ] || { echo "smoke: pier opened no job directory under $JOBS_ROOT" >&2; kill "$PIER_PID" 2>/dev/null || true; exit 1; }
 
-# The full corpus is ingested from jobs/ by the report step, not the per-task publisher.
-[ "$TASK" = all ] && exit 0
-
-# Publish the run to the shared benchmarks tree (<plurnk>/benchmarks/run<N>) so it can be
-# referenced by name — "check out run<N> with me". With PLURNK_BENCH_REQUIEM=1 publish also banks the requiem (the model's
-# exit interview), which RE-INVOKES the model — so run it under the full authoritative provider
-# config (shipped defaults floor < XDG user config < this run's model), in a subshell so those
+# SPEC §publish-live: publish every trial (record + digest) the moment it finishes — single
+# task or the whole corpus — so a run can be followed by name while it is still going. With
+# PLURNK_BENCH_REQUIEM=1 publish also banks the requiem (the model's exit interview), which
+# RE-INVOKES the model — so the publisher runs under the full authoritative provider config
+# (shipped defaults floor < XDG user config < this run's model), in a subshell so those
 # defaults never leak back into the --agent-env forwarding already sent above.
 (
   # The 1.0 floor is READER-DECLARES: every installed member ships its own .env.defaults
@@ -212,5 +222,6 @@ PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
   for f in node_modules/@plurnk/*/.env.defaults; do [ -f "$f" ] && source_env_file "$f"; done
   source_env_file "$OPERATOR_ENV"
   export PLURNK_MODEL="$MODEL"
-  node src/publish.ts "$(ls -dt jobs/*/ | head -1)"
+  PLURNK_BENCH_HARNESS=deepswe node src/publish.ts --watch "$JOB" --pid "$PIER_PID"
 )
+wait "$PIER_PID" || { echo "smoke: pier exited nonzero for $JOB" >&2; exit 1; }
