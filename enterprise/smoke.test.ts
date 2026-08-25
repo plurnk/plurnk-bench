@@ -44,10 +44,18 @@ test("[§config-carry] the minimal manifest carries the alias layer and its cred
     assert.match(smoke, /PLURNK_BENCH_HARNESS=enterprise node src\/publish\.ts/);
 });
 
-test("[§config-budget] the client timeout tracks the task's own [agent] budget minus headroom", () => {
+test("[§config-budget] the client timeout tracks each task's own [agent] budget minus headroom", () => {
     assert.match(smoke, /HEADROOM_SEC=30/);
     assert.match(smoke, /s=="\[agent\]" && \$1 ~ \/timeout_sec\//);
-    assert.match(smoke, /BUDGET_FILES=\("\$TASK_PATH"\/\*\/task\.toml\); else BUDGET_FILES=\("\$TASK_PATH\/task\.toml"\)/);
-    assert.doesNotMatch(smoke, /task\.toml 2>\/dev\/null/);
-    assert.match(smoke, /CLIENT_TIMEOUT_SEC="\$\{PLURNK_BENCH_TIMEOUT_SEC:-\$\(\( AGENT_BUDGET - HEADROOM_SEC \)\)\}"/);
+    assert.match(smoke, /RUN_TIMEOUTS\+=\("\$\{PLURNK_BENCH_TIMEOUT_SEC:-\$\(\( group - HEADROOM_SEC \)\)\}"\)/);
+    assert.match(smoke, /--ak "client_timeout_sec=\$\{RUN_TIMEOUTS\[\$i\]\}"/);
+    assert.doesNotMatch(smoke, /refusing one global client timeout/);
+});
+
+test("[§enterprise-budget-groups] the corpus runs as one Harbor job per budget group, every job published", () => {
+    assert.match(smoke, /GROUPS_ROOT="\.cache\/enterprise-groups"/);
+    assert.match(smoke, /cp -a "\$dir" "\$GROUPS_ROOT\/\$budget\/"/);
+    assert.match(smoke, /for i in "\$\{!RUN_PATHS\[@\]\}"; do/);
+    assert.match(smoke, /JOB_DIRS\+=\("\$\(ls -dt jobs\/\*\/ \| head -1\)"\)/);
+    assert.match(smoke, /for job in "\$\{JOB_DIRS\[@\]\}"; do PLURNK_BENCH_HARNESS=enterprise node src\/publish\.ts "\$job"; done/);
 });

@@ -83,23 +83,34 @@ services_up || make -C "$BENCH_ROOT" -s start-servers >/dev/null
 for _ in $(seq 1 60); do services_up && break; sleep 1; done
 services_up || { echo "enterprise: MCP services did not come up on $MCP_PORTS" >&2; exit 1; }
 
-# Task selection: one task directory, or the whole corpus.
+# Give the agent the BENCHMARK's own budget, not an arbitrary cap (SPEC §config-budget):
+# each task's [agent] timeout_sec, minus headroom (daemon boot + DB snapshot) — the model gets
+# the whole budget the benchmark grants; an arbitrary shorter cap understates every result.
+task_budget() {
+  awk -F= '/^\[/{s=$0} s=="[agent]" && $1 ~ /timeout_sec/ {v=$2; gsub(/[^0-9.]/,"",v); print int(v)}' "$1"
+}
+# Harbor runs one path with one agent configuration, so the corpus is grouped by budget into
+# dataset views (copies of the task directories — Harbor walks and checksums them) and each
+# group runs as its own job with its own client timeout (SPEC §enterprise-budget-groups).
+GROUPS_ROOT=".cache/enterprise-groups"
+declare -a RUN_PATHS=() RUN_TIMEOUTS=()
 if [ "$TASK" = all ]; then
-  TASK_PATH="$BENCH_ROOT/tasks"
+  rm -rf "$GROUPS_ROOT"
+  for toml in "$BENCH_ROOT"/tasks/*/task.toml; do
+    dir="$(dirname "$toml")"; budget="$(task_budget "$toml")"
+    mkdir -p "$GROUPS_ROOT/$budget"
+    cp -a "$dir" "$GROUPS_ROOT/$budget/"
+  done
+  for group in $(ls "$GROUPS_ROOT" | sort -n); do
+    RUN_PATHS+=("$GROUPS_ROOT/$group")
+    RUN_TIMEOUTS+=("${PLURNK_BENCH_TIMEOUT_SEC:-$(( group - HEADROOM_SEC ))}")
+  done
 else
   TASK_PATH="$BENCH_ROOT/tasks/$TASK"
   [ -f "$TASK_PATH/task.toml" ] || { echo "enterprise: unknown task $TASK" >&2; exit 1; }
+  RUN_PATHS+=("$TASK_PATH")
+  RUN_TIMEOUTS+=("${PLURNK_BENCH_TIMEOUT_SEC:-$(( $(task_budget "$TASK_PATH/task.toml") - HEADROOM_SEC ))}")
 fi
-
-# Give the agent the BENCHMARK's own budget, not an arbitrary cap (SPEC §config-budget):
-# every task's [agent] timeout_sec, minus headroom (daemon boot + DB snapshot) — the model gets
-# the whole budget the benchmark grants; an arbitrary shorter cap understates every result.
-if [ "$TASK" = all ]; then BUDGET_FILES=("$TASK_PATH"/*/task.toml); else BUDGET_FILES=("$TASK_PATH/task.toml"); fi
-AGENT_BUDGET="$(awk -F= '/^\[/{s=$0} s=="[agent]" && $1 ~ /timeout_sec/ {v=$2; gsub(/[^0-9.]/,"",v); print int(v)}' "${BUDGET_FILES[@]}" | sort -u)"
-[ "$(printf '%s\n' "$AGENT_BUDGET" | wc -l)" -eq 1 ] || {
-  echo "enterprise: task budgets are not uniform ($(echo $AGENT_BUDGET)); refusing one global client timeout" >&2; exit 1;
-}
-CLIENT_TIMEOUT_SEC="${PLURNK_BENCH_TIMEOUT_SEC:-$(( AGENT_BUDGET - HEADROOM_SEC ))}"
 
 # The task container reaches the host's MCP services by the host LAN IP: mcp.json says
 # host.docker.internal, which Linux Docker does not resolve. The driver rewrites it.
@@ -144,25 +155,29 @@ CLIENT_VERSION="$(npm view @plurnk/plurnk version 2>/dev/null)"
   exit 1
 }
 
-echo "enterprise: model=$MODEL task=$TASK profile=$PROFILE trials=$TRIALS jobs=$JOBS service=$SERVICE_VERSION client=$CLIENT_VERSION mcp_host=$MCP_HOST client_timeout=${CLIENT_TIMEOUT_SEC}s (budget ${AGENT_BUDGET}s)${PLURNK_BENCH_FORCE_BUILD:+ [force-build]}" >&2
+echo "enterprise: model=$MODEL task=$TASK profile=$PROFILE trials=$TRIALS jobs=$JOBS service=$SERVICE_VERSION client=$CLIENT_VERSION mcp_host=$MCP_HOST groups=${#RUN_PATHS[@]} client_timeouts=${RUN_TIMEOUTS[*]}s${PLURNK_BENCH_FORCE_BUILD:+ [force-build]}" >&2
 # The default personality ships on; PLURNK_POLICY stays unset so the benchmark gets the product default.
-PYTHONPATH=enterprise harbor run -p "$TASK_PATH" \
-  -a driver:PlurnkAgent \
-  -m "plurnk/$MODEL" \
-  --mcp-config "$BENCH_ROOT/mcp.json" \
-  --ak "client_timeout_sec=$CLIENT_TIMEOUT_SEC" \
-  --ak "service_version=$SERVICE_VERSION" \
-  --ak "client_version=$CLIENT_VERSION" \
-  --ak "mcp_host=$MCP_HOST" \
-  "${flags[@]}" \
-  -k "$TRIALS" -n "$JOBS" -o jobs --yes
+declare -a JOB_DIRS=()
+for i in "${!RUN_PATHS[@]}"; do
+  PYTHONPATH=enterprise harbor run -p "${RUN_PATHS[$i]}" \
+    -a driver:PlurnkAgent \
+    -m "plurnk/$MODEL" \
+    --mcp-config "$BENCH_ROOT/mcp.json" \
+    --ak "client_timeout_sec=${RUN_TIMEOUTS[$i]}" \
+    --ak "service_version=$SERVICE_VERSION" \
+    --ak "client_version=$CLIENT_VERSION" \
+    --ak "mcp_host=$MCP_HOST" \
+    "${flags[@]}" \
+    -k "$TRIALS" -n "$JOBS" -o jobs --yes
+  JOB_DIRS+=("$(ls -dt jobs/*/ | head -1)")
+done
 
-# Publish every trial of the job to the shared benchmarks tree (<plurnk>/benchmarks/run<N>),
+# Publish every trial of every job to the shared benchmarks tree (<plurnk>/benchmarks/run<N>),
 # banking the requiem under the full authoritative provider config in a subshell so those
 # defaults never leak back into the forwarding above.
 (
   for f in node_modules/@plurnk/*/.env.defaults; do [ -f "$f" ] && source_env_file "$f"; done
   source_env_file "$OPERATOR_ENV"
   export PLURNK_MODEL="$MODEL"
-  PLURNK_BENCH_HARNESS=enterprise node src/publish.ts "$(ls -dt jobs/*/ | head -1)"
+  for job in "${JOB_DIRS[@]}"; do PLURNK_BENCH_HARNESS=enterprise node src/publish.ts "$job"; done
 )

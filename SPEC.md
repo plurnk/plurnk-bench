@@ -307,6 +307,11 @@ never reproduces an agent loop.
   judge key comes from the invoking shell (Harbor interpolates the task's `[verifier.env]`);
   its absence refuses the run before any spend rather than scoring an agent failure.
   Covered: `src/ingest.test.ts [§enterprise-oracle]`, `enterprise/smoke.test.ts [§enterprise-oracle]`.
+- §enterprise-budget-groups Tasks declare their own `[agent] timeout_sec` (600 s for twelve,
+  900 s for `sales-l2-a` and `sales-l2-d`). Harbor runs one path under one agent configuration,
+  so the corpus is grouped by budget into dataset views (`.cache/enterprise-groups/<budget>/`,
+  copies of the pinned task directories) and each group runs as its own job with that budget
+  minus headroom; every job is published. Covered: `enterprise/smoke.test.ts [§enterprise-budget-groups]`.
 - §enterprise-spend The live route and the judge are explicit spending decisions: the
   candidate is the run's alias (`deepdumb` first — the whole corpus must complete before
   any same-model comparison against TrueForge's GLM-5.2 figure on the `glm` alias), and
