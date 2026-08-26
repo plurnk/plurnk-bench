@@ -16,7 +16,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 TASK="${1:?usage: enterprise/specimen.sh <task> [model-alias]}"
-MODEL="${2:-${PLURNK_BENCH_MODEL:-turboderp}}"
+MODEL="${2:-${PLURNK_BENCH_MODEL:-rtxgemma}}"
 BENCH_ROOT=".cache/enterprise-bench"
 BENCH_IMAGE="enterprise-bench/conversational-base:latest"
 SERVICE_ROOT="$(cd "${PLURNK_BENCHLET_SERVICE_ROOT:-../plurnk-service}" && pwd)"

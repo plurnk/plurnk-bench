@@ -18,7 +18,7 @@ claim that they are current. It preserves Atlas's task and sandbox boundary
 while making the Plurnk-facing protocol boundary current and explicit.
 
 Run the documented filesystem task with the configured model (`PLURNK_BENCH_ATLAS_MODEL`,
-else `PLURNK_BENCH_MODEL`, else `turboderp`):
+else `PLURNK_BENCH_MODEL`, else `rtxgemma`):
 
 ```sh
 PLURNK_BENCH_ATLAS_CLIENT_ROOT=/path/to/open-client npm run atlas

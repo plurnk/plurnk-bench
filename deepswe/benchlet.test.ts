@@ -464,7 +464,7 @@ test("[§benchlet-failure] benchlet requires both requiem artifacts and a succes
 test("[§benchlet-requiem-witness] requiem selection is independent and explicit", () => {
     assert.equal(requiemModelAlias(true, "glm"), "glm");
     assert.equal(requiemModelAlias(false, undefined), null);
-    assert.equal(requiemModelAlias(true, undefined), "turboderp");
+    assert.equal(requiemModelAlias(true, undefined), "rtxgemma");
 });
 test("[§benchlet-candidate-timeout] -1 disables the candidate timer; positive values add the overhead", () => {
     assert.equal(candidateTimeoutMs(-1, 900), undefined);
