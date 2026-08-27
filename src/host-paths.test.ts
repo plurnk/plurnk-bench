@@ -22,10 +22,10 @@ test("[§results-canon] jobsRoot keeps every harness's job scratch under the ben
     assert.equal(jobsRoot("deepswe", { PLURNK_BENCH_HOME: "/srv/bench" }, "/home/ada"), "/srv/bench/jobs/deepswe");
 });
 
-test("[§config-model-default] a model alias is explicit, else PLURNK_BENCH_MODEL, else rtxgemma", () => {
-    assert.equal(DEFAULT_MODEL, "rtxgemma");
-    assert.equal(benchModel(undefined, {}), "rtxgemma");
+test("[§config-model-default] a model alias is explicit, else PLURNK_BENCH_MODEL, else rtx5070", () => {
+    assert.equal(DEFAULT_MODEL, "rtx5070");
+    assert.equal(benchModel(undefined, {}), "rtx5070");
     assert.equal(benchModel(undefined, { PLURNK_BENCH_MODEL: "deepdumb" }), "deepdumb");
     assert.equal(benchModel("glm", { PLURNK_BENCH_MODEL: "deepdumb" }), "glm");
-    assert.equal(benchModel("  ", { PLURNK_BENCH_MODEL: " " }), "rtxgemma");
+    assert.equal(benchModel("  ", { PLURNK_BENCH_MODEL: " " }), "rtx5070");
 });

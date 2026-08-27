@@ -11,7 +11,7 @@
 #
 # Usage: enterprise/smoke.sh [task|all] [model-alias]
 #   task         one task directory name (default: eng-l1-a); `all` runs the 14-task corpus
-#   model-alias  default: PLURNK_BENCH_MODEL, else rtxgemma (e.g. deepdumb, glm)
+#   model-alias  default: PLURNK_BENCH_MODEL, else rtx5070 (e.g. deepdumb, glm)
 #
 # Bench's own knobs are namespaced PLURNK_BENCH_ (SPEC §config-bench-namespace — never forwarded to the daemon):
 #   PLURNK_BENCH_PROFILE      single (1 trial/task, default) | comparison (3) | canonical (10) — SPEC §enterprise-profiles
@@ -46,8 +46,8 @@ source_env_file() {
 source_env_file "$OPERATOR_ENV"
 
 TASK="${1:-eng-l1-a}"
-# SPEC §config-model-default: explicit alias, else PLURNK_BENCH_MODEL, else the local rtxgemma route.
-MODEL="${2:-${PLURNK_BENCH_MODEL:-rtxgemma}}"
+# SPEC §config-model-default: explicit alias, else PLURNK_BENCH_MODEL, else the local rtx5070 route.
+MODEL="${2:-${PLURNK_BENCH_MODEL:-rtx5070}}"
 PROFILE="${PLURNK_BENCH_PROFILE:-single}"
 case "$PROFILE" in
   single) TRIALS=1;;

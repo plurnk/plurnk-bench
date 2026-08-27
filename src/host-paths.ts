@@ -43,8 +43,8 @@ export const jobsRoot = (
 ): string => resolve(benchmarksHome(env, home), "jobs", harness);
 
 // SPEC §config-model-default. Every model a harness selects — candidate, requiem, child —
-// is configurable; when nothing configures it, the local rtxgemma route runs.
-export const DEFAULT_MODEL = "rtxgemma";
+// is configurable; when nothing configures it, the local rtx5070 route runs.
+export const DEFAULT_MODEL = "rtx5070";
 export const benchModel = (
     explicit: string | undefined,
     env: NodeJS.ProcessEnv = process.env,

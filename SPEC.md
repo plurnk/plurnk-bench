@@ -245,7 +245,7 @@ to the host LAN IP. Child contracts:
 
 - §config-model-default Every model a harness selects — candidate, requiem witness, child —
   is configurable: an explicit alias argument, else the harness's own knob, else
-  `PLURNK_BENCH_MODEL`; when nothing configures it, the local `rtxgemma` route runs. No
+  `PLURNK_BENCH_MODEL`; when nothing configures it, the local `rtx5070` route runs. No
   runner refuses for want of a model. Covered: `host-paths.test.ts`, `smoke.test.ts`,
   `benchlet.test.ts [§config-model-default]`.
 - §config-bench-namespace Bench-invented knobs are namespaced `PLURNK_BENCH_*` (`PLURNK_BENCH_HOME`,
