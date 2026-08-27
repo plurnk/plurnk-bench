@@ -122,7 +122,7 @@ class DriverContractTest(unittest.TestCase):
         self.assertIn('snapshot_db "$DB" /logs/agent/plurnk.db', environment.command)
         self.assertEqual(environment.env["PLURNK_MODEL"], "deepdumb")
         self.assertEqual(environment.env["DEEPSEEK_API_KEY"], "k")
-        self.assertEqual(environment.env["PLURNK_CLIENT_PROJECT_ROOT"], "")
+        self.assertEqual(environment.env["PLURNK_CLIENT_PROJECT_ROOT"], "/workspace")
         self.assertEqual(environment.env["PLURNK_SERVICE_MAX_EMBED_SIZE"], "262144")
         self.assertEqual(environment.env["PLURNK_MCP_CRM"], "http://10.0.0.5:8012/mcp")
         self.assertEqual(environment.env["PLURNK_EXECS_ONLY"], "sh,pm,crm,fileserver")
