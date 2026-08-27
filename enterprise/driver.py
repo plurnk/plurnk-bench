@@ -148,8 +148,10 @@ class PlurnkAgent(BaseInstalledAgent):
         env = {
             **self._extra_env,
             **mcp_env,
-            # Headless: no project root, file ops 400. The task is retrieval and an answer.
-            "PLURNK_CLIENT_PROJECT_ROOT": "",
+            # The task container's /workspace is the project root: scratch files, payloads, and
+            # helper scripts land there and EXEC runs there. No repository, so a branch-tagged
+            # worker is refused honestly (409) rather than never existing.
+            "PLURNK_CLIENT_PROJECT_ROOT": "/workspace",
             "PLURNK_SERVICE_MAX_EMBED_SIZE": str(EMBED_CAP_BYTES),
         }
         # Enterprise-Bench posture: never interactive, never the open web — the corpus is

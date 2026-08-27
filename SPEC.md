@@ -306,8 +306,10 @@ never reproduces an agent loop.
   rewritten to the host LAN IP for Linux Docker; the exact carriage is recorded as
   `agent/plurnk-mcp.json`. The operator's own MCP fleet never rides. Covered:
   `test_driver.py`, `enterprise/smoke.test.ts [§enterprise-mcp-carry]`.
-- §enterprise-posture The candidate runs headless (no project root), web-free and
-  non-interactive, with executors limited to the shell and the benchmark's MCP aliases.
+- §enterprise-posture The candidate runs with the task container's `/workspace` as its
+  project root (scratch files, payloads, and helper scripts land there; no repository, so
+  branch-tagged workers are refused), web-free and non-interactive, with executors limited
+  to the shell and the benchmark's MCP aliases.
   The shell is the task's own submission path: every instruction tells the agent to POST
   its answer to the container's `/submit_agent_response`. Vector embedding is capped at
   256 KB per channel (`PLURNK_SERVICE_MAX_EMBED_SIZE`, recorded in provenance): the
