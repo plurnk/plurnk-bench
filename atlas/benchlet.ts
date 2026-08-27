@@ -60,9 +60,9 @@ interface Digest {
     readonly loops: Array<{
         readonly prompt: string;
         readonly status: number;
-        readonly terminal_message: string | null;
         readonly result?: {
             readonly status: number;
+            readonly content?: string;
             readonly problem?: Record<string, unknown>;
         };
     }>;
@@ -458,10 +458,11 @@ export const atlasClientArgs = (options: {
     readonly maxTurns: number;
     readonly timeoutSeconds: number;
     readonly prompt: string;
+    readonly projectRoot: string;
 }): string[] => [
     "--auto",
     "--project-root",
-    "",
+    options.projectRoot,
     "--no-git",
     `--files-items=${options.filesItems}`,
     "--max-turns",
@@ -554,7 +555,14 @@ const scoreClaims = async (
     readonly judgeModel: string;
     readonly sourceRevision: string;
     readonly dataset: ClaimsOracle["dataset"];
+    readonly scored: boolean;
 }> => {
+    const sourceRevision = shell("git", ["-C", sourceRoot, "rev-parse", "HEAD"]).trim();
+    // Atlas's scorer reads an all-empty response column as floats and crashes on its
+    // own string mask; a candidate that ended without content covers no claim.
+    if (answer.trim() === "") {
+        return { kind: "claims", coverage: 0, judgeModel, sourceRevision, dataset: task.oracle.dataset, scored: false };
+    }
     const apiKey = required("PLURNK_API_KEY");
     const configuredBaseUrl = required("OPENAI_BASE_URL").replace(/\/v1\/?$/, "");
     const scoringDir = resolve(runDir, "atlas-scoring");
@@ -619,8 +627,9 @@ const scoreClaims = async (
         kind: "claims",
         coverage: statistics.mean_coverage,
         judgeModel,
-        sourceRevision: shell("git", ["-C", sourceRoot, "rev-parse", "HEAD"]).trim(),
+        sourceRevision,
         dataset: task.oracle.dataset,
+        scored: true,
     };
 };
 
@@ -821,7 +830,12 @@ const main = async (): Promise<void> => {
         }),
         PLURNK_MCP_ATLAS: process.execPath,
         PLURNK_MCP_ATLAS_ARGS: JSON.stringify(adapterArgs),
+        // The committed gate profile enables no MCP server; the benchlet's own is the
+        // candidate's whole tool surface.
+        PLURNK_MCP_ENABLED: JSON.stringify(["atlas"]),
     };
+    const workspaceRoot = resolve(runDir, "workspace");
+    mkdirSync(workspaceRoot);
     const candidateArgs = [
         "scripts/candidate.mjs",
         ...atlasClientArgs({
@@ -829,6 +843,7 @@ const main = async (): Promise<void> => {
             maxTurns,
             timeoutSeconds: candidateTimeout,
             prompt: task.prompt,
+            projectRoot: workspaceRoot,
         }),
     ];
     writeJson(resolve(runDir, "candidate-command.json"), {
@@ -860,7 +875,7 @@ const main = async (): Promise<void> => {
     const digest = JSON.parse(readFileSync(digestPath, "utf8")) as Digest;
     const loop = digest.loops.find((candidateLoop) => candidateLoop.prompt === task.prompt);
     if (loop === undefined) throw new Error("Atlas digest omitted the task loop.");
-    const answer = loop.terminal_message ?? "";
+    const answer = loop.result?.content ?? "";
     const successfulAtlasExecs = successfulExecutorCalls(
         digest.log_entries,
         "atlas",

@@ -8,8 +8,13 @@ keeping the protocol claim precise:
   `2026-07-28`.
 - Plurnk connects as a strict current MCP host and exposes the server as
   `## EXEC0 [atlas]`.
-- The candidate workspace is headless and Git-free, with every executor except
-  `atlas` disabled, matching Atlas's task-tool boundary.
+- The candidate's project root is an empty `workspace/` under the run directory
+  (scratch files land there; Git-free), with every executor except `atlas`
+  disabled, matching Atlas's task-tool boundary. The benchlet cold-enables exactly
+  its own server (`PLURNK_MCP_ENABLED=["atlas"]`); the committed gate profile
+  enables none, so without this the candidate has no tools at all.
+- The candidate's answer is the task loop's terminal content; an empty answer
+  scores zero coverage without invoking Atlas's scorer.
 - The model must call an executable tool; an answer without an `EXEC` does not
   pass the diagnostic.
 
@@ -18,7 +23,7 @@ claim that they are current. It preserves Atlas's task and sandbox boundary
 while making the Plurnk-facing protocol boundary current and explicit.
 
 Run the documented filesystem task with the configured model (`PLURNK_BENCH_ATLAS_MODEL`,
-else `PLURNK_BENCH_MODEL`, else `rtxgemma`):
+else `PLURNK_BENCH_MODEL`, else `rtx5070`):
 
 ```sh
 PLURNK_BENCH_ATLAS_CLIENT_ROOT=/path/to/open-client npm run atlas

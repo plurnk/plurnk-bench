@@ -68,16 +68,17 @@ test("Atlas preflight names every task tool absent from the live fixture catalog
     ]);
 });
 
-test("Atlas candidate is headless, Git-free, and retains the configured orientation survey", () => {
+test("Atlas candidate is rooted in the run's scratch workspace, Git-free, and retains the configured orientation survey", () => {
     assert.deepEqual(atlasClientArgs({
         filesItems: -1,
         maxTurns: 10,
         timeoutSeconds: 900,
         prompt: "task",
+        projectRoot: "/runs/run1/workspace",
     }), [
         "--auto",
         "--project-root",
-        "",
+        "/runs/run1/workspace",
         "--no-git",
         "--files-items=-1",
         "--max-turns",
