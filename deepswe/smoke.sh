@@ -10,7 +10,7 @@
 #
 # Usage: deepswe/smoke.sh [task-glob|all] [model-alias]
 #   task-glob    default: abs-module-cache-flags; `all` runs the FULL corpus (official mode)
-#   model-alias  default: PLURNK_BENCH_MODEL, else rtxgemma (e.g. rtxgemma, grok)
+#   model-alias  default: PLURNK_BENCH_MODEL, else rtx5070 (e.g. deepdumb, glm)
 #
 # `all` is the official-corpus mode: it forwards the MINIMAL manifest — the model layer for
 # the run's aliases plus their provider credentials, nothing else. No MCP fleet, no web
@@ -48,8 +48,8 @@ source_env_file "$OPERATOR_ENV"
 # (AG-UI); the separate WS listener is gone. The in-container daemon+client pair share the
 # shipped default, so bench sets NOTHING here (a stale port export silently kills the loop).
 TASK="${1:-abs-module-cache-flags}"
-# SPEC §config-model-default: explicit alias, else PLURNK_BENCH_MODEL, else the local rtxgemma route.
-MODEL="${2:-${PLURNK_BENCH_MODEL:-rtxgemma}}"
+# SPEC §config-model-default: explicit alias, else PLURNK_BENCH_MODEL, else the local rtx5070 route.
+MODEL="${2:-${PLURNK_BENCH_MODEL:-rtx5070}}"
 LAN_IP="$(hostname -I | awk '{print $1}')"
 
 # Give the agent the BENCHMARK's own budget, not an arbitrary cap: read the task's

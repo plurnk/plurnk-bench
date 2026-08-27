@@ -171,7 +171,7 @@ Covered: `host-paths.test.ts`, `publish.test.ts [§results-canon]`.
 `deepswe/benchlet.sh [--task task] [model]` is the sole host-side entrypoint for
 iterative diagnosis against a checked-in task manifest. The default task is
 `abs-module-cache-flags`. A selected task, candidate model, source revisions,
-and personality snapshot remain fixed within a run. The benchlet is not a
+and policy snapshot remain fixed within a run. The benchlet is not a
 leaderboard result and does not replace Pier; its value is repeatability and
 complete evidence while changing one experimental variable at a time.
 

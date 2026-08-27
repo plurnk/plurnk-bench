@@ -23,10 +23,10 @@ import {
     runToFiles,
 } from "./benchlet.ts";
 
-test("[§benchlet-evidence] benchlet resolves and snapshots the service candidate personality", () => {
+test("[§benchlet-evidence] benchlet resolves and snapshots the service candidate policy", () => {
     assert.equal(
         candidatePolicyPath("/source/plurnk-service"),
-        "/source/plurnk-service/plurnk-meta/PLURNK_PERSONALITY.md",
+        "/source/plurnk-service/plurnk-meta/POLICY.md",
     );
     assert.equal(
         candidatePolicySnapshotPath("/artifacts/run46"),
@@ -464,7 +464,7 @@ test("[§benchlet-failure] benchlet requires both requiem artifacts and a succes
 test("[§benchlet-requiem-witness] requiem selection is independent and explicit", () => {
     assert.equal(requiemModelAlias(true, "glm"), "glm");
     assert.equal(requiemModelAlias(false, undefined), null);
-    assert.equal(requiemModelAlias(true, undefined), "rtxgemma");
+    assert.equal(requiemModelAlias(true, undefined), "rtx5070");
 });
 test("[§benchlet-candidate-timeout] -1 disables the candidate timer; positive values add the overhead", () => {
     assert.equal(candidateTimeoutMs(-1, 900), undefined);

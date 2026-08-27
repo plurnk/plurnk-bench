@@ -684,11 +684,11 @@ const main = async (): Promise<void> => {
         process.env,
         "PLURNK_BENCH_ATLAS_CLIENT_ROOT",
     );
-    const policy = resolve(serviceRoot, "plurnk-meta", "PLURNK_PERSONALITY.md");
+    const policy = resolve(serviceRoot, "plurnk-meta", "POLICY.md");
     if (requiemEnabled && !existsSync(operatorEnv)) {
         throw new Error(`Atlas requiem environment is missing: ${operatorEnv}`);
     }
-    if (!existsSync(policy)) throw new Error(`Candidate personality is missing: ${policy}`);
+    if (!existsSync(policy)) throw new Error(`Candidate policy is missing: ${policy}`);
     if (task.oracle.kind === "claims") {
         ensureAtlasSource(sourceRepository, sourceRevision, sourceRoot);
     }

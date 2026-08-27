@@ -226,7 +226,7 @@ export const manifestPathForTask = (task: string): string => {
 };
 
 export const candidatePolicyPath = (serviceRoot: string): string =>
-    resolve(serviceRoot, "plurnk-meta", "PLURNK_PERSONALITY.md");
+    resolve(serviceRoot, "plurnk-meta", "POLICY.md");
 
 export const candidatePolicySnapshotPath = (runDir: string): string =>
     resolve(runDir, "candidate-policy.md");
@@ -1101,7 +1101,7 @@ const main = async (): Promise<void> => {
         throw new Error("PLURNK_BENCHLET_REQUIEM_TIMEOUT_SEC must be a positive integer");
     }
     if (!existsSync(operatorEnv)) throw new Error(`operator model environment is missing: ${operatorEnv}`);
-    if (!existsSync(candidatePolicy)) throw new Error(`candidate personality is missing: ${candidatePolicy}`);
+    if (!existsSync(candidatePolicy)) throw new Error(`candidate policy is missing: ${candidatePolicy}`);
 
     const config = validateFixture(manifest, taskDir);
     const imageId = manifest.environment.kind === "docker"
