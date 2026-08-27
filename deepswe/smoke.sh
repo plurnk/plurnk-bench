@@ -44,7 +44,7 @@ source_env_file() {
   ' "$1")"
 }
 source_env_file "$OPERATOR_ENV"
-# Transport (service 1.0.0): single listener — PLURNK_PORT=3044 is THE client surface
+# Transport (service 1.0.0): single listener — PLURNK_PORT=1066 is THE client surface
 # (AG-UI); the separate WS listener is gone. The in-container daemon+client pair share the
 # shipped default, so bench sets NOTHING here (a stale port export silently kills the loop).
 TASK="${1:-abs-module-cache-flags}"

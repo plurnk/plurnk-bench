@@ -26,7 +26,7 @@ npm test                      # lint (tsc --noEmit) + unit (node --test)
 ```
 
 Bench drives the daemon through the ordinary `plurnk` client and its AG-UI+
-HTTP/SSE surface (default `http://127.0.0.1:3044`). The model under test is the
+HTTP/SSE surface (default `http://127.0.0.1:1066`). The model under test is the
 daemon's `PLURNK_MODEL` alias. See `.env.example` and SPEC `§config-carry`.
 
 ## license
