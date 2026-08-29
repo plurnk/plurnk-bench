@@ -19,7 +19,7 @@
         "@modelcontextprotocol/client": "2.0.0",
         "@modelcontextprotocol/server": "2.0.0",
         "@plurnk/plurnk-contracts": "^1.4.0",
-        "@plurnk/plurnk-service": "^1.10.0"
+        "@plurnk/plurnk-service": "^1.11.0"
     },
     "devDependencies": {
         "@types/node": "^26.0.0",
