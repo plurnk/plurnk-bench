@@ -184,25 +184,26 @@ class DriverContractTest(unittest.TestCase):
 
         self.assertIn(" -- '- Update the display style property.' ", environment.command)
 
-    def test_loop_flags_default_web_free_and_never_interactive(self):
+    def test_default_run_denies_web_and_auto_accepts_proposals(self):
         agent = driver.PlurnkAgent()
         environment = types.SimpleNamespace()
 
         asyncio.run(agent.run("task", environment, object()))
 
         self.assertIn(
-            "--flags '{\"noWeb\": true, \"noInteraction\": true}'", environment.command
+            "--capabilities '{\"deny\": [{\"traits\": [\"web\"]}]}'", environment.command
         )
+        self.assertIn("plurnk --json --auto ", environment.command)
+        self.assertNotIn("--flags", environment.command)
 
-    def test_loop_flags_open_web_for_a_configured_tavily_route(self):
+    def test_configured_tavily_route_does_not_deny_web(self):
         agent = driver.PlurnkAgent(tavily_configured="1")
         environment = types.SimpleNamespace()
 
         asyncio.run(agent.run("task", environment, object()))
 
-        self.assertIn(
-            "--flags '{\"noWeb\": false, \"noInteraction\": true}'", environment.command
-        )
+        self.assertNotIn("--capabilities", environment.command)
+        self.assertNotIn("--flags", environment.command)
 
 
 if __name__ == "__main__":
