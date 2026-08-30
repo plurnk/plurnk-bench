@@ -259,6 +259,10 @@ to the host LAN IP. Child contracts:
   profile needing no facts) and allowlists its host; the operator's own `PLURNK_EMBEDDING_*`
   never rides. The container cannot reach a loopback embedder, and the corpus must not embed
   on the task's CPU allotment. Covered: `[§config-embedding-route]` in `smoke.test.ts`.
+- §config-resource-samples Every run records `docker stats` for all containers once a minute,
+  for pier's lifetime, as JSON lines in `<job>/docker-stats.jsonl` (`t` = UTC sample time). The
+  record is the basis for sizing corpus concurrency (per-container CPU and memory under real
+  load) — never an estimate. Covered: `[§config-resource-samples]` in `smoke.test.ts`.
 - §config-bench-namespace Bench-invented knobs are namespaced `PLURNK_BENCH_*` (`PLURNK_BENCH_HOME`,
   `PLURNK_BENCH_HARNESS`, `PLURNK_BENCH_REQUIEM`, …)
   (TIMEOUT_SEC, CPUS, FORCE_BUILD, NO_GBNF) and are orchestration, never daemon config —

@@ -26,6 +26,7 @@
 #   PLURNK_BENCH_FORCE_BUILD  =1 to force an agent-image rebuild (base-image/debug escape hatch)
 #   PLURNK_BENCH_NO_GBNF      =1 to drop PLURNK_PROVIDERS_GBNF (for models that can't enforce it, e.g. xai)
 #   PLURNK_BENCH_JOBS         `all` mode concurrency (default 4)
+#   (every run samples docker stats once a minute into <job>/docker-stats.jsonl — SPEC §config-resource-samples)
 #   PLURNK_BENCH_EMBEDDING_ROUTE, PLURNK_BENCH_EMBEDDING_BASE_URL
 #                             the public embedding route EVERY mode forwards (SPEC §config-embedding-route)
 set -euo pipefail
@@ -233,6 +234,17 @@ for _ in $(seq 1 120); do
   sleep 1
 done
 [ -n "$JOB" ] || { echo "smoke: pier opened no job directory under $JOBS_ROOT" >&2; kill "$PIER_PID" 2>/dev/null || true; exit 1; }
+
+# SPEC §config-resource-samples: once a minute, every container's CPU and memory for the run's
+# duration, into the job directory — concurrency is sized from this record, not from estimates.
+# The loop ends itself when pier is gone.
+(
+  while kill -0 "$PIER_PID" 2>/dev/null; do
+    now="$(date -u +%FT%TZ)"
+    docker stats --no-stream --format '{{json .}}' 2>/dev/null | sed "s/^{/{\"t\":\"$now\",/" >> "$JOB/docker-stats.jsonl"
+    sleep 60
+  done
+) &
 
 # SPEC §publish-live: publish every trial (record + digest) the moment it finishes — single
 # task or the whole corpus — so a run can be followed by name while it is still going. With

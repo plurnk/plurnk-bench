@@ -50,6 +50,13 @@ test("[§config-embedding-route] every mode forwards the public embedding route 
     assert.ok(smoke.indexOf("PLURNK_EMBEDDING_MODEL=$PLURNK_BENCH_EMBEDDING_ROUTE") > smoke.lastIndexOf("\nfi\n"));
 });
 
+test("[§config-resource-samples] every run samples docker stats once a minute into the job directory until pier exits", () => {
+    assert.match(smoke, /while kill -0 "\$PIER_PID" 2>\/dev\/null; do/);
+    assert.match(smoke, /docker stats --no-stream --format '\{\{json \.\}\}'/);
+    assert.match(smoke, /"\$JOB\/docker-stats\.jsonl"/);
+    assert.match(smoke, /sleep 60/);
+});
+
 test("[§results-canon][§publish-live] job scratch lives under the benchmarks home and every trial publishes as it lands", () => {
     assert.match(smoke, /JOBS_ROOT="\$\(node src\/publish\.ts --jobs deepswe\)"/);
     assert.match(smoke, /"\$\{select_flags\[@\]\}" -o "\$JOBS_ROOT" --env docker &/);
