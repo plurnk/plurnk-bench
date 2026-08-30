@@ -259,6 +259,23 @@ to the host LAN IP. Child contracts:
   profile needing no facts) and allowlists its host; the operator's own `PLURNK_EMBEDDING_*`
   never rides. The container cannot reach a loopback embedder, and the corpus must not embed
   on the task's CPU allotment. Covered: `[§config-embedding-route]` in `smoke.test.ts`.
+- §config-image-prepull Every task image is pulled outside the run — `deepswe/prepull.sh
+  [task-glob|all]`: bounded parallelism (default 3), retries with backoff, a docker-volume
+  disk floor (default 40 GB), a loud list of anything unresolvable — and the launcher runs it
+  before `pier run`, so an N-wide launch never stampedes the registry and no trial dies at
+  environment setup or spends its build timeout downloading (2026-08-30: ~50 of 113 trials
+  failed to resolve their ECR image at 38-wide). Covered: `[§config-image-prepull]` in
+  `smoke.test.ts`.
+- §config-digest-preflight The bench's installed `@plurnk/plurnk-service` must equal the
+  version the corpus installs: its digest reads the databases the in-container daemons write.
+  A mismatch refuses the launch (2026-08-30: a 1.11.0 digest crashed on 1.12.0 databases mid-run).
+- §config-publisher-decoupled The live publisher runs beside pier, never over it: its failure
+  is logged, pier is waited on regardless, one idempotent final `publish.ts <job>` pass
+  publishes every trial the live watch missed, and a trap ends pier, publisher, and sampler
+  with the launcher — nothing runs orphaned.
+- §config-failed-setup-report Trials that never reached a model turn because their environment
+  failed to start are listed in `<job>/failed-setup.txt` (task ids, a rerun list) and counted
+  on stderr at the end of the run.
 - §config-resource-samples Every run records `docker stats` for all containers once a minute,
   for pier's lifetime, as JSON lines in `<job>/docker-stats.jsonl` (`t` = UTC sample time). The
   record is the basis for sizing corpus concurrency (per-container CPU and memory under real

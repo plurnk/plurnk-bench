@@ -57,6 +57,31 @@ test("[§config-resource-samples] every run samples docker stats once a minute i
     assert.match(smoke, /sleep 60/);
 });
 
+test("[§config-image-prepull] every task image is pulled outside the run, with retries and a disk floor, before any trial starts", () => {
+    const prepull = readFileSync(new URL("./prepull.sh", import.meta.url), "utf8");
+    assert.match(smoke, /\ndeepswe\/prepull\.sh "\$TASK"\n/);
+    assert.ok(smoke.indexOf('deepswe/prepull.sh "$TASK"') < smoke.indexOf("pier run -p"), "images are local before pier starts");
+    assert.match(prepull, /docker_image \*= \*"/);
+    assert.match(prepull, /xargs -P "\$JOBS"/);
+    assert.match(prepull, /for attempt in \$\(seq 1 "\$ATTEMPTS"\)/);
+    assert.match(prepull, /FLOOR_GB/);
+    assert.match(prepull, /unresolved images — a run must not start trials without them/);
+});
+
+test("[§config-digest-preflight] the bench's installed service must equal the version the corpus installs", () => {
+    assert.match(smoke, /DIGEST_VERSION="\$\(node -e 'console\.log\(require\("@plurnk\/plurnk-service\/package\.json"\)\.version\)'\)"/);
+    assert.match(smoke, /\[ "\$DIGEST_VERSION" = "\$SERVICE_VERSION" \] \|\| \{/);
+});
+
+test("[§config-publisher-decoupled][§config-failed-setup-report] the publisher never owns pier's lifetime; a final pass publishes the rest; failed setups are listed", () => {
+    assert.match(smoke, /trap 'kill "\$PIER_PID" \$PUB_PID 2>\/dev\/null \|\| true' EXIT INT TERM/);
+    assert.match(smoke, /node src\/publish\.ts --watch "\$JOB" --pid "\$PIER_PID" \\\n\s+\|\| echo/);
+    assert.match(smoke, /\) &\nPUB_PID=\$!/);
+    assert.match(smoke, /wait "\$PIER_PID" \|\| pier_status=\$\?/);
+    assert.match(smoke, /PLURNK_BENCH_HARNESS=deepswe node src\/publish\.ts "\$JOB"\n/);
+    assert.match(smoke, /failed-setup\.txt/);
+});
+
 test("[§results-canon][§publish-live] job scratch lives under the benchmarks home and every trial publishes as it lands", () => {
     assert.match(smoke, /JOBS_ROOT="\$\(node src\/publish\.ts --jobs deepswe\)"/);
     assert.match(smoke, /"\$\{select_flags\[@\]\}" -o "\$JOBS_ROOT" --env docker &/);

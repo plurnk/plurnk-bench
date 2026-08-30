@@ -27,6 +27,8 @@
 #   PLURNK_BENCH_NO_GBNF      =1 to drop PLURNK_PROVIDERS_GBNF (for models that can't enforce it, e.g. xai)
 #   PLURNK_BENCH_JOBS         `all` mode concurrency (default 4)
 #   (every run samples docker stats once a minute into <job>/docker-stats.jsonl — SPEC §config-resource-samples)
+#   (every run first pre-pulls its task images via deepswe/prepull.sh — SPEC §config-image-prepull — and refuses
+#    to start trials without them; the bench's own @plurnk/plurnk-service must equal the corpus's — SPEC §config-digest-preflight)
 #   PLURNK_BENCH_EMBEDDING_ROUTE, PLURNK_BENCH_EMBEDDING_BASE_URL
 #                             the public embedding route EVERY mode forwards (SPEC §config-embedding-route)
 set -euo pipefail
@@ -196,6 +198,20 @@ CLIENT_VERSION="$(npm view @plurnk/plurnk version 2>/dev/null)"
   exit 1
 }
 
+# SPEC §config-digest-preflight: the publisher's digest reads the databases the in-container
+# daemons write, so the bench's installed @plurnk/plurnk-service must be the version the corpus
+# installs — a mismatch is a refused launch, not a crashed publisher mid-run.
+DIGEST_VERSION="$(node -e 'console.log(require("@plurnk/plurnk-service/package.json").version)')"
+[ "$DIGEST_VERSION" = "$SERVICE_VERSION" ] || {
+  echo "smoke: bench digest is @plurnk/plurnk-service $DIGEST_VERSION but the corpus installs $SERVICE_VERSION — npm update @plurnk/plurnk-service, commit, rerun" >&2
+  exit 1
+}
+
+# SPEC §config-image-prepull: every task image is local before any trial starts — pulled with
+# retries and bounded parallelism outside the run, so N-wide launches never stampede the registry
+# and no trial dies at environment setup or spends its build timeout downloading.
+deepswe/prepull.sh "$TASK"
+
 # Reserve force-build for non-versioned image inputs: exact package publications already
 # invalidate the build cache automatically.
 build=()
@@ -227,6 +243,10 @@ PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
   "${flags[@]}" \
   "${select_flags[@]}" -o "$JOBS_ROOT" --env docker &
 PIER_PID=$!
+PUB_PID=""
+# SPEC §config-publisher-decoupled: whatever ends this launcher — a signal, a failed step — pier,
+# the publisher, and the sampler end with it; nothing runs orphaned.
+trap 'kill "$PIER_PID" $PUB_PID 2>/dev/null || true' EXIT INT TERM
 JOB=""
 for _ in $(seq 1 120); do
   JOB="$(comm -13 <(printf '%s\n' "$before") <(ls -d "$JOBS_ROOT"/*/ 2>/dev/null | sort) | head -1)"
@@ -259,6 +279,26 @@ done
   for f in node_modules/@plurnk/*/.env.defaults; do [ -f "$f" ] && source_env_file "$f"; done
   source_env_file "$OPERATOR_ENV"
   export PLURNK_MODEL="$MODEL"
-  PLURNK_BENCH_HARNESS=deepswe node src/publish.ts --watch "$JOB" --pid "$PIER_PID"
+  PLURNK_BENCH_HARNESS=deepswe node src/publish.ts --watch "$JOB" --pid "$PIER_PID" \
+    || echo "smoke: live publisher exited nonzero — the final pass below publishes whatever it missed" >&2
+) &
+PUB_PID=$!
+# SPEC §config-publisher-decoupled: the publisher never owns pier's lifetime. Wait for pier, then
+# one idempotent final pass publishes every trial the live watch did not (already-published
+# trials skip by their marker).
+pier_status=0
+wait "$PIER_PID" || pier_status=$?
+wait "$PUB_PID" 2>/dev/null || true
+(
+  for f in node_modules/@plurnk/*/.env.defaults; do [ -f "$f" ] && source_env_file "$f"; done
+  source_env_file "$OPERATOR_ENV"
+  export PLURNK_MODEL="$MODEL"
+  PLURNK_BENCH_HARNESS=deepswe node src/publish.ts "$JOB"
 )
-wait "$PIER_PID" || { echo "smoke: pier exited nonzero for $JOB" >&2; exit 1; }
+# SPEC §config-failed-setup-report: trials that never reached a model turn because their
+# environment failed to start are named in <job>/failed-setup.txt — a rerun list, not a mystery.
+find "$JOB" -mindepth 2 -maxdepth 2 -name exception.txt -size +0 2>/dev/null \
+  | sed -E 's#.*/([^/]+)__[A-Za-z0-9]+/exception.txt#\1#' | sort -u > "$JOB/failed-setup.txt" || true
+failed_setup="$(wc -l < "$JOB/failed-setup.txt" | tr -d ' ')"
+[ "$failed_setup" = 0 ] || echo "smoke: $failed_setup trial(s) failed at environment setup — see $JOB/failed-setup.txt (rerun each with deepswe/smoke.sh <task>)" >&2
+[ "$pier_status" = 0 ] || { echo "smoke: pier exited nonzero ($pier_status) for $JOB" >&2; exit 1; }
