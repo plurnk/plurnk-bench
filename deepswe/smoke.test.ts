@@ -37,6 +37,19 @@ test("[§config-carry] `all` mode runs the corpus web-free on the minimal manife
     assert.doesNotMatch(smoke, /\[ "\$TASK" = all \] && exit 0/);
 });
 
+test("[§config-embedding-route] every mode forwards the public embedding route and allowlists its host; the operator's embedding config never rides", () => {
+    const defaults = readFileSync(new URL("../.env.defaults", import.meta.url), "utf8");
+    assert.match(defaults, /^PLURNK_BENCH_EMBEDDING_ROUTE=plurnk-embed\/sentence-transformers\/all-MiniLM-L6-v2$/m);
+    assert.match(defaults, /^PLURNK_BENCH_EMBEDDING_BASE_URL=https:\/\/embed\.plurnk\.ai\/v1$/m);
+    assert.match(smoke, /PLURNK_EMBEDDING_\*\) continue;;/);
+    assert.match(smoke, /--agent-env "PLURNK_EMBEDDING_MODEL=\$PLURNK_BENCH_EMBEDDING_ROUTE"/);
+    assert.match(smoke, /--agent-env "PLURNK_PROVIDERS_PROVIDER_\$\{EMBED_PREFIX\}_NPM=@ai-sdk\/openai-compatible"/);
+    assert.match(smoke, /--agent-env "PLURNK_PROVIDERS_PROVIDER_\$\{EMBED_PREFIX\}_BASE_URL=\$PLURNK_BENCH_EMBEDDING_BASE_URL"/);
+    assert.match(smoke, /EGRESS_DOMAINS="\$\{EGRESS_DOMAINS:\+\$EGRESS_DOMAINS,\}\$EMBED_HOST"/);
+    // The route rides outside the mode branches: the corpus and a single diagnostic alike.
+    assert.ok(smoke.indexOf("PLURNK_EMBEDDING_MODEL=$PLURNK_BENCH_EMBEDDING_ROUTE") > smoke.lastIndexOf("\nfi\n"));
+});
+
 test("[§results-canon][§publish-live] job scratch lives under the benchmarks home and every trial publishes as it lands", () => {
     assert.match(smoke, /JOBS_ROOT="\$\(node src\/publish\.ts --jobs deepswe\)"/);
     assert.match(smoke, /"\$\{select_flags\[@\]\}" -o "\$JOBS_ROOT" --env docker &/);

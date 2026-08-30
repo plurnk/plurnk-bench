@@ -26,6 +26,8 @@
 #   PLURNK_BENCH_FORCE_BUILD  =1 to force an agent-image rebuild (base-image/debug escape hatch)
 #   PLURNK_BENCH_NO_GBNF      =1 to drop PLURNK_PROVIDERS_GBNF (for models that can't enforce it, e.g. xai)
 #   PLURNK_BENCH_JOBS         `all` mode concurrency (default 4)
+#   PLURNK_BENCH_EMBEDDING_ROUTE, PLURNK_BENCH_EMBEDDING_BASE_URL
+#                             the public embedding route EVERY mode forwards (SPEC §config-embedding-route)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -123,6 +125,10 @@ else
       # The MCP fleet is structurally dead under the egress wall: its traffic cannot pass,
       # so booting the servers only distorts the run with connect noise. Never forward.
       PLURNK_MCP_*) continue;;
+      # SPEC §config-embedding-route: the container embeds over the bench's public route (below),
+      # never the operator's selection or profile facts — a loopback GPU server is unreachable,
+      # and duplicate facts for a known route refuse the daemon's boot.
+      PLURNK_EMBEDDING_*) continue;;
       # A non-llama backend (xai/openrouter) can't enforce GBNF; 0.70.0's daemon refuses to
       # boot with GBNF requested-but-unenforceable. PLURNK_BENCH_NO_GBNF=1 runs unconstrained.
       PLURNK_PROVIDERS_GBNF) [ -n "${PLURNK_BENCH_NO_GBNF:-}" ] && continue;;
@@ -140,6 +146,19 @@ else
   # not forwarding it isn't enough — forward =0 to explicitly override the default OFF.
   [ -n "${PLURNK_BENCH_NO_GBNF:-}" ] && flags+=(--agent-env "PLURNK_PROVIDERS_GBNF=0")
 fi
+
+# SPEC §config-embedding-route: every mode forwards ONE public OpenAI-compatible embedding
+# route (a built-in daemon profile — no facts) and allowlists its host. The container can't
+# reach a loopback embedder, and the corpus must not embed on the task's CPU allotment.
+[ -n "${PLURNK_BENCH_EMBEDDING_ROUTE:-}" ] && [ -n "${PLURNK_BENCH_EMBEDDING_BASE_URL:-}" ] || {
+  echo "smoke: PLURNK_BENCH_EMBEDDING_ROUTE and PLURNK_BENCH_EMBEDDING_BASE_URL are required" >&2; exit 1
+}
+EMBED_PREFIX="$(printf '%s' "${PLURNK_BENCH_EMBEDDING_ROUTE%%/*}" | tr -c 'A-Za-z0-9' '_' | tr 'a-z' 'A-Z')"
+EMBED_HOST="${PLURNK_BENCH_EMBEDDING_BASE_URL#*://}"; EMBED_HOST="${EMBED_HOST%%[:/]*}"
+flags+=(--agent-env "PLURNK_EMBEDDING_MODEL=$PLURNK_BENCH_EMBEDDING_ROUTE")
+flags+=(--agent-env "PLURNK_PROVIDERS_PROVIDER_${EMBED_PREFIX}_NPM=@ai-sdk/openai-compatible")
+flags+=(--agent-env "PLURNK_PROVIDERS_PROVIDER_${EMBED_PREFIX}_BASE_URL=$PLURNK_BENCH_EMBEDDING_BASE_URL")
+EGRESS_DOMAINS="${EGRESS_DOMAINS:+$EGRESS_DOMAINS,}$EMBED_HOST"
 
 # SPEC §config-tavily-route: Tavily is ordinary optional provider configuration. Carry
 # it when configured, retain the no-key default, and record only presence + effective depth.
@@ -185,7 +204,7 @@ build=()
 select_flags=(-i "$TASK" --n-tasks 1)
 [ "$TASK" = all ] && select_flags=(--n-concurrent "${PLURNK_BENCH_JOBS:-4}")
 
-echo "smoke: model=$MODEL task=$TASK service=$SERVICE_VERSION client=$CLIENT_VERSION tavily=$TAVILY_ROUTE egress=$EGRESS_DOMAINS cpus=${PLURNK_BENCH_CPUS:-native} client_timeout=${CLIENT_TIMEOUT_SEC}s (budget ${AGENT_BUDGET:-?}s)${PLURNK_BENCH_FORCE_BUILD:+ [force-build]}" >&2
+echo "smoke: model=$MODEL task=$TASK service=$SERVICE_VERSION client=$CLIENT_VERSION tavily=$TAVILY_ROUTE embed=$PLURNK_BENCH_EMBEDDING_ROUTE egress=$EGRESS_DOMAINS cpus=${PLURNK_BENCH_CPUS:-native} client_timeout=${CLIENT_TIMEOUT_SEC}s (budget ${AGENT_BUDGET:-?}s)${PLURNK_BENCH_FORCE_BUILD:+ [force-build]}" >&2
 # The default personality ships on: the daemon seeds PLURNK_PERSONALITY.md to
 # the XDG policy file and foists it headless (confirmed via digest, PLURNK_POLICY unset).
 # So we DON'T set PLURNK_POLICY — the benchmark gets the real product default as-is.

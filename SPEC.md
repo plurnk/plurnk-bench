@@ -254,6 +254,11 @@ to the host LAN IP. Child contracts:
   the resolved candidate when their contract permits an unset value. Covered:
   `host-paths.test.ts`, `smoke.test.ts`, and `[§config-model-default]` in
   `benchlet.test.ts`.
+- §config-embedding-route Every mode forwards ONE public OpenAI-compatible embedding route
+  (`PLURNK_BENCH_EMBEDDING_ROUTE` on `PLURNK_BENCH_EMBEDDING_BASE_URL`, a built-in daemon
+  profile needing no facts) and allowlists its host; the operator's own `PLURNK_EMBEDDING_*`
+  never rides. The container cannot reach a loopback embedder, and the corpus must not embed
+  on the task's CPU allotment. Covered: `[§config-embedding-route]` in `smoke.test.ts`.
 - §config-bench-namespace Bench-invented knobs are namespaced `PLURNK_BENCH_*` (`PLURNK_BENCH_HOME`,
   `PLURNK_BENCH_HARNESS`, `PLURNK_BENCH_REQUIEM`, …)
   (TIMEOUT_SEC, CPUS, FORCE_BUILD, NO_GBNF) and are orchestration, never daemon config —
