@@ -58,7 +58,9 @@ Read from Pier's graded `model.patch`, never inferred from the loop's claims:
   existing files → still NO-ATTEMPT.
   Covered: `ingest.test.ts [§attempt-files-modified]`.
 - §attempt-broke-build `p2pRegressed` — a base pass-to-pass test now fails: the patch broke
-  the build / existing behavior. Set iff `p2p_passed < p2p_total`.
+  the build / existing behavior. `true` iff `p2p_passed < p2p_total`, `false` when the counted
+  suite fully passes, absent only when the reward carries no p2p counts — "not regressed" and
+  "not measured" never share a spelling.
   Covered: `ingest.test.ts [§attempt-broke-build]`.
 - §attempt-partial-gated `testPassFraction` is ONLY meaningful when `outcome` says a loop ran
   (pass/fail) — on error/timeout/cancelled it is the base repo's grade, not progress.

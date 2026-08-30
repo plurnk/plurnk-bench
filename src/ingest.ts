@@ -133,8 +133,10 @@ export const joinRecord = ({ harness, taskId, model, doc, reward, dbPath }: Join
         if (reward.partial !== undefined) record.testPassFraction = reward.partial;
         // Base pass-to-pass tests all pass on the pristine repo, so any p2p failure means
         // the patch broke the build / existing behavior (the BROKE-THE-BUILD failure mode).
-        if (reward.p2p_total !== undefined && reward.p2p_passed !== undefined && reward.p2p_passed < reward.p2p_total)
-            record.p2pRegressed = true;
+        // A run whose p2p suite was counted states `false` outright; only an uncounted suite
+        // leaves the field absent, so "not regressed" and "not measured" never share a spelling.
+        if (reward.p2p_total !== undefined && reward.p2p_passed !== undefined)
+            record.p2pRegressed = reward.p2p_passed < reward.p2p_total;
     }
     if (doc.workspace !== undefined && typeof doc.workerId === "number") {
         record.run = {

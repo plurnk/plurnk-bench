@@ -242,7 +242,12 @@ test("[§attempt-broke-build] joinRecord flags p2pRegressed when a base pass-to-
         harness: "deepswe", taskId: "t", model: "m", dbPath: "/x/plurnk.db",
         doc: doc({ finalStatus: 200 }), reward: reward(0, { p2p_total: 3, p2p_passed: 3 }),
     });
-    assert.equal(clean.p2pRegressed, undefined);
+    assert.equal(clean.p2pRegressed, false, "a counted, fully passing p2p suite is an explicit false");
+    const uncounted = joinRecord({
+        harness: "deepswe", taskId: "t", model: "m", dbPath: "/x/plurnk.db",
+        doc: doc({ finalStatus: 200 }), reward: reward(0, {}),
+    });
+    assert.equal(uncounted.p2pRegressed, undefined, "an uncounted suite leaves the field absent");
 });
 
 // readTrial reads the graded patch: patchLines (size) + filesModified (real source edits).
