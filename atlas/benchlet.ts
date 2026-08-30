@@ -19,9 +19,12 @@ import {
     runToFiles,
 } from "../deepswe/benchlet.ts";
 import { allocateRunDirectory } from "../src/run-directory.ts";
-import { benchModel, benchmarksHome } from "../src/host-paths.ts";
+import {
+    benchmarksHome,
+    loadBenchmarkEnvironment,
+    selectedModel,
+} from "../src/host-paths.ts";
 import { requiredClientCheckout } from "../src/client-checkout.ts";
-import { operatorConfigPath } from "../src/host-paths.ts";
 import {
     summarizeDigestAccounting,
     type AccountingSummary,
@@ -634,22 +637,22 @@ const scoreClaims = async (
 };
 
 const main = async (): Promise<void> => {
-    process.loadEnvFile(resolve(benchRoot, ".env.defaults"));
-    const { values, positionals } = parseArgs({
+    const operatorEnv = loadBenchmarkEnvironment(
+        process.env.PLURNK_BENCH_ATLAS_OPERATOR_ENV,
+        resolve(benchRoot, ".env.defaults"),
+    );
+    const { values } = parseArgs({
         args: process.argv.slice(2),
         options: {
             task: { type: "string" },
         },
-        allowPositionals: true,
+        allowPositionals: false,
         strict: true,
     });
-    if (positionals.length > 1) {
-        throw new Error("Atlas benchlet accepts at most one model alias.");
-    }
 
     const taskName = values.task ?? required("PLURNK_BENCH_ATLAS_TASK");
     const { path: selectedTaskPath, task } = readTask(taskName);
-    const model = benchModel(positionals[0] ?? process.env.PLURNK_BENCH_ATLAS_MODEL);
+    const model = selectedModel();
     const image = required("PLURNK_BENCH_ATLAS_IMAGE");
     const containerPort = positiveInteger("PLURNK_BENCH_ATLAS_CONTAINER_PORT");
     const listTimeoutMs = positiveInteger("PLURNK_BENCH_ATLAS_LIST_TIMEOUT_MS");
@@ -664,7 +667,7 @@ const main = async (): Promise<void> => {
         throw new Error("PLURNK_BENCH_ATLAS_FILES_ITEMS must be -1, 0, or a positive integer.");
     }
     const requiemEnabled = required("PLURNK_BENCH_ATLAS_REQUIEM") === "1";
-    const requiemModel = benchModel(process.env.PLURNK_BENCH_ATLAS_REQUIEM_MODEL);
+    const requiemModel = process.env.PLURNK_BENCH_ATLAS_REQUIEM_MODEL?.trim() || model;
     const requiemTimeout = positiveInteger("PLURNK_BENCH_ATLAS_REQUIEM_TIMEOUT_SEC");
     const sourceRepository = required("PLURNK_BENCH_ATLAS_SOURCE_REPOSITORY");
     const sourceRevision = required("PLURNK_BENCH_ATLAS_SOURCE_REVISION");
@@ -676,7 +679,6 @@ const main = async (): Promise<void> => {
     const judgeModel = required("PLURNK_BENCH_ATLAS_JUDGE_MODEL");
     const judgeConcurrency = positiveInteger("PLURNK_BENCH_ATLAS_JUDGE_CONCURRENCY");
     const passCoverage = ratio("PLURNK_BENCH_ATLAS_PASS_COVERAGE");
-    const operatorEnv = operatorConfigPath(process.env.PLURNK_BENCH_ATLAS_OPERATOR_ENV);
     const runsRoot = resolveFrom(benchRoot, process.env.PLURNK_BENCH_ATLAS_RUNS_ROOT ?? benchmarksHome());
     const serviceRoot = resolveFrom(benchRoot, required("PLURNK_BENCH_ATLAS_SERVICE_ROOT"));
     const clientRoot = requiredClientCheckout(
@@ -820,7 +822,7 @@ const main = async (): Promise<void> => {
     ];
     const candidateEnvironmentOverrides = {
         PLURNK_CANDIDATE_DIR: runDir,
-        PLURNK_CANDIDATE_MODEL: model,
+        PLURNK_MODEL: model,
         PLURNK_CANDIDATE_SKIP_BUILD: "1",
         PLURNK_CLIENT_CHECKOUT: clientRoot,
         PLURNK_SERVICE_POLICY: resolve(runDir, "candidate-policy.md"),

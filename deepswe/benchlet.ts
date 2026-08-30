@@ -20,9 +20,12 @@ import { finished } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { allocateRunDirectory } from "../src/run-directory.ts";
-import { benchModel, benchmarksHome } from "../src/host-paths.ts";
+import {
+    benchmarksHome,
+    loadBenchmarkEnvironment,
+    selectedModel,
+} from "../src/host-paths.ts";
 import { requiredClientCheckout } from "../src/client-checkout.ts";
-import { operatorConfigPath } from "../src/host-paths.ts";
 import { webMaterializationProvenance } from "../src/web-materialization.ts";
 import {
     addSettledUsd,
@@ -1033,10 +1036,12 @@ export const candidateTimeoutMs = (
 export const requiemModelAlias = (
     enabled: boolean,
     configured: string | undefined,
+    candidateModel: string,
 ): string | null => {
     if (!enabled) return null;
-    // SPEC §config-model-default: the requiem witness is configurable; unset runs the bench default.
-    return benchModel(configured);
+    // SPEC §config-model-default: the requiem witness is a distinct actor; unset
+    // deliberately inherits the already-resolved candidate selection.
+    return configured?.trim() || candidateModel;
 };
 
 const requiemSummary = (path: string): RequiemAccountingSummary => {
@@ -1045,17 +1050,19 @@ const requiemSummary = (path: string): RequiemAccountingSummary => {
 };
 
 const main = async (): Promise<void> => {
-    process.loadEnvFile(resolve(benchRoot, ".env.defaults"));
-    const { values, positionals } = parseArgs({
+    const operatorEnv = loadBenchmarkEnvironment(
+        process.env.PLURNK_BENCHLET_OPERATOR_ENV,
+        resolve(benchRoot, ".env.defaults"),
+    );
+    const { values } = parseArgs({
         args: process.argv.slice(2),
         options: {
             preflight: { type: "boolean", default: false },
             task: { type: "string" },
         },
-        allowPositionals: true,
+        allowPositionals: false,
         strict: true,
     });
-    if (positionals.length > 1) throw new Error("benchlet accepts at most one model alias");
     const task = values.task ?? process.env.PLURNK_BENCHLET_TASK;
     if (task === undefined || task.trim() === "") throw new Error("benchlet requires a task name");
     const manifestPath = manifestPathForTask(task);
@@ -1064,8 +1071,7 @@ const main = async (): Promise<void> => {
     assert.equal(manifest.task, task, "benchlet manifest task must match its selection");
 
     const preflightOnly = values.preflight;
-    // SPEC §config-model-default: explicit alias, else the benchlet's own knob, else the bench default.
-    const model = benchModel(positionals[0] ?? process.env.PLURNK_BENCHLET_MODEL);
+    const model = selectedModel();
     const taskCache = resolveFrom(benchRoot, process.env.PLURNK_BENCHLET_TASK_CACHE ?? "");
     const taskDir = resolve(taskCache, manifest.task);
     const repositoryCacheRoot = resolveFrom(
@@ -1080,7 +1086,6 @@ const main = async (): Promise<void> => {
         process.env,
         "PLURNK_BENCHLET_CLIENT_ROOT",
     );
-    const operatorEnv = operatorConfigPath(process.env.PLURNK_BENCHLET_OPERATOR_ENV);
     const candidatePolicy = candidatePolicyPath(serviceRoot);
     const candidateTimeout = Number(process.env.PLURNK_BENCHLET_CANDIDATE_TIMEOUT_SEC);
     const candidateOverhead = Number(process.env.PLURNK_BENCHLET_CANDIDATE_OVERHEAD_SEC);
@@ -1089,6 +1094,7 @@ const main = async (): Promise<void> => {
     const requiemModel = requiemModelAlias(
         requiemEnabled,
         process.env.PLURNK_BENCHLET_REQUIEM_MODEL,
+        model,
     );
     // -1 is the plurnk "no limit" idiom ({§benchlet-candidate-timeout}).
     if (!Number.isSafeInteger(candidateTimeout) || candidateTimeout === 0 || candidateTimeout < -1) {
@@ -1239,7 +1245,7 @@ const main = async (): Promise<void> => {
     ];
     const candidateEnvironmentOverrides = {
         PLURNK_CANDIDATE_DIR: runDir,
-        PLURNK_CANDIDATE_MODEL: model,
+        PLURNK_MODEL: model,
         PLURNK_CLIENT_CHECKOUT: clientRoot,
         PLURNK_SERVICE_POLICY: candidatePolicySnapshot,
     };

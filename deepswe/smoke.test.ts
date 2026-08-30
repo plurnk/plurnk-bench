@@ -44,7 +44,8 @@ test("[§results-canon][§publish-live] job scratch lives under the benchmarks h
     assert.doesNotMatch(smoke, /ls -dt jobs\//);
 });
 
-test("[§config-model-default] the runner's model is explicit, else PLURNK_BENCH_MODEL, else rtx5070", () => {
-    assert.match(smoke, /MODEL="\$\{2:-\$\{PLURNK_BENCH_MODEL:-rtx5070\}\}"/);
-    assert.doesNotMatch(smoke, /PLURNK_MODEL:\?set PLURNK_MODEL/);
+test("[§config-model-default] the runner uses the ordinary PLURNK_MODEL cascade", () => {
+    assert.match(smoke, /source_env_file "\$OPERATOR_ENV"\nsource_env_file "\.env\.defaults"/);
+    assert.match(smoke, /MODEL="\$PLURNK_MODEL"/);
+    assert.doesNotMatch(smoke, /PLURNK_BENCH_MODEL|\$\{2:/);
 });

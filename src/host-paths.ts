@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, resolve } from "node:path";
 
@@ -42,15 +43,27 @@ export const jobsRoot = (
     home: string = homedir(),
 ): string => resolve(benchmarksHome(env, home), "jobs", harness);
 
-// SPEC §config-model-default. Every model a harness selects — candidate, requiem, child —
-// is configurable; when nothing configures it, the local rtx5070 route runs.
-export const DEFAULT_MODEL = "rtx5070";
-export const benchModel = (
-    explicit: string | undefined,
+// SPEC §config-model-default. The invoking environment wins, then the XDG
+// operator layer, then the committed benchmark defaults. Node's loadEnvFile is
+// set-if-unset, so loading those files in this order owns the precedence.
+export const loadBenchmarkEnvironment = (
+    operatorOverride: string | undefined,
+    defaultsPath: string,
+    env: NodeJS.ProcessEnv = process.env,
+    loadEnvFile: (path: string) => void = (path) => process.loadEnvFile(path),
+): string => {
+    const operatorPath = operatorConfigPath(operatorOverride, env);
+    if (existsSync(operatorPath)) loadEnvFile(operatorPath);
+    loadEnvFile(defaultsPath);
+    return operatorPath;
+};
+
+export const selectedModel = (
     env: NodeJS.ProcessEnv = process.env,
 ): string => {
-    for (const candidate of [explicit, env.PLURNK_BENCH_MODEL]) {
-        if (candidate !== undefined && candidate.trim() !== "") return candidate.trim();
+    const model = env.PLURNK_MODEL?.trim();
+    if (model === undefined || model === "") {
+        throw new Error("PLURNK_MODEL must select the benchmark candidate model");
     }
-    return DEFAULT_MODEL;
+    return model;
 };

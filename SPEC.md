@@ -238,18 +238,22 @@ the pristine baseline.
 ## §config-carry The runner carries authoritative config, re-declaring nothing
 
 `deepswe/smoke.sh` reads the daemon's config from its authoritative sources IN PLACE —
-model layer from `${XDG_CONFIG_HOME:-$HOME/.config}/plurnk/.env`, provider env from the shell — and forwards every set
+model selection from the shell/XDG/committed-default cascade, alias tuning from
+`${XDG_CONFIG_HOME:-$HOME/.config}/plurnk/.env`, and provider env from the shell — and forwards every set
 `PLURNK_*` / `*_BASE_URL` / `*_API_KEY` to the in-container daemon via `--agent-env`. The one
 container-boundary transform: loopback (`127.0.0.1`/`localhost`) in a `*_BASE_URL` rewrites
 to the host LAN IP. Child contracts:
 
-- §config-model-default Every model a harness selects — candidate, requiem witness, child —
-  is configurable: an explicit alias argument, else the harness's own knob, else
-  `PLURNK_BENCH_MODEL`; when nothing configures it, the local `rtx5070` route runs. No
-  runner refuses for want of a model. Covered: `host-paths.test.ts`, `smoke.test.ts`,
-  `benchlet.test.ts [§config-model-default]`.
+- §config-model-default The candidate model uses the product's ordinary
+  `PLURNK_MODEL` cascade: an invoking-shell value, then the XDG operator file,
+  then the committed benchmark default. Harnesses admit no positional or
+  benchmark-specific candidate selector. Distinct actors such as a requiem
+  witness, judge, or child retain their named selector and deliberately inherit
+  the resolved candidate when their contract permits an unset value. Covered:
+  `host-paths.test.ts`, `smoke.test.ts`, and `[§config-model-default]` in
+  `benchlet.test.ts`.
 - §config-bench-namespace Bench-invented knobs are namespaced `PLURNK_BENCH_*` (`PLURNK_BENCH_HOME`,
-  `PLURNK_BENCH_MODEL`, `PLURNK_BENCH_HARNESS`, `PLURNK_BENCH_REQUIEM`, …)
+  `PLURNK_BENCH_HARNESS`, `PLURNK_BENCH_REQUIEM`, …)
   (TIMEOUT_SEC, CPUS, FORCE_BUILD, NO_GBNF) and are orchestration, never daemon config —
   excluded from forwarding.
 - §config-gbnf-optout `PLURNK_BENCH_NO_GBNF=1` forwards `PLURNK_PROVIDERS_GBNF=0` — an

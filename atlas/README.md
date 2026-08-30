@@ -22,8 +22,9 @@ Atlas's bundled servers use older and mixed MCP revisions. The adapter does not
 claim that they are current. It preserves Atlas's task and sandbox boundary
 while making the Plurnk-facing protocol boundary current and explicit.
 
-Run the documented filesystem task with the configured model (`PLURNK_BENCH_ATLAS_MODEL`,
-else `PLURNK_BENCH_MODEL`, else `rtx5070`):
+Run the documented filesystem task with the ordinary Plurnk model selection
+(`PLURNK_MODEL`, resolved through the shell, XDG operator config, and committed
+benchmark default):
 
 ```sh
 PLURNK_BENCH_ATLAS_CLIENT_ROOT=/path/to/open-client npm run atlas
@@ -37,10 +38,10 @@ PLURNK_BENCH_ATLAS_CLIENT_ROOT=/path/to/open-client \
   npm run atlas -- --task fantasy-sports-average
 ```
 
-Select another configured model alias:
+Select another configured model alias through the same product surface:
 
 ```sh
-PLURNK_BENCH_ATLAS_CLIENT_ROOT=/path/to/open-client npm run atlas -- glm
+PLURNK_MODEL=glm PLURNK_BENCH_ATLAS_CLIENT_ROOT=/path/to/open-client npm run atlas
 ```
 
 The outside client checkout is an explicit precondition. The harness never

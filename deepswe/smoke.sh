@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
 # Diagnostic smoke (SPEC §config-carry): drive one DeepSWE task through plurnk. Reads the AUTHORITATIVE daemon
 # config IN PLACE — bench re-declares nothing:
-#   • model layer   ← $XDG_CONFIG_HOME/plurnk/.env (aliases and model controls)
+#   • model choice  ← shell, then $XDG_CONFIG_HOME/plurnk/.env, then .env.defaults
+#   • alias tuning  ← $XDG_CONFIG_HOME/plurnk/.env
 #   • provider env  ← your shell        (.bashrc: OPENAI_BASE_URL, XAI_*, keys, …)
 # and forwards it to the in-container daemon via --agent-env (Pier does NOT interpolate
 # ${VAR} in --config — that resolver is dead code). A *_BASE_URL on host loopback is
 # rewritten to the host LAN IP, the one container-boundary transform (the container can't
 # reach the host's 127.0.0.1, but reaches the same 0.0.0.0-bound server on the LAN).
 #
-# Usage: deepswe/smoke.sh [task-glob|all] [model-alias]
+# Usage: deepswe/smoke.sh [task-glob|all]
 #   task-glob    default: abs-module-cache-flags; `all` runs the FULL corpus (official mode)
-#   model-alias  default: PLURNK_BENCH_MODEL, else rtx5070 (e.g. deepdumb, glm)
+#   model        selected by the ordinary PLURNK_MODEL cascade
 #
 # `all` is the official-corpus mode: it forwards the MINIMAL manifest — the model layer for
 # the run's aliases plus their provider credentials, nothing else. No MCP fleet, no web
@@ -39,17 +40,21 @@ source_env_file() {
   eval "$(node -e '
     const { parseEnv } = require("node:util");
     const parsed = parseEnv(require("node:fs").readFileSync(process.argv[1], "utf8"));
-    for (const [key, value] of Object.entries(parsed))
+    for (const [key, value] of Object.entries(parsed)) {
+      if (Object.hasOwn(process.env, key)) continue;
       console.log("export " + key + "=" + "\x27" + value.replaceAll("\x27", "\x27\\\x27\x27") + "\x27");
+    }
   ' "$1")"
 }
 source_env_file "$OPERATOR_ENV"
+source_env_file ".env.defaults"
 # Transport (service 1.0.0): single listener — PLURNK_PORT=1066 is THE client surface
 # (AG-UI); the separate WS listener is gone. The in-container daemon+client pair share the
 # shipped default, so bench sets NOTHING here (a stale port export silently kills the loop).
+[ "$#" -le 1 ] || { echo "usage: deepswe/smoke.sh [task-glob|all]" >&2; exit 2; }
 TASK="${1:-abs-module-cache-flags}"
-# SPEC §config-model-default: explicit alias, else PLURNK_BENCH_MODEL, else the local rtx5070 route.
-MODEL="${2:-${PLURNK_BENCH_MODEL:-rtx5070}}"
+# SPEC §config-model-default: shell, then XDG operator config, then the committed floor.
+MODEL="$PLURNK_MODEL"
 LAN_IP="$(hostname -I | awk '{print $1}')"
 
 # Give the agent the BENCHMARK's own budget, not an arbitrary cap: read the task's

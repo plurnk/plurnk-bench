@@ -10,7 +10,7 @@ The harness never submits on the model's behalf — an unsubmitted answer is the
 failure and the benchmark's judge records it as such (SPEC §enterprise-answer).
 
 Run it (enterprise/smoke.sh is the carry-manifest runner):
-    enterprise/smoke.sh <task|all> [model-alias]
+    PLURNK_MODEL=<configured-alias> enterprise/smoke.sh <task|all>
 """
 
 from __future__ import annotations

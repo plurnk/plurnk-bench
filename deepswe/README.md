@@ -24,13 +24,12 @@ smoke.sh     carry-manifest runner: forwards an env file to the daemon via --age
 git clone https://github.com/datacurve-ai/deep-swe
 uv tool install git+https://github.com/datacurve-ai/pier
 
-# 2. write .env — the CARRY MANIFEST for the in-container daemon (see .env.example).
-#    Derive it from your daemon config: the model layer (PLURNK_MODEL, the alias def)
-#    plus the provider endpoint the alias resolves to. A local llama-server the host
-#    reaches on 127.0.0.1 is reached from the container on the host's LAN IP.
+# 2. Declare reusable aliases in ${XDG_CONFIG_HOME:-$HOME/.config}/plurnk/.env
+#    and provider endpoints/credentials in the invoking shell. PLURNK_MODEL follows
+#    the ordinary shell → XDG → committed-default cascade.
 
 # 3. smoke one task, then scale
-deepswe/smoke.sh abs-module-cache-flags .env
+PLURNK_MODEL=deepdumb deepswe/smoke.sh abs-module-cache-flags
 ```
 
 ## iterative diagnostic
@@ -41,9 +40,9 @@ pinned external task without Pier's full container ceremony:
 ```sh
 export PLURNK_BENCHLET_CLIENT_ROOT=/path/to/open-client
 deepswe/benchlet.sh --preflight
-deepswe/benchlet.sh grok
+PLURNK_MODEL=grok deepswe/benchlet.sh
 deepswe/benchlet.sh --task happy-dom-abort-pending-body-reads --preflight
-deepswe/benchlet.sh --task happy-dom-abort-pending-body-reads glm
+PLURNK_MODEL=glm deepswe/benchlet.sh --task happy-dom-abort-pending-body-reads
 ```
 
 The outside client checkout is an explicit precondition. The harness never

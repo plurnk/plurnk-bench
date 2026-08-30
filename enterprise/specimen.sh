@@ -7,7 +7,7 @@
 # model's shell commands run HERE, not in a container. That is the price of testing unreleased
 # code; the Harbor path (enterprise/smoke.sh) is the isolated, publishable one.
 #
-# Usage: enterprise/specimen.sh <task> [model-alias]
+# Usage: enterprise/specimen.sh <task>
 #   PLURNK_BENCHLET_SERVICE_ROOT   service checkout (default: ../plurnk-service)
 #   PLURNK_CLIENT_CHECKOUT         client checkout (default: ../plurnk)
 #   PLURNK_CANDIDATE_SKIP_BUILD    =1 to reuse the checkouts' dist
@@ -15,8 +15,26 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-TASK="${1:?usage: enterprise/specimen.sh <task> [model-alias]}"
-MODEL="${2:-${PLURNK_BENCH_MODEL:-rtx5070}}"
+CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+case "$CONFIG_HOME" in /*) ;; *) CONFIG_HOME="$HOME/.config";; esac
+OPERATOR_ENV="$CONFIG_HOME/plurnk/.env"
+[ -r "$OPERATOR_ENV" ] || { echo "specimen: operator config is missing: $OPERATOR_ENV" >&2; exit 1; }
+source_env_file() {
+  eval "$(node -e '
+    const { parseEnv } = require("node:util");
+    const parsed = parseEnv(require("node:fs").readFileSync(process.argv[1], "utf8"));
+    for (const [key, value] of Object.entries(parsed)) {
+      if (Object.hasOwn(process.env, key)) continue;
+      console.log("export " + key + "=" + "\x27" + value.replaceAll("\x27", "\x27\\\x27\x27") + "\x27");
+    }
+  ' "$1")"
+}
+source_env_file "$OPERATOR_ENV"
+source_env_file ".env.defaults"
+
+[ "$#" -eq 1 ] || { echo "usage: enterprise/specimen.sh <task>" >&2; exit 2; }
+TASK="$1"
+MODEL="$PLURNK_MODEL"
 BENCH_ROOT=".cache/enterprise-bench"
 BENCH_IMAGE="enterprise-bench/conversational-base:latest"
 SERVICE_ROOT="$(cd "${PLURNK_BENCHLET_SERVICE_ROOT:-../plurnk-service}" && pwd)"
@@ -49,7 +67,7 @@ curl -sf http://127.0.0.1:8000/health >/dev/null || { echo "specimen: task conta
 docker cp "$TASK_PATH/tests/." "$CONTAINER:/tests/"
 
 # The same posture the Harbor driver carries (SPEC §enterprise-posture), on a host daemon.
-export PLURNK_CANDIDATE_MODEL="$MODEL"
+export PLURNK_MODEL="$MODEL"
 export PLURNK_MCP_PM="http://127.0.0.1:8011/mcp" PLURNK_MCP_CRM="http://127.0.0.1:8012/mcp" PLURNK_MCP_FILESERVER="http://127.0.0.1:8013/mcp"
 export PLURNK_MCP_ENABLED='["pm","crm","fileserver"]' PLURNK_MCP_EXPANDED='["pm","crm","fileserver"]'
 export PLURNK_EXECS_ONLY="sh,pm,crm,fileserver" PLURNK_SERVICE_MAX_EMBED_SIZE=262144

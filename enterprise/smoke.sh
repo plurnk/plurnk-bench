@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Enterprise-Bench runner (SPEC §enterprise): drive DevRev Enterprise-Bench L1-L2 tasks through
 # plurnk under Harbor. Reads the AUTHORITATIVE daemon config IN PLACE — bench re-declares nothing:
-#   • model layer   ← $XDG_CONFIG_HOME/plurnk/.env (aliases and model controls)
+#   • model choice  ← shell, then $XDG_CONFIG_HOME/plurnk/.env, then .env.defaults
+#   • alias tuning  ← $XDG_CONFIG_HOME/plurnk/.env
 #   • provider env  ← your shell        (.bashrc: keys, endpoints)
 #   • judge key     ← your shell        (OPENAI_API_KEY — Harbor interpolates the task's [verifier.env])
 # and forwards the MINIMAL manifest to the in-container daemon via --agent-env: the model layer for
@@ -9,9 +10,9 @@
 # services (mcp.json) and Harbor hands them to the driver, which re-hosts them for a Linux host and
 # declares them as plurnk HTTP MCP servers. The operator's MCP fleet never rides (SPEC §enterprise-mcp-carry).
 #
-# Usage: enterprise/smoke.sh [task|all] [model-alias]
+# Usage: enterprise/smoke.sh [task|all]
 #   task         one task directory name (default: eng-l1-a); `all` runs the 14-task corpus
-#   model-alias  default: PLURNK_BENCH_MODEL, else rtx5070 (e.g. deepdumb, glm)
+#   model        selected by the ordinary PLURNK_MODEL cascade
 #
 # Bench's own knobs are namespaced PLURNK_BENCH_ (SPEC §config-bench-namespace — never forwarded to the daemon):
 #   PLURNK_BENCH_PROFILE      single (1 trial/task, default) | comparison (3) | canonical (10) — SPEC §enterprise-profiles
@@ -39,15 +40,19 @@ source_env_file() {
   eval "$(node -e '
     const { parseEnv } = require("node:util");
     const parsed = parseEnv(require("node:fs").readFileSync(process.argv[1], "utf8"));
-    for (const [key, value] of Object.entries(parsed))
+    for (const [key, value] of Object.entries(parsed)) {
+      if (Object.hasOwn(process.env, key)) continue;
       console.log("export " + key + "=" + "\x27" + value.replaceAll("\x27", "\x27\\\x27\x27") + "\x27");
+    }
   ' "$1")"
 }
 source_env_file "$OPERATOR_ENV"
+source_env_file ".env.defaults"
 
+[ "$#" -le 1 ] || { echo "usage: enterprise/smoke.sh [task|all]" >&2; exit 2; }
 TASK="${1:-eng-l1-a}"
-# SPEC §config-model-default: explicit alias, else PLURNK_BENCH_MODEL, else the local rtx5070 route.
-MODEL="${2:-${PLURNK_BENCH_MODEL:-rtx5070}}"
+# SPEC §config-model-default: shell, then XDG operator config, then the committed floor.
+MODEL="$PLURNK_MODEL"
 PROFILE="${PLURNK_BENCH_PROFILE:-single}"
 case "$PROFILE" in
   single) TRIALS=1;;
