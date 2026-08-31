@@ -69,10 +69,12 @@ export const publishRun = (record: BenchRecord, benchmarksDir: string): string |
     const digestDir = join(runDir, "digest");
     const db = join(runDir, "plurnk.db");
     copyFileSync(record.run.dbPath, db);
+    // SPEC §publish-workspace-scope (#450): the digest is the run's FULL workspace —
+    // worker narrowing would exclude the vector pump's workspace-owned (turnless)
+    // embedding derivations and any child worker's own evidence.
     Digest.run({
         dbPath: db,
         digestDir,
-        ...(record.run.workerId !== undefined ? { workerId: record.run.workerId } : {}),
         ...(record.run.workspaceId !== undefined ? { workspaceId: record.run.workspaceId } : {}),
     });
     if (!digestHasModelTurns(digestDir)) {

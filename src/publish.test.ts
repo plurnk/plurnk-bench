@@ -158,3 +158,10 @@ test("[§publish-requiem-accounting] a banked interview's spend folds into recor
         rmSync(dir, { recursive: true, force: true });
     }
 });
+
+test("[§publish-workspace-scope] the published digest is workspace-scoped, never worker-narrowed", () => {
+    const source = readFileSync(new URL("./publish.ts", import.meta.url), "utf8");
+    const call = source.match(/Digest\.run\(\{[\s\S]*?\}\);/)?.[0] ?? "";
+    assert.match(call, /workspaceId/);
+    assert.doesNotMatch(call, /workerId/, "worker narrowing excludes the pump's workspace-owned embeddings (#450)");
+});

@@ -154,6 +154,11 @@ daemon DB), **`digest/`** (rendered from the COPY — the dir is self-contained)
   requested it is BEST-EFFORT under the carried provider config: a missing witness is a
   skip, never a publish failure. Covered: `src/publish.test.ts [§publish-requiem]` (the
   opt-in gate); the live requiem itself is validated against real runs only.
+- §publish-workspace-scope The published digest is workspace-scoped, never worker-narrowed:
+  the trial container's DB holds one fresh workspace, and the workerId selector would
+  exclude workspace-owned (turnless) embedding derivations — the vector pump's entire
+  ledger — plus any child worker's own evidence. record.json keeps `run.workerId` as a
+  drill-down handle only. Covered: `src/publish.test.ts [§publish-workspace-scope]`.
 - §publish-requiem-accounting A banked interview's spend is part of the run's ledger:
   after the requiem lands, its accounting summary (workers, provider requests, usage,
   cache effectiveness, exact nullable USD) folds into `record.json` under `requiem`, so
