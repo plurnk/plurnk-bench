@@ -11,6 +11,7 @@ import {
     digestHasModelTurns,
     publishRun,
     publishedRecord,
+    foldRequiemAccounting,
 } from "./publish.ts";
 import type { BenchRecord } from "./record.ts";
 import { allocateRunDirectory } from "./run-directory.ts";
@@ -99,4 +100,61 @@ test("[§publish-requiem] the requiem is banked only on PLURNK_BENCH_REQUIEM=1",
     const source = readFileSync(new URL("./publish.ts", import.meta.url), "utf8");
     assert.match(source, /if \(process\.env\.PLURNK_BENCH_REQUIEM === "1"\) \{\s*try \{\s*await Digest\.requiem\(/);
     assert.equal((source.match(/Digest\.requiem\(/g) ?? []).length, 1);
+});
+
+test("[§publish-requiem-accounting] a banked interview's spend folds into record.json under requiem", () => {
+    const dir = mkdtempSync(join(tmpdir(), "bench-requiem-fold-"));
+    try {
+        writeFileSync(join(dir, "record.json"), JSON.stringify({
+            harness: "deepswe",
+            taskId: "fixture-task",
+            model: "plurnk/fixture",
+            durationMs: 1,
+            status: 200,
+            outcome: "pass",
+            turns: 1,
+        }, null, 4) + "\n");
+        mkdirSync(join(dir, "digest"));
+        writeFileSync(join(dir, "digest", "requiem.json"), JSON.stringify({
+            workers: [{
+                accounting: {
+                    requests: [{
+                        provider: "provider:fixture",
+                        model: "requiem-witness",
+                        outcome: "response",
+                        cost: { kind: "charged", amount: { amount: "0.05", currency: "USD" }, source: "fixture" },
+                    }],
+                    usage: {
+                        inputTokens: 10,
+                        outputTokens: 2,
+                        totalTokens: 12,
+                        inputTokenDetails: { cacheReadTokens: 1 },
+                        outputTokenDetails: { textTokens: 2, reasoningTokens: 0 },
+                    },
+                    costUsd: "0.05",
+                },
+            }],
+        }));
+        foldRequiemAccounting(dir);
+        const record = JSON.parse(readFileSync(join(dir, "record.json"), "utf8")) as BenchRecord;
+        assert.equal(record.taskId, "fixture-task", "the original record survives the fold");
+        assert.deepEqual(record.requiem, {
+            workers: 1,
+            providerRequests: 1,
+            usage: {
+                inputTokens: 10,
+                outputTokens: 2,
+                totalTokens: 12,
+                inputTokenDetails: { cacheReadTokens: 1 },
+                outputTokenDetails: { textTokens: 2, reasoningTokens: 0 },
+            },
+            cacheEffectiveness: { inputTokens: 10, cacheReadTokens: 1, cacheReadTokenRatio: 0.1 },
+            costUsd: "0.05",
+        });
+        // A missing requiem report fails hard - never a silent no-op.
+        rmSync(join(dir, "digest", "requiem.json"));
+        assert.throws(() => foldRequiemAccounting(dir), /ENOENT/);
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
 });

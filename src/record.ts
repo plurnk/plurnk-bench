@@ -70,5 +70,8 @@ export interface BenchRecord {
     startedAt?: string;         // ISO 8601, when available (Pier trial timing)
     finishedAt?: string;        // ISO 8601
     webMaterialization?: WebMaterializationProvenance;
+    // SPEC §publish-requiem-accounting: the banked exit interview's spend, folded in
+    // post-interview so the run dir's ledger is complete in one file.
+    requiem?: import("./accounting.ts").RequiemAccountingSummary;
     problem?: import("@plurnk/plurnk-contracts").ProblemDetails; // exact client or terminal failure occurrence
 }

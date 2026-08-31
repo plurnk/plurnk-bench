@@ -14,6 +14,8 @@ import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { parseArgs } from "node:util";
 import Digest from "@plurnk/plurnk-service/digest";
+import { summarizeRequiemAccounting } from "./accounting.ts";
+import type { RequiemAccountingInput } from "./accounting.ts";
 import { isTrialDir, readTrialDir } from "./ingest.ts";
 import { benchmarksHome, jobsRoot } from "./host-paths.ts";
 import { allocateRunDirectory } from "./run-directory.ts";
@@ -83,6 +85,17 @@ export const publishRun = (record: BenchRecord, benchmarksDir: string): string |
     return runDir;
 };
 
+// SPEC §publish-requiem-accounting. The interview re-invokes the model; that spend is part
+// of the run. record.json carries the requiem accounting summary so a corpus tally reads
+// one file per run instead of discovering digest/requiem.json.
+export const foldRequiemAccounting = (dir: string): void => {
+    const report = JSON.parse(readFileSync(join(dir, "digest", "requiem.json"), "utf8")) as RequiemAccountingInput;
+    const summary = summarizeRequiemAccounting(report);
+    const recordPath = join(dir, "record.json");
+    const record = JSON.parse(readFileSync(recordPath, "utf8")) as BenchRecord;
+    writeFileSync(recordPath, JSON.stringify({ ...record, requiem: summary }, null, 4) + "\n");
+};
+
 // SPEC §publish-live. One finished trial → one published run, exactly once: the marker in
 // the trial dir names the run dir (or is empty when the trial had nothing to publish).
 export const publishTrial = async (trialDir: string, harness: string, benchmarksDir: string): Promise<string | null> => {
@@ -111,6 +124,9 @@ export const publishTrial = async (trialDir: string, harness: string, benchmarks
         } catch (e) {
             note = ` (requiem skipped: ${(e as Error).message.slice(0, 70)})`;
         }
+        // SPEC §publish-requiem-accounting (#461): a banked interview's spend belongs to
+        // the run's ledger; a fold failure is a defect and fails hard.
+        if (note === " + requiem") foldRequiemAccounting(dir);
     }
     writeFileSync(marker, `${dir}\n`);
     console.log(`published ${record.taskId} (${record.outcome}) → ${dir}${note}`);

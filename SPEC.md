@@ -154,6 +154,12 @@ daemon DB), **`digest/`** (rendered from the COPY — the dir is self-contained)
   requested it is BEST-EFFORT under the carried provider config: a missing witness is a
   skip, never a publish failure. Covered: `src/publish.test.ts [§publish-requiem]` (the
   opt-in gate); the live requiem itself is validated against real runs only.
+- §publish-requiem-accounting A banked interview's spend is part of the run's ledger:
+  after the requiem lands, its accounting summary (workers, provider requests, usage,
+  cache effectiveness, exact nullable USD) folds into `record.json` under `requiem`, so
+  a corpus tally reads one file per run. A fold failure after a banked interview is a
+  defect and fails hard — never a silent skip. Skipped interviews fold nothing.
+  Covered: `src/publish.test.ts [§publish-requiem-accounting]`.
 - No run handle → nothing to publish (`null`) — the bench never fabricates a run dir.
   Covered: `publish.test.ts [§publish]`.
 
