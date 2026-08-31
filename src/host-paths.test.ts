@@ -70,7 +70,7 @@ test("[§config-model-default] benchmark environment loads operator config befor
 
 test("[§config-model-default] the candidate selection is the ordinary PLURNK_MODEL", () => {
     assert.equal(selectedModel({ PLURNK_MODEL: "deepdumb" }), "deepdumb");
-    assert.equal(selectedModel({ PLURNK_MODEL: " cloudflare/@cf/qwen/qwen3.8-27b " }), "cloudflare/@cf/qwen/qwen3.8-27b");
+    assert.equal(selectedModel({ PLURNK_MODEL: " cloudflare-workers-ai/@cf/qwen/qwen3.8-27b " }), "cloudflare-workers-ai/@cf/qwen/qwen3.8-27b");
     assert.throws(() => selectedModel({}), /PLURNK_MODEL/);
     assert.throws(() => selectedModel({ PLURNK_MODEL: " " }), /PLURNK_MODEL/);
 });
