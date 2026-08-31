@@ -1,12 +1,23 @@
 # plurnk-bench
 
-Benchmarking harnesses for [plurnk-service](https://github.com/plurnk/plurnk-service). Drive real benchmark task sets (DeepSWE first) through the [plurnk](https://github.com/plurnk/plurnk) client against a running daemon; store, score, summarize, and forensically diagnose the runs.
+Benchmarking harnesses for [plurnk-service](https://github.com/plurnk/plurnk-service). Drive real benchmark task sets through the [plurnk](https://github.com/plurnk/plurnk) client against a running daemon; store, score, summarize, and forensically diagnose the runs.
+
+## families
+
+| family | status |
+|---|---|
+| `terminal-bench/` | **active** — the bench (Terminal-Bench 4.0, #13/#16); plurnk agent adapter under construction |
+| `deepswe/` | retired, revivable (2026-08-31, #16) — code and tests intact; revival is re-activation |
+| `atlas/` | retired, revivable (2026-08-31, #16) |
+| `enterprise/` | retired, revivable (2026-08-31, #16); its standing MCP fixtures are down |
+
+Retired families keep their code, tests, and SPEC sections byte-intact so a future revival is a re-activation, not an excavation — but no gate, ritual, or run surface references them.
 
 ## shape
 
 ```
 src/        shared bench core — DRY across every harness
-deepswe/    one folder per harness; DeepSWE is the first
+deepswe/    one folder per harness (see families table for status)
 ```
 
 The core owns the cross-harness primitives: the result record (`BenchRecord`), the trial-artifact join (`ingest`), daemon-digest reuse (`digest`), and run publishing (`publish` → `benchmarks/run<N>` with record + digest + requiem). A harness adapts one benchmark's task format to that core: load tasks → drive each as a plurnk run → score with the benchmark's oracle → record.
