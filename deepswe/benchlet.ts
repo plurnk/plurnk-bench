@@ -175,6 +175,7 @@ interface DigestJson {
         origin: string;
         op: string | null;
         target: string | null;
+        source?: string | null;
         status_rx: number;
         attrs: Record<string, unknown>;
         problem?: {
@@ -878,12 +879,18 @@ const terminalStreamObservation = (
     return { address: address.toString(), channel };
 };
 
-const summarizeFailures = (entries: DigestJson["log_entries"]): FailureSummary => {
+// Stream coordinates are worker-relative; reconciliation imports a child's stream
+// observations into the parent's log with `source: worker://…`. Ownership and
+// incident keys namespace by that provenance so a child's `sh:///1/2/3` never
+// collides with the parent's own (#464).
+const streamNamespace = (entry: DigestJson["log_entries"][number]): string =>
+    typeof entry.source === "string" && entry.source.startsWith("worker://") ? entry.source : "";
+export const summarizeFailures = (entries: DigestJson["log_entries"]): FailureSummary => {
     const streamOwners = new Map<string, DigestJson["log_entries"][number]>();
     for (const entry of entries) {
         const stream = entry.attrs.stream;
         if (typeof stream !== "string") continue;
-        const key = `${entry.worker_id}\u0000${stream}`;
+        const key = `${entry.worker_id}\u0000${streamNamespace(entry)}\u0000${stream}`;
         const previous = streamOwners.get(key);
         if (previous !== undefined && previous.id !== entry.id) {
             throw new Error(`digest assigns stream ${stream} to multiple log entries for worker ${entry.worker_id}`);
@@ -918,7 +925,7 @@ const summarizeFailures = (entries: DigestJson["log_entries"]): FailureSummary =
             continue;
         }
 
-        const key = `${entry.worker_id}\u0000${stream.address}`;
+        const key = `${entry.worker_id}\u0000${streamNamespace(entry)}\u0000${stream.address}`;
         const existing = streamIncidents.get(key);
         if (existing !== undefined) {
             if (existing.status !== entry.status_rx || existing.problemType !== problemType) {
@@ -932,7 +939,7 @@ const summarizeFailures = (entries: DigestJson["log_entries"]): FailureSummary =
             continue;
         }
 
-        const owner = streamOwners.get(key);
+        const owner = streamOwners.get(`${entry.worker_id}\u0000${streamNamespace(entry)}\u0000${stream.address}`);
         const incident: FailureIncident = {
             kind: "stream",
             workerId: entry.worker_id,

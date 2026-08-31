@@ -21,6 +21,7 @@ import {
     requiemIsComplete,
     requiemModelAlias,
     runToFiles,
+    summarizeFailures,
 } from "./benchlet.ts";
 
 test("[§benchlet-evidence] benchlet resolves and snapshots the service candidate policy", () => {
@@ -469,4 +470,23 @@ test("[§benchlet-requiem-witness] requiem selection is independent and explicit
 test("[§benchlet-candidate-timeout] -1 disables the candidate timer; positive values add the overhead", () => {
     assert.equal(candidateTimeoutMs(-1, 900), undefined);
     assert.equal(candidateTimeoutMs(5280, 900), 6_180_000);
+});
+
+test("summarizeFailures: a child's reconciled EXEC does not collide with the parent's own stream at the same worker-relative coordinate (#464)", () => {
+    const exec = (id: number, source: string | null, origin: string) => ({
+        id, worker_id: 3, op: "EXEC", origin, state: "resolved", outcome: null,
+        target: null, source, status_rx: 200, problem: null,
+        attrs: { stream: "sh:///1/2/3", runtime: "sh" },
+    });
+    // run206's true shape: the parent's own EXEC plus the child's EXEC reconciled in with its
+    // child-relative coordinate intact.
+    assert.doesNotThrow(() => summarizeFailures([
+        exec(41, null, "model"),
+        exec(187, "worker://cli-investigation", "_plurnk"),
+    ] as never));
+    // The fail-hard survives for true same-namespace duplicates.
+    assert.throws(() => summarizeFailures([
+        exec(1, null, "model"),
+        exec(2, null, "model"),
+    ] as never), /assigns stream/);
 });
