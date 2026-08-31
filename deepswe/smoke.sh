@@ -113,6 +113,18 @@ if [ "$TASK" = all ]; then
       flags+=(--agent-env "$k=${!k}")
     done
   done
+  # Provider-scoped knobs ride with the providers the run's aliases resolve to —
+  # alias tuning (REASONING_<alias>=low) is meaningless without the provider's
+  # admitted-efforts/style lines (the 113×0 fleet refusal of 2026-08-31, #11).
+  for prefix in $(for alias in "$MODEL" "${PLURNK_MODEL_CHILD:-}"; do
+    [ -n "$alias" ] || continue
+    def_var="PLURNK_MODEL_${alias}"; def="${!def_var:-$alias}"
+    case "$def" in */*) printf '%s\n' "${def%%/*}" | tr -c 'A-Za-z0-9\n' '_' | tr 'a-z' 'A-Z';; esac
+  done | sort -u); do
+    for k in $(compgen -v | grep -E "^PLURNK_PROVIDERS_PROVIDER_${prefix}_"); do
+      flags+=(--agent-env "$k=${!k}")
+    done
+  done
   while IFS= read -r line; do
     case "$line" in DOMAINS=*) ;; *) flags+=(--agent-env "$line");; esac
   done <<< "$MANIFEST"
