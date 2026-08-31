@@ -102,6 +102,13 @@ class PlurnkAgent(BaseInstalledAgent):
             "apt-get install -y nodejs\n"
             # global install needs root; the agent user runs the bins off PATH at runtime
             f"npm install -g {shlex.quote(service)} {shlex.quote(client)}\n"
+            # Harness provisioning (#460): the DeepSWE environment ships no git identity
+            # (the dataset's own oracle inlines `-c user.name` per commit); the v1.1
+            # protocol mandates committing, so a neutral identity is part of our agent
+            # provisioning, like the env injection above. System-level so the agent
+            # user inherits it.
+            "git config --system user.name plurnk-candidate\n"
+            "git config --system user.email candidate@plurnk.invalid\n"
             "command -v plurnk\n"
             "command -v plurnk-service\n"
         )
