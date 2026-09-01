@@ -27,6 +27,7 @@
 #   PLURNK_BENCH_NO_GBNF      =1 to drop PLURNK_PROVIDERS_GBNF (for models that can't enforce it, e.g. xai)
 #   PLURNK_BENCH_JOBS         `all` mode concurrency (default 4)
 #   PLURNK_BENCH_PREFLIGHT    `all` mode, one named task through the corpus's exact path (#12)
+#   PLURNK_BENCH_MODEL_BASE_URL  replaces LOOPBACK manifest base URLs only (local model via its published hostname)
 #   (every run samples docker stats once a minute into <job>/docker-stats.jsonl — SPEC §config-resource-samples)
 #   (every run first pre-pulls its task images via deepswe/prepull.sh — SPEC §config-image-prepull — and refuses
 #    to start trials without them; the bench's own @plurnk/plurnk-service must equal the corpus's — SPEC §config-digest-preflight)
@@ -133,7 +134,23 @@ if [ "$TASK" = all ]; then
     done
   done
   while IFS= read -r line; do
-    case "$line" in DOMAINS=*) ;; *) flags+=(--agent-env "$line");; esac
+    case "$line" in
+      DOMAINS=*) ;;
+      *_BASE_URL=*)
+        k="${line%%=*}"; v="${line#*=}"
+        case "$v" in
+          *127.0.0.1*|*localhost*)
+            # #12 preflight catch: a loopback endpoint is unreachable in-container and
+            # its port sits outside the squid wall; route through the published hostname.
+            [ -n "${PLURNK_BENCH_MODEL_BASE_URL:-}" ] || {
+              echo "smoke: manifest carries a loopback $k; set PLURNK_BENCH_MODEL_BASE_URL (e.g. https://jennifer.plurnk.ai/v1)" >&2; exit 1
+            }
+            v="$PLURNK_BENCH_MODEL_BASE_URL";;
+        esac
+        h="${v#*://}"; h="${h%%[:/]*}"; EGRESS_DOMAINS="${EGRESS_DOMAINS:+$EGRESS_DOMAINS,}$h"
+        flags+=(--agent-env "$k=$v");;
+      *) flags+=(--agent-env "$line");;
+    esac
   done <<< "$MANIFEST"
 else
   # Forward the DAEMON's config that already exists: every PLURNK_* (alias defs + GBNF) and
