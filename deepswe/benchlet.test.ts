@@ -13,6 +13,7 @@ import {
     candidateTimeoutMs,
     candidatePolicyPath,
     candidatePolicySnapshotPath,
+    candidateRecapSnapshotPath,
     digestSummary,
     gradeObservations,
     manifestPathForTask,
@@ -32,6 +33,11 @@ test("[§benchlet-evidence] benchlet resolves and snapshots the service candidat
     assert.equal(
         candidatePolicySnapshotPath("/artifacts/run46"),
         "/artifacts/run46/candidate-policy.md",
+    );
+    assert.equal(
+        candidateRecapSnapshotPath("/artifacts/run46"),
+        "/artifacts/run46/candidate-recap.md",
+        "a per-run recap is snapshotted beside the policy",
     );
 });
 

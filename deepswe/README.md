@@ -50,6 +50,13 @@ PLURNK_MODEL=rtx5070 PLURNK_BENCHLET_TIMELESS=1 deepswe/benchlet.sh --task abs-m
 budget deadline, lets the run play on to `PLURNK_BENCHLET_TIMELESS_CAP` × budget
 (default 2), and grades the deadline photograph beside the final trees.
 
+`--recap <file>` (or `PLURNK_BENCHLET_RECAP`) makes that file the candidate daemon's
+Recap footer for this run only: validated in preflight, snapshotted to
+`candidate-recap.md`, forwarded as `PLURNK_SERVICE_RECAP`, and recorded with its
+sha256 in provenance. Model-facing text is tuned per run this way, never by editing a
+tracked source file. The weak-model line for GBNF runs ({§gbnf-forced-march}) belongs
+here rather than in `plurnk-meta/recap.md`.
+
 The outside client checkout is an explicit precondition. The harness never
 guesses a sibling under the shared parent directory.
 
