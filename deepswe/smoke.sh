@@ -26,6 +26,7 @@
 #   PLURNK_BENCH_FORCE_BUILD  =1 to force an agent-image rebuild (base-image/debug escape hatch)
 #   PLURNK_BENCH_NO_GBNF      =1 to drop PLURNK_PROVIDERS_GBNF (for models that can't enforce it, e.g. xai)
 #   PLURNK_BENCH_JOBS         `all` mode concurrency (default 4)
+#   PLURNK_BENCH_PREFLIGHT    `all` mode, one named task through the corpus's exact path (#12)
 #   (every run samples docker stats once a minute into <job>/docker-stats.jsonl — SPEC §config-resource-samples)
 #   (every run first pre-pulls its task images via deepswe/prepull.sh — SPEC §config-image-prepull — and refuses
 #    to start trials without them; the bench's own @plurnk/plurnk-service must equal the corpus's — SPEC §config-digest-preflight)
@@ -248,7 +249,15 @@ build=()
 
 # Task selection: one named task, or the whole corpus at bounded concurrency.
 select_flags=(-i "$TASK" --n-tasks 1)
-[ "$TASK" = all ] && select_flags=(--n-concurrent "${PLURNK_BENCH_JOBS:-4}")
+if [ "$TASK" = all ]; then
+  # #12: the preflight IS the corpus at width one — the identical all-mode manifest
+  # and forwarding, one named task; certification cannot diverge from what it certifies.
+  if [ -n "${PLURNK_BENCH_PREFLIGHT:-}" ]; then
+    select_flags=(-i "$PLURNK_BENCH_PREFLIGHT" --n-tasks 1)
+  else
+    select_flags=(--n-concurrent "${PLURNK_BENCH_JOBS:-4}")
+  fi
+fi
 
 echo "smoke: model=$MODEL task=$TASK service=$SERVICE_VERSION client=$CLIENT_VERSION tavily=$TAVILY_ROUTE embed=$PLURNK_BENCH_EMBEDDING_ROUTE egress=$EGRESS_DOMAINS cpus=${PLURNK_BENCH_CPUS:-native} client_timeout=${CLIENT_TIMEOUT_SEC}s (budget ${AGENT_BUDGET:-?}s)${PLURNK_BENCH_FORCE_BUILD:+ [force-build]}" >&2
 # The default personality ships on: the daemon seeds PLURNK_PERSONALITY.md to
