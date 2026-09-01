@@ -171,15 +171,26 @@ fi
 # SPEC §config-embedding-route: every mode forwards ONE public OpenAI-compatible embedding
 # route (a built-in daemon profile — no facts) and allowlists its host. The container can't
 # reach a loopback embedder, and the corpus must not embed on the task's CPU allotment.
-[ -n "${PLURNK_BENCH_EMBEDDING_ROUTE:-}" ] && [ -n "${PLURNK_BENCH_EMBEDDING_BASE_URL:-}" ] || {
-  echo "smoke: PLURNK_BENCH_EMBEDDING_ROUTE and PLURNK_BENCH_EMBEDDING_BASE_URL are required" >&2; exit 1
+[ -n "${PLURNK_BENCH_EMBEDDING_ROUTE:-}" ] || {
+  echo "smoke: PLURNK_BENCH_EMBEDDING_ROUTE is required (a hosted route, or 'bundled')" >&2; exit 1
 }
-EMBED_PREFIX="$(printf '%s' "${PLURNK_BENCH_EMBEDDING_ROUTE%%/*}" | tr -c 'A-Za-z0-9' '_' | tr 'a-z' 'A-Z')"
-EMBED_HOST="${PLURNK_BENCH_EMBEDDING_BASE_URL#*://}"; EMBED_HOST="${EMBED_HOST%%[:/]*}"
-flags+=(--agent-env "PLURNK_EMBEDDING_MODEL=$PLURNK_BENCH_EMBEDDING_ROUTE")
-flags+=(--agent-env "PLURNK_PROVIDERS_PROVIDER_${EMBED_PREFIX}_NPM=@ai-sdk/openai-compatible")
-flags+=(--agent-env "PLURNK_PROVIDERS_PROVIDER_${EMBED_PREFIX}_BASE_URL=$PLURNK_BENCH_EMBEDDING_BASE_URL")
-EGRESS_DOMAINS="${EGRESS_DOMAINS:+$EGRESS_DOMAINS,}$EMBED_HOST"
+if [ "$PLURNK_BENCH_EMBEDDING_ROUTE" = bundled ]; then
+  # Local era (#17): the container embeds on its own bundled CPU/wasm profile — an
+  # explicit empty selection is the daemon's structural bundled fallback. At JOBS=1
+  # the whole host serves one trial, so on-CPU embedding no longer competes with
+  # anything; no egress host, no provider lines.
+  flags+=(--agent-env "PLURNK_EMBEDDING_MODEL=")
+else
+  [ -n "${PLURNK_BENCH_EMBEDDING_BASE_URL:-}" ] || {
+    echo "smoke: PLURNK_BENCH_EMBEDDING_BASE_URL is required with a hosted embedding route" >&2; exit 1
+  }
+  EMBED_PREFIX="$(printf '%s' "${PLURNK_BENCH_EMBEDDING_ROUTE%%/*}" | tr -c 'A-Za-z0-9' '_' | tr 'a-z' 'A-Z')"
+  EMBED_HOST="${PLURNK_BENCH_EMBEDDING_BASE_URL#*://}"; EMBED_HOST="${EMBED_HOST%%[:/]*}"
+  flags+=(--agent-env "PLURNK_EMBEDDING_MODEL=$PLURNK_BENCH_EMBEDDING_ROUTE")
+  flags+=(--agent-env "PLURNK_PROVIDERS_PROVIDER_${EMBED_PREFIX}_NPM=@ai-sdk/openai-compatible")
+  flags+=(--agent-env "PLURNK_PROVIDERS_PROVIDER_${EMBED_PREFIX}_BASE_URL=$PLURNK_BENCH_EMBEDDING_BASE_URL")
+  EGRESS_DOMAINS="${EGRESS_DOMAINS:+$EGRESS_DOMAINS,}$EMBED_HOST"
+fi
 
 # SPEC §config-tavily-route: Tavily is ordinary optional provider configuration. Carry
 # it when configured, retain the no-key default, and record only presence + effective depth.
