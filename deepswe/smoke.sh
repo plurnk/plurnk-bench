@@ -134,24 +134,31 @@ if [ "$TASK" = all ]; then
     done
   done
   while IFS= read -r line; do
-    case "$line" in
-      DOMAINS=*) ;;
-      *_BASE_URL=*)
-        k="${line%%=*}"; v="${line#*=}"
-        case "$v" in
-          *127.0.0.1*|*localhost*)
-            # #12 preflight catch: a loopback endpoint is unreachable in-container and
-            # its port sits outside the squid wall; route through the published hostname.
-            [ -n "${PLURNK_BENCH_MODEL_BASE_URL:-}" ] || {
-              echo "smoke: manifest carries a loopback $k; set PLURNK_BENCH_MODEL_BASE_URL (e.g. https://jennifer.plurnk.ai/v1)" >&2; exit 1
-            }
-            v="$PLURNK_BENCH_MODEL_BASE_URL";;
-        esac
-        h="${v#*://}"; h="${h%%[:/]*}"; EGRESS_DOMAINS="${EGRESS_DOMAINS:+$EGRESS_DOMAINS,}$h"
-        flags+=(--agent-env "$k=$v");;
-      *) flags+=(--agent-env "$line");;
-    esac
+    case "$line" in DOMAINS=*) ;; *) flags+=(--agent-env "$line");; esac
   done <<< "$MANIFEST"
+  # #12 preflight catch: base URLs are not credentials, so the manifest never carries
+  # them — parity mode inherits them from the shell and all mode forwarded NOTHING,
+  # leaving a local provider unreachable (empty egress, loopback endpoint). Forward the
+  # run alias's provider base URL explicitly; loopback must route through its published
+  # hostname (squid passes only 80/443).
+  for alias in "$MODEL" "${PLURNK_MODEL_CHILD:-}"; do
+    [ -n "$alias" ] || continue
+    aliasdef_var="PLURNK_MODEL_${alias}"; def="${!aliasdef_var:-$alias}"
+    case "$def" in */*) ;; *) continue;; esac
+    prefix="$(printf '%s' "${def%%/*}" | tr -c 'A-Za-z0-9' '_' | tr 'a-z' 'A-Z')"
+    for k in "PLURNK_BASEURL_${alias}" "${prefix}_BASE_URL"; do
+      v="${!k:-}"; [ -n "$v" ] || continue
+      case "$v" in
+        *127.0.0.1*|*localhost*)
+          [ -n "${PLURNK_BENCH_MODEL_BASE_URL:-}" ] || {
+            echo "smoke: $k is loopback; set PLURNK_BENCH_MODEL_BASE_URL (e.g. https://jennifer.plurnk.ai/v1)" >&2; exit 1
+          }
+          v="$PLURNK_BENCH_MODEL_BASE_URL";;
+      esac
+      h="${v#*://}"; h="${h%%[:/]*}"; EGRESS_DOMAINS="${EGRESS_DOMAINS:+$EGRESS_DOMAINS,}$h"
+      flags+=(--agent-env "$k=$v")
+    done
+  done
 else
   # Forward the DAEMON's config that already exists: every PLURNK_* (alias defs + GBNF) and
   # each provider *_BASE_URL / *_API_KEY that is set, rewriting host loopback → LAN for the
