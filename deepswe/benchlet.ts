@@ -597,6 +597,7 @@ const capturePatches = async (
     repository: string,
     runDir: string,
     baseCommit: string,
+    prefix = "",
 ): Promise<{
     branch: string;
     head: string;
@@ -608,14 +609,14 @@ const capturePatches = async (
     const status = git(repository, ["status", "--porcelain=v2", "--branch"]);
     const branch = git(repository, ["branch", "--show-current"]).trim();
     const head = git(repository, ["rev-parse", "HEAD"]).trim();
-    const submissionPath = resolve(runDir, "model.patch");
+    const submissionPath = resolve(runDir, `${prefix}model.patch`);
     await streamGitDiff(repository, ["diff", "--binary", baseCommit, "HEAD", "--"], submissionPath);
 
-    const alternateIndex = resolve(runDir, "working-tree.index");
+    const alternateIndex = resolve(runDir, `${prefix}working-tree.index`);
     const indexEnv = { ...process.env, GIT_INDEX_FILE: alternateIndex };
     git(repository, ["read-tree", "HEAD"], { env: indexEnv });
     git(repository, ["add", "-A"], { env: indexEnv });
-    const workingPath = resolve(runDir, "working.patch");
+    const workingPath = resolve(runDir, `${prefix}working.patch`);
     await streamGitDiff(repository, ["diff", "--cached", "--binary", baseCommit, "--"], workingPath, indexEnv);
     rmSync(alternateIndex, { force: true });
 
@@ -1107,6 +1108,19 @@ const main = async (): Promise<void> => {
     if (!Number.isSafeInteger(candidateTimeout) || candidateTimeout === 0 || candidateTimeout < -1) {
         throw new Error("PLURNK_BENCHLET_CANDIDATE_TIMEOUT_SEC must be a positive integer, or -1 for no limit");
     }
+    // Deadline-snapshot mode (bench#18): the run plays through to a hard cap while
+    // the official budget becomes a repo photograph graded alongside the finish.
+    const timeless = process.env.PLURNK_BENCHLET_TIMELESS === "1";
+    const timelessCap = process.env.PLURNK_BENCHLET_TIMELESS_CAP === undefined
+        ? 2
+        : Number(process.env.PLURNK_BENCHLET_TIMELESS_CAP);
+    if (timeless && (!Number.isFinite(timelessCap) || timelessCap <= 1)) {
+        throw new Error("PLURNK_BENCHLET_TIMELESS_CAP must be a number above 1");
+    }
+    if (timeless && candidateTimeout === -1) {
+        throw new Error("PLURNK_BENCHLET_TIMELESS needs a finite PLURNK_BENCHLET_CANDIDATE_TIMEOUT_SEC budget to snapshot at");
+    }
+    const clientTimeout = timeless ? Math.ceil(candidateTimeout * timelessCap) : candidateTimeout;
     if (!Number.isSafeInteger(candidateOverhead) || candidateOverhead <= 0) {
         throw new Error("PLURNK_BENCHLET_CANDIDATE_OVERHEAD_SEC must be a positive integer");
     }
@@ -1247,7 +1261,7 @@ const main = async (): Promise<void> => {
         "--auto",
         "--project-root",
         repository,
-        ...(candidateTimeout === -1 ? [] : ["--timeout", String(candidateTimeout)]),
+        ...(clientTimeout === -1 ? [] : ["--timeout", String(clientTimeout)]),
         instruction,
     ];
     const candidateEnvironmentOverrides = {
@@ -1255,6 +1269,7 @@ const main = async (): Promise<void> => {
         PLURNK_MODEL: model,
         PLURNK_CLIENT_CHECKOUT: clientRoot,
         PLURNK_SERVICE_POLICY: candidatePolicySnapshot,
+        ...(timeless ? { PLURNK_CANDIDATE_GRADE_DEADLINE_SEC: String(candidateTimeout) } : {}),
     };
     writeJson(resolve(runDir, "candidate-command.json"), {
         command: process.execPath,
@@ -1272,7 +1287,7 @@ const main = async (): Promise<void> => {
         stdoutPath: resolve(runDir, "candidate.stdout.log"),
         stderrPath: resolve(runDir, "candidate.stderr.log"),
         tee: true,
-        timeoutMs: candidateTimeoutMs(candidateTimeout, candidateOverhead),
+        timeoutMs: candidateTimeoutMs(clientTimeout, candidateOverhead),
     });
 
     activeStage = "capture";
@@ -1319,6 +1334,57 @@ const main = async (): Promise<void> => {
             reason: "working.patch and model.patch have identical SHA-256 hashes",
             patchSha256: patchState.submissionSha256,
         });
+    }
+
+    // bench#18: grade the deadline photograph when the run played through.
+    let deadlineOracle: Record<string, unknown> | null = null;
+    const deadlineRepo = resolve(runDir, "repo@deadline");
+    if (timeless && existsSync(deadlineRepo)) {
+        activeStage = "oracle-deadline";
+        const deadlineState = await capturePatches(deadlineRepo, runDir, manifest.baseCommit, "deadline-");
+        const deadlineWorking = await gradePatch(
+            "deadline-working",
+            resolve(runDir, "deadline-working.patch"),
+            resolve(runDir, "oracle-deadline-working"),
+            repositoryCache,
+            manifest,
+            taskDir,
+            config,
+        );
+        writeJson(resolve(runDir, "oracle-deadline-working.json"), deadlineWorking);
+        const deadlineReused = deadlineState.submissionSha256 === deadlineState.workingSha256;
+        const deadlineSubmission = deadlineReused
+            ? deadlineWorking
+            : await gradePatch(
+                "deadline-submission",
+                resolve(runDir, "deadline-model.patch"),
+                resolve(runDir, "oracle-deadline-submission"),
+                repositoryCache,
+                manifest,
+                taskDir,
+                config,
+            );
+        writeJson(resolve(runDir, "oracle-deadline-submission.json"), deadlineSubmission);
+        deadlineOracle = {
+            budgetSeconds: candidateTimeout,
+            capSeconds: clientTimeout,
+            git: deadlineState,
+            working: deadlineWorking,
+            submission: deadlineSubmission,
+            submissionEvidence: { reusedWorking: deadlineReused, patchSha256: deadlineState.submissionSha256 },
+        };
+    } else if (timeless) {
+        // The candidate finished inside the official budget: at the deadline
+        // instant the repo was already final, so the photograph is the finish.
+        deadlineOracle = {
+            budgetSeconds: candidateTimeout,
+            capSeconds: clientTimeout,
+            finishedWithinBudget: true,
+            git: patchState,
+            working: workingOracle,
+            submission: submissionOracle,
+            submissionEvidence: { reusedWorking: submissionReusedWorking, patchSha256: patchState.submissionSha256 },
+        };
     }
 
     let requiem: Record<string, unknown> = { enabled: requiemEnabled, status: null };
@@ -1396,6 +1462,8 @@ const main = async (): Promise<void> => {
                 patchSha256: patchState.submissionSha256,
             },
         },
+        // bench#18: the official budget's photograph beside the played-through finish.
+        deadlineOracle,
         requiem,
         startedAt: startedAt.toISOString(),
         completedAt: completedAt.toISOString(),
