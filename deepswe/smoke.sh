@@ -58,6 +58,12 @@ source_env_file ".env.defaults"
 # shipped default, so bench sets NOTHING here (a stale port export silently kills the loop).
 [ "$#" -le 1 ] || { echo "usage: deepswe/smoke.sh [task-glob|all]" >&2; exit 2; }
 TASK="${1:-abs-module-cache-flags}"
+# Corpus records are clean, publishable results (#15): requiems are a benchlet
+# instrument; all mode refuses the knob loudly rather than honoring or ignoring it.
+if [ "$TASK" = all ] && [ "${PLURNK_BENCH_REQUIEM:-0}" = "1" ]; then
+  echo "smoke: requiems are a benchlet instrument — corpus records stay clean; unset PLURNK_BENCH_REQUIEM (#15)" >&2
+  exit 1
+fi
 # SPEC §config-model-default: shell, then XDG operator config, then the committed floor.
 MODEL="$PLURNK_MODEL"
 LAN_IP="$(hostname -I | awk '{print $1}')"
