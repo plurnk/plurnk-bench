@@ -1278,6 +1278,20 @@ const main = async (): Promise<void> => {
         environmentOverrides: candidateEnvironmentOverrides,
     });
     activeStage = "candidate";
+    // Live digest sidecar: the run's progress is readable mid-flight at
+    // <runDir>/digest-live/ instead of only after the clock. Reads a copy;
+    // never touches the live database. PLURNK_BENCHLET_LIVE_DIGEST=0 disables.
+    let liveDigest: ReturnType<typeof spawn> | null = null;
+    if (process.env.PLURNK_BENCHLET_LIVE_DIGEST !== "0") {
+        liveDigest = spawn(process.execPath, [
+            resolve(moduleDir, "digest-live.mjs"),
+            "--run", runDir,
+            "--service", serviceRoot,
+        ], { stdio: ["ignore", "ignore", "pipe"] });
+        liveDigest.stderr?.setEncoding("utf8");
+        liveDigest.stderr?.on("data", (chunk: string) => process.stderr.write(chunk));
+        liveDigest.on("error", (error) => process.stderr.write(`digest-live failed to start: ${error.message}\n`));
+    }
     const candidate = await runToFiles(process.execPath, candidateArgs, {
         cwd: serviceRoot,
         env: {
@@ -1290,6 +1304,7 @@ const main = async (): Promise<void> => {
         timeoutMs: candidateTimeoutMs(clientTimeout, candidateOverhead),
     });
 
+    if (liveDigest !== null && liveDigest.exitCode === null) liveDigest.kill("SIGTERM");
     activeStage = "capture";
     const patchState = await capturePatches(repository, runDir, manifest.baseCommit);
     writeJson(resolve(runDir, "git-state.json"), patchState);
