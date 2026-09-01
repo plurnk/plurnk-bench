@@ -1,7 +1,7 @@
 # plurnk-bench — Specification
 
 
-> **Family status (2026-08-31, #16):** `terminal-bench` is the active family; `deepswe`, `atlas`, and `enterprise` are retired-revivable — their sections below remain normative for their code, which stays in-tree, but no active surface invokes them.
+> **Family status (2026-08-31, #17):** `deepswe` is the active family (local-model target); `terminal_bench`, `atlas`, and `enterprise` are retired-revivable — their sections remain normative for their code, which stays in-tree, but no active surface invokes them.
 Canonical contracts the bench makes: what a `BenchRecord` asserts, what a published
 `benchmarks/run<N>` contains, and what the runner carries into a task container. The bench's
 complaints to the constellation are only as credible as these contracts — this file is what a

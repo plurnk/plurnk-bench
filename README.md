@@ -6,8 +6,8 @@ Benchmarking harnesses for [plurnk-service](https://github.com/plurnk/plurnk-ser
 
 | family | status |
 |---|---|
-| `terminal-bench/` | **active** — the bench (Terminal-Bench 4.0, #13/#16); plurnk agent adapter under construction |
-| `deepswe/` | retired, revivable (2026-08-31, #16) — code and tests intact; revival is re-activation |
+| `deepswe/` | **active** — the bench; local-model target (rtx5070), revived 2026-08-31 (#17) |
+| `terminal_bench/` | retired, revivable (2026-08-31, #17 — unaffordable at frontier budgets); adapter committed and working |
 | `atlas/` | retired, revivable (2026-08-31, #16) |
 | `enterprise/` | retired, revivable (2026-08-31, #16); its standing MCP fixtures are down |
 
