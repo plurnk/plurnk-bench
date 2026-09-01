@@ -43,7 +43,12 @@ deepswe/benchlet.sh --preflight
 PLURNK_MODEL=grok deepswe/benchlet.sh
 deepswe/benchlet.sh --task happy-dom-abort-pending-body-reads --preflight
 PLURNK_MODEL=glm deepswe/benchlet.sh --task happy-dom-abort-pending-body-reads
+PLURNK_MODEL=rtx5070 PLURNK_BENCHLET_TIMELESS=1 deepswe/benchlet.sh --task abs-module-cache-flags
 ```
+
+`PLURNK_BENCHLET_TIMELESS=1` photographs the candidate's working tree at the
+budget deadline, lets the run play on to `PLURNK_BENCHLET_TIMELESS_CAP` × budget
+(default 2), and grades the deadline photograph beside the final trees.
 
 The outside client checkout is an explicit precondition. The harness never
 guesses a sibling under the shared parent directory.
