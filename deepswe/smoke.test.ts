@@ -33,21 +33,24 @@ test("[§config-carry] the MCP fleet never rides into the container", () => {
 
 test("[§config-carry] `all` mode runs the corpus web-free on the minimal manifest", () => {
     assert.match(smoke, /\[ "\$TASK" = all \] && TAVILY_API_KEY=""/);
-    assert.match(smoke, /\[ "\$TASK" = all \] && select_flags=\(--n-concurrent/);
+    assert.match(smoke, /select_flags=\(-i "\$PLURNK_BENCH_PREFLIGHT" --n-tasks 1\)/);
+    assert.match(smoke, /select_flags=\(--n-concurrent "\$\{PLURNK_BENCH_JOBS:-4\}"\)/);
     assert.doesNotMatch(smoke, /\[ "\$TASK" = all \] && exit 0/);
 });
 
-test("[§config-embedding-route] every mode forwards the public embedding route and allowlists its host; the operator's embedding config never rides", () => {
+test("[§config-embedding-route] every mode forwards ONE embedding route — bundled by default, hosted branch preserved; the operator's embedding config never rides", () => {
     const defaults = readFileSync(new URL("../.env.defaults", import.meta.url), "utf8");
-    assert.match(defaults, /^PLURNK_BENCH_EMBEDDING_ROUTE=plurnk-embed\/sentence-transformers\/all-MiniLM-L6-v2$/m);
-    assert.match(defaults, /^PLURNK_BENCH_EMBEDDING_BASE_URL=https:\/\/embed\.plurnk\.ai\/v1$/m);
-    assert.match(smoke, /PLURNK_EMBEDDING_\*\) continue;;/);
+    assert.match(defaults, /^PLURNK_BENCH_EMBEDDING_ROUTE=bundled$/m, "the corpus runs the bundled wasm route (operator ruling 2026-08-31)");
+    assert.match(defaults, /^# PLURNK_BENCH_EMBEDDING_BASE_URL=https:\/\/embed\.plurnk\.ai\/v1/m, "the hosted-era value stays documented for a hosted return");
+    assert.match(smoke, /PLURNK_EMBEDDING_\*\) continue;;/, "the operator's own embedding config never rides");
+    assert.match(smoke, /PLURNK_BENCH_EMBEDDING_ROUTE is required \(a hosted route, or 'bundled'\)/);
+    // Bundled: an explicit empty selection forces the structural fallback, no egress host.
+    assert.match(smoke, /--agent-env "PLURNK_EMBEDDING_MODEL="/);
+    // Hosted branch preserved verbatim for a hosted-route return.
     assert.match(smoke, /--agent-env "PLURNK_EMBEDDING_MODEL=\$PLURNK_BENCH_EMBEDDING_ROUTE"/);
     assert.match(smoke, /--agent-env "PLURNK_PROVIDERS_PROVIDER_\$\{EMBED_PREFIX\}_NPM=@ai-sdk\/openai-compatible"/);
     assert.match(smoke, /--agent-env "PLURNK_PROVIDERS_PROVIDER_\$\{EMBED_PREFIX\}_BASE_URL=\$PLURNK_BENCH_EMBEDDING_BASE_URL"/);
     assert.match(smoke, /EGRESS_DOMAINS="\$\{EGRESS_DOMAINS:\+\$EGRESS_DOMAINS,\}\$EMBED_HOST"/);
-    // The route rides outside the mode branches: the corpus and a single diagnostic alike.
-    assert.ok(smoke.indexOf("PLURNK_EMBEDDING_MODEL=$PLURNK_BENCH_EMBEDDING_ROUTE") > smoke.lastIndexOf("\nfi\n"));
 });
 
 test("[§config-resource-samples] every run samples docker stats once a minute into the job directory until pier exits", () => {
@@ -92,5 +95,5 @@ test("[§results-canon][§publish-live] job scratch lives under the benchmarks h
 test("[§config-model-default] the runner uses the ordinary PLURNK_MODEL cascade", () => {
     assert.match(smoke, /source_env_file "\$OPERATOR_ENV"\nsource_env_file "\.env\.defaults"/);
     assert.match(smoke, /MODEL="\$PLURNK_MODEL"/);
-    assert.doesNotMatch(smoke, /PLURNK_BENCH_MODEL|\$\{2:/);
+    assert.doesNotMatch(smoke, /PLURNK_BENCH_MODEL(?!_BASE_URL)|\$\{2:/, "no bench-side model selector; the base-url forward (#12) is not a selection");
 });
