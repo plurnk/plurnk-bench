@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import shlex
+from pathlib import Path
 from urllib.parse import urlparse
 
 from pier.agents.installed.base import BaseInstalledAgent, with_prompt_template
@@ -51,6 +52,7 @@ class PlurnkAgent(BaseInstalledAgent):
         egress_domains: str = "",            # comma-separated model-endpoint hosts beyond PLURNK_BASE_URL
         tavily_configured: str = "0",
         tavily_depth: str = "basic",
+        recap_path: str | None = None,       # host file whose text becomes the daemon's Recap footer
         *args,
         **kwargs,
     ):
@@ -67,6 +69,10 @@ class PlurnkAgent(BaseInstalledAgent):
         self._service_version = service_version
         self._egress_domains = [d.strip() for d in egress_domains.split(",") if d.strip()]
         self._tavily = tavily_configured == "1"
+        # The Recap footer is model-facing text tuned per run, never by editing a
+        # tracked source file; the host file is read now (fail-hard if missing) and
+        # written into the container before the daemon starts.
+        self._recap = Path(recap_path).read_text(encoding="utf-8") if recap_path else None
         self._web_materialization = {
             "schemaVersion": 1,
             "webMaterialization": {
@@ -80,6 +86,20 @@ class PlurnkAgent(BaseInstalledAgent):
     @staticmethod
     def name() -> str:
         return "plurnk"
+
+    # ---- recap: the per-run Recap footer rides as a file beside the run's logs ----
+    def recap_file(self, agent_dir: Path) -> Path | None:
+        return agent_dir / "recap.md" if self._recap is not None else None
+
+    def recap_env(self, agent_dir: Path) -> dict[str, str]:
+        recap = self.recap_file(agent_dir)
+        return {} if recap is None else {"PLURNK_SERVICE_RECAP": str(recap)}
+
+    def recap_prelude(self, agent_dir: Path) -> str:
+        recap = self.recap_file(agent_dir)
+        if recap is None:
+            return ""
+        return f"printf '%s' {shlex.quote(self._recap)} > {shlex.quote(str(recap))}\n"
 
     # NB: the @plurnk CLIs lack `--version` and use strict parseArgs, so an unknown
     # flag is a hard ERR_PARSE_ARGS_UNKNOWN_OPTION crash — we verify install by
@@ -155,6 +175,7 @@ class PlurnkAgent(BaseInstalledAgent):
         # (build_process_env merges self._extra_env), configuring the daemon.
         env = self.build_process_env({
             "PLURNK_PROJECT_ROOT": "/app",
+            **self.recap_env(agent_dir),
             # Model egress rides Pier's squid sidecar via HTTP(S)_PROXY; Node's
             # fetch ignores proxy env unless told (NODE_USE_ENV_PROXY, Node >= 24).
             # Pier's NO_PROXY keeps the client->daemon loopback direct. No-op in
@@ -187,7 +208,7 @@ snapshot_db() {{
       .catch((error) => {{ console.error(error); process.exitCode = 1; }});
   ' "$1" "$2"
 }}
-plurnk-service start > {shlex.quote(str(daemon_log))} 2>&1 &
+{self.recap_prelude(agent_dir)}plurnk-service start > {shlex.quote(str(daemon_log))} 2>&1 &
 printf '%s\n' {shlex.quote(json.dumps(self._web_materialization))} > {shlex.quote(str(bench_provenance))}
 for _ in $(seq 1 {DAEMON_READY_TIMEOUT_S}); do
   if plurnk models >/dev/null 2>&1; then break; fi

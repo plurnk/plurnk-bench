@@ -28,6 +28,8 @@
 #   PLURNK_BENCH_JOBS         `all` mode concurrency (default 4)
 #   PLURNK_BENCH_PREFLIGHT    `all` mode, one named task through the corpus's exact path (#12)
 #   PLURNK_BENCH_MODEL_BASE_URL  replaces LOOPBACK manifest base URLs only (local model via its published hostname)
+#   PLURNK_BENCH_RECAP        host file whose text becomes the container daemon's Recap footer
+#                             (PLURNK_SERVICE_RECAP) — e.g. the weak-model frame line a GBNF rail needs
 #   (every run samples docker stats once a minute into <job>/docker-stats.jsonl — SPEC §config-resource-samples)
 #   (every run first pre-pulls its task images via deepswe/prepull.sh — SPEC §config-image-prepull — and refuses
 #    to start trials without them; the bench's own @plurnk/plurnk-service must equal the corpus's — SPEC §config-digest-preflight)
@@ -66,6 +68,12 @@ if [ "$TASK" = all ] && [ "${PLURNK_BENCH_REQUIEM:-0}" = "1" ]; then
   echo "smoke: requiems are a benchlet instrument — corpus records stay clean; unset PLURNK_BENCH_REQUIEM (#15)" >&2
   exit 1
 fi
+if [ -n "${PLURNK_BENCH_RECAP:-}" ] && [ ! -r "$PLURNK_BENCH_RECAP" ]; then
+  echo "smoke: PLURNK_BENCH_RECAP is not a readable file: $PLURNK_BENCH_RECAP" >&2
+  exit 1
+fi
+recap_flags=()
+[ -n "${PLURNK_BENCH_RECAP:-}" ] && recap_flags=(--agent-kwarg "recap_path=$(readlink -f "$PLURNK_BENCH_RECAP")")
 # SPEC §config-model-default: shell, then XDG operator config, then the committed floor.
 MODEL="$PLURNK_MODEL"
 LAN_IP="$(hostname -I | awk '{print $1}')"
@@ -300,6 +308,7 @@ PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
   --agent-kwarg "egress_domains=$EGRESS_DOMAINS" \
   --agent-kwarg "tavily_configured=$TAVILY_CONFIGURED" \
   --agent-kwarg "tavily_depth=$TAVILY_DEPTH" \
+  "${recap_flags[@]}" \
   "${cpu_flags[@]}" \
   "${build[@]}" \
   "${flags[@]}" \

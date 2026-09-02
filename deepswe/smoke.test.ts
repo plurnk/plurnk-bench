@@ -27,6 +27,12 @@ test("[§config-egress] smoke derives the allowlist from the run's aliases and f
     assert.match(smoke, /api\.tavily\.com/);
 });
 
+test("[§config-carry] the per-run recap rides into the container as a file, never as a tracked edit", () => {
+    assert.match(smoke, /PLURNK_BENCH_RECAP is not a readable file/);
+    assert.match(smoke, /--agent-kwarg "recap_path=\$\(readlink -f "\$PLURNK_BENCH_RECAP"\)"/);
+    assert.match(smoke, /"\$\{recap_flags\[@\]\}"/);
+});
+
 test("[§config-carry] the MCP fleet never rides into the container", () => {
     assert.match(smoke, /PLURNK_MCP_\*\) continue;;/);
 });

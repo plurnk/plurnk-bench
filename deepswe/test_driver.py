@@ -151,6 +151,24 @@ class DriverContractTest(unittest.TestCase):
 
             self.assertEqual(row, ("from-wal",))
 
+    def test_recap_rides_as_a_file_and_env_into_the_container(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".md", delete=False) as handle:
+            handle.write("YOU MUST begin with `# PLAN0` and end with `## SEND0 [status code]`\n")
+            recap_path = handle.name
+        agent = driver.PlurnkAgent(recap_path=recap_path)
+        agent_dir = Path("/logs/agent")
+
+        self.assertEqual(agent.recap_env(agent_dir), {"PLURNK_SERVICE_RECAP": "/logs/agent/recap.md"})
+        prelude = agent.recap_prelude(agent_dir)
+        self.assertIn("> /logs/agent/recap.md", prelude)
+        self.assertIn("PLAN0", prelude)
+        self.assertEqual(driver.PlurnkAgent().recap_env(agent_dir), {}, "no recap knob, no override: the packaged recap stands")
+        self.assertEqual(driver.PlurnkAgent().recap_prelude(agent_dir), "")
+
+    def test_recap_path_must_exist(self):
+        with self.assertRaises(FileNotFoundError):
+            driver.PlurnkAgent(recap_path="/nonexistent/recap.md")
+
     def test_kwargs_survive_pier_literal_parsing(self):
         # Pier parses --agent-kwarg values as JSON/Python literals: `0` arrives as int.
         agent = driver.PlurnkAgent(tavily_configured=0)
