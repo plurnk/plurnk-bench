@@ -524,19 +524,28 @@ const ensureRepositoryCache = (manifest: Manifest, cache: string): void => {
     gitDir(cache, ["update-ref", "refs/heads/benchlet-base", manifest.baseCommit]);
 };
 
-const sourceProvenance = (repository: string): {
+export const sourceProvenance = (repository: string): {
     path: string;
     head: string;
     remote: string | null;
     clean: boolean;
+    untracked: string[];
 } => {
     const status = git(repository, ["status", "--porcelain"]);
     const remote = git(repository, ["remote", "get-url", "origin"], { allowFailure: true }).trim();
+    // An untracked path is inert when its top-level segment carries no tracked file at all:
+    // it cannot reach the build, so it is recorded rather than refused. Tracked changes and
+    // untracked files inside tracked directories still make the source dirty.
+    const lines = status.split("\n").filter((line) => line.length > 0);
+    const untracked = lines.filter((line) => line.startsWith("?? ")).map((line) => line.slice(3));
+    const inert = (path: string): boolean => git(repository, ["ls-files", "--", path.split("/")[0]]).trim() === "";
+    const clean = lines.every((line) => line.startsWith("?? ")) && untracked.every(inert);
     return {
         path: repository,
         head: git(repository, ["rev-parse", "HEAD"]).trim(),
         remote: remote === "" ? null : remote,
-        clean: status === "",
+        clean,
+        untracked,
     };
 };
 
