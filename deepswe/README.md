@@ -60,6 +60,11 @@ here rather than in `plurnk-meta/recap.md`.
 The outside client checkout is an explicit precondition. The harness never
 guesses a sibling under the shared parent directory.
 
+A task must be pinned before the benchlet will run it. `node deepswe/pin-task.mjs <task>...`
+derives the manifest from the task cache (`.cache/deep-swe/tasks/<task>`): repository and
+base commit from the environment Dockerfile (the full commit read from the pinned image),
+the task image by `ext_id`, the task verifier, and the sha256 of every snapshotted file.
+
 The `--preflight` form verifies the selected task, upstream commit, official
 verifier, and pristine p2p/f2p baseline without calling a model. A model run
 builds the clean service and client revisions, runs the task once, grades both

