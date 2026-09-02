@@ -22,10 +22,16 @@ const pin = (task) => {
     const repositoryUrl = dockerfile.match(/git clone (\S+) \./)?.[1];
     const pinnedSha = dockerfile.match(/BASE_SHA=([0-9a-f]{7,40})/)?.[1];
     if (!repositoryUrl || !pinnedSha) throw new Error(`${task}: the environment Dockerfile names no repository clone or BASE_SHA`);
-    // The oracle's base commit is what the benchlet verifies against; the Dockerfile's pin must agree with it.
-    const baseCommit = JSON.parse(readFileSync(resolve(taskDir, "tests", "config.json"), "utf8")).base_commit;
-    if (!/^[0-9a-f]{40}$/.test(baseCommit ?? "")) throw new Error(`${task}: tests/config.json carries no full base_commit`);
-    if (!baseCommit.startsWith(pinnedSha)) throw new Error(`${task}: the Dockerfile's BASE_SHA ${pinnedSha} disagrees with the oracle base commit ${baseCommit}`);
+    const extIdEarly = readFileSync(resolve(taskDir, "task.toml"), "utf8").match(/^ext_id = "([a-z0-9]+)"$/m)?.[1];
+    if (!extIdEarly) throw new Error(`${task}: task.toml carries no ext_id`);
+    // The image's checkout is the commit the task really ran on; the oracle's base_commit and the
+    // Dockerfile's BASE_SHA are sometimes truncated upstream, so both are checked as prefixes of it.
+    const baseCommit = execFileSync("docker", ["run", "--rm", "--entrypoint", "git", `${IMAGE_REPOSITORY}:${extIdEarly}-${IMAGE_VERSION}`, "-C", "/app", "rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+    const oracleCommit = JSON.parse(readFileSync(resolve(taskDir, "tests", "config.json"), "utf8")).base_commit;
+    if (!/^[0-9a-f]{40}$/.test(baseCommit)) throw new Error(`${task}: the image's HEAD is not a full commit: ${baseCommit}`);
+    for (const [name, prefix] of [["Dockerfile BASE_SHA", pinnedSha], ["oracle base_commit", oracleCommit]]) {
+        if (typeof prefix !== "string" || prefix.length < 7 || !baseCommit.startsWith(prefix)) throw new Error(`${task}: ${name} ${prefix} is not a prefix of the image's HEAD ${baseCommit}`);
+    }
     const extId = readFileSync(resolve(taskDir, "task.toml"), "utf8").match(/^ext_id = "([a-z0-9]+)"$/m)?.[1];
     if (!extId) throw new Error(`${task}: task.toml carries no ext_id`);
     const image = `${IMAGE_REPOSITORY}:${extId}-${IMAGE_VERSION}`;

@@ -480,7 +480,11 @@ const validateFixture = (manifest: Manifest, taskDir: string): OracleConfig => {
         }
     }
     const config = JSON.parse(readFileSync(resolve(taskDir, "tests/config.json"), "utf8")) as OracleConfig;
-    assert.equal(config.base_commit, manifest.baseCommit, "oracle base commit must match the benchlet manifest");
+    // Upstream task data sometimes truncates the base commit; the pin carries the full one.
+    assert.ok(
+        typeof config.base_commit === "string" && config.base_commit.length >= 7 && manifest.baseCommit.startsWith(config.base_commit),
+        `oracle base commit ${JSON.stringify(config.base_commit)} must be a prefix of the pinned commit ${manifest.baseCommit}`,
+    );
     if (manifest.verifier.kind === "task") {
         assert.equal(manifest.environment.kind, "docker", "task verifier requires its pinned Docker environment");
         assert.ok(manifest.environment.image !== "", "Docker environment must pin an image");
