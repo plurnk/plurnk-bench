@@ -176,7 +176,31 @@ class PlurnkAgent(BaseInstalledAgent):
         base_url = self._host_env(f"PLURNK_BASEURL_{model}") or self._host_env("PLURNK_BASE_URL")
         if base_url:
             env[f"PLURNK_BASEURL_{model}"] = base_url
+        env.update(self._embedding_env())
         return env
+
+    def _embedding_env(self) -> dict[str, str]:
+        """ONE embedding route rides (SPEC §config-embedding-route, as deepswe/smoke.sh).
+
+        Absent or `bundled` → an explicit empty selection, the daemon's structural
+        bundled wasm fallback (the ruling: no CPU contention worth a hosted line). A
+        hosted route forwards the openai-compatible provider lines for its prefix; the
+        operator's own PLURNK_EMBEDDING_* never rides.
+        """
+        route = self._host_env("PLURNK_BENCH_EMBEDDING_ROUTE") or "bundled"
+        if route == "bundled":
+            return {"PLURNK_EMBEDDING_MODEL": ""}
+        base_url = self._host_env("PLURNK_BENCH_EMBEDDING_BASE_URL")
+        if not base_url:
+            raise ValueError(
+                f"embedding route {route!r} needs PLURNK_BENCH_EMBEDDING_BASE_URL on the host"
+            )
+        prefix = _prefix(route.split("/")[0])
+        return {
+            "PLURNK_EMBEDDING_MODEL": route,
+            f"PLURNK_PROVIDERS_PROVIDER_{prefix}_NPM": "@ai-sdk/openai-compatible",
+            f"PLURNK_PROVIDERS_PROVIDER_{prefix}_BASE_URL": base_url,
+        }
 
     def populate_context_post_run(self, context: AgentContext) -> None:
         return None

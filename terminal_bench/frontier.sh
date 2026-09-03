@@ -5,6 +5,10 @@
 #   PLURNK_MODEL=<alias> terminal_bench/frontier.sh [--preflight] [task ...]
 #   PLURNK_BENCH_JOBS      tasks in flight at once (default 4)
 #   PLURNK_BENCH_RUNS_DIR  where run directories land (default jobs/)
+#   PLURNK_BENCH_EMBEDDING_ROUTE / _BASE_URL   the container's embedding route (SPEC §config-embedding-route):
+#                          absent or 'bundled' = the daemon's bundled wasm model; a hosted route such as
+#                          local-embed/sentence-transformers/all-MiniLM-L6-v2 on https://embed.plurnk.ai/v1
+# Provider keys are exports in the operator's shell: launch as `bash -lic '…'`.
 # Corpus state (downloaded, never committed):
 #   harbor dataset download terminal-bench/terminal-bench-2-1 -o .cache/terminal-bench-2-1
 #   the DeepSWE task cache under .cache/deep-swe/tasks (deepswe/README.md)
