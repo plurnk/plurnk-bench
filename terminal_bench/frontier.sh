@@ -4,6 +4,8 @@
 # each client timeout = the task's own [agent] budget minus headroom (SPEC §frontier-parity).
 #   PLURNK_MODEL=<alias> terminal_bench/frontier.sh [--preflight] [task ...]
 #   PLURNK_BENCH_JOBS      tasks in flight at once (default 4)
+#   PLURNK_BENCH_SERVICE_VERSION / _CLIENT_VERSION   the published @plurnk versions the agent installs
+#                          in every container (default: the registry's latest at launch, resolved once and recorded)
 #   PLURNK_BENCH_RUNS_DIR  where run directories land (default jobs/)
 #   PLURNK_BENCH_EMBEDDING_ROUTE / _BASE_URL   the container's embedding route (SPEC §config-embedding-route):
 #                          absent or 'bundled' = the daemon's bundled wasm model; a hosted route such as
@@ -47,11 +49,23 @@ MODEL="${PLURNK_MODEL:-}"
 [ -n "$MODEL" ] || { echo "frontier: PLURNK_MODEL=<alias> selects the model (the agent resolves its layer from the operator XDG config)" >&2; exit 2; }
 RUN="${PLURNK_BENCH_RUNS_DIR:-jobs}/frontier-${MODEL}-$(date +%Y%m%d-%H%M%S)"
 export MODEL RUN
+# One run, one pinned platform: resolve the published versions once so every container installs
+# the same artifacts and the record names them (a credible run never installs "latest" thirty times).
+SERVICE_VERSION="${PLURNK_BENCH_SERVICE_VERSION:-$(npm view @plurnk/plurnk-service version 2>/dev/null)}"
+CLIENT_VERSION="${PLURNK_BENCH_CLIENT_VERSION:-$(npm view @plurnk/plurnk version 2>/dev/null)}"
+[ -n "$SERVICE_VERSION" ] && [ -n "$CLIENT_VERSION" ] || { echo "frontier: could not resolve the published @plurnk versions (set PLURNK_BENCH_SERVICE_VERSION and _CLIENT_VERSION)" >&2; exit 2; }
+export SERVICE_VERSION CLIENT_VERSION
 mkdir -p "$RUN"
 cp terminal_bench/frontier.manifest.json "$RUN/manifest.json"
 printf '%s\n' "$PLAN" > "$RUN/plan.jsonl"
 {
   echo "model=$MODEL"
+  echo "model_route=$(grep -E "^PLURNK_MODEL_$MODEL=" "${XDG_CONFIG_HOME:-$HOME/.config}/plurnk/.env" 2>/dev/null | cut -d= -f2-)"
+  echo "model_knobs=$(grep -E "^PLURNK_PROVIDERS_[A-Z_]+_$MODEL=" "${XDG_CONFIG_HOME:-$HOME/.config}/plurnk/.env" 2>/dev/null | tr '\n' ' ')"
+  echo "service_version=$SERVICE_VERSION"
+  echo "client_version=$CLIENT_VERSION"
+  echo "embedding_route=${PLURNK_BENCH_EMBEDDING_ROUTE:-bundled}"
+  echo "jobs=${PLURNK_BENCH_JOBS:-4}"
   echo "harbor=$(harbor --version 2>/dev/null | head -1)"
   echo "started=$(date -Iseconds)"
   echo "manifest_sha256=$(sha256sum terminal_bench/frontier.manifest.json | cut -d' ' -f1)"
@@ -66,6 +80,7 @@ printf '%s\n' "$PLAN" | node -e '
   task="$0"; dir="$1"; budget="$2"
   echo "frontier: launch $task (client_timeout_sec=$budget)"
   terminal_bench/run.sh -p "$dir" -m "$MODEL" --agent-kwarg "client_timeout_sec=$budget" \
+    --agent-kwarg "service_version=$SERVICE_VERSION" --agent-kwarg "client_version=$CLIENT_VERSION" \
     --jobs-dir "$RUN" --job-name "$task" -n 1 > "$RUN/$task.launch.log" 2>&1 \
     || echo "frontier: $task launcher exited $? (see $RUN/$task.launch.log)"
 ' 2>&1
