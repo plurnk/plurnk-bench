@@ -76,13 +76,38 @@ interface DockerManifest extends ManifestBase {
     };
 }
 
-type Manifest = HostManifest | DockerManifest;
+// A Terminal-Bench 2.1 task ({§benchlet-tree}): no repository — the image's /app IS the task tree —
+// and a verifier that grades that tree (tests/test.sh → /logs/verifier/reward.txt + ctrf.json).
+interface TreeManifest {
+    schemaVersion: number;
+    task: string;
+    kind: "terminal-bench";
+    taskCache: string;
+    repositoryUrl: null;
+    baseCommit: null;
+    budgetSeconds: number;
+    environment: {
+        kind: "docker";
+        image: string;
+        network: "bridge";
+        cpus: number;
+        memoryMb: number;
+    };
+    verifier: {
+        kind: "tree";
+        timeoutSeconds: number;
+    };
+    files: Record<string, string>;
+}
+type Manifest = HostManifest | DockerManifest | TreeManifest;
 
 const isDockerManifest = (manifest: Manifest): manifest is DockerManifest =>
     manifest.environment.kind === "docker" && manifest.verifier.kind === "task";
 
 const isHostManifest = (manifest: Manifest): manifest is HostManifest =>
     manifest.environment.kind === "host" && manifest.verifier.kind === "go";
+export const isTreeManifest = (manifest: Manifest): manifest is TreeManifest =>
+    manifest.verifier.kind === "tree";
 
 interface CtrfReport {
     results?: {
@@ -467,10 +492,7 @@ export const gradeObservations = (
     };
 };
 
-const validateFixture = (manifest: Manifest, taskDir: string): OracleConfig => {
-    assert.equal(manifest.schemaVersion, 1, "benchlet manifest schema must be version 1");
-    assert.ok(manifest.repositoryUrl !== "", "benchlet manifest must pin a repository URL");
-    assert.match(manifest.baseCommit, /^[0-9a-f]{40}$/, "benchlet manifest must pin a full Git commit");
+const verifyFixtureFiles = (manifest: Manifest, taskDir: string): void => {
     for (const [name, expected] of Object.entries(manifest.files)) {
         const path = resolve(taskDir, name);
         if (!existsSync(path)) throw new Error(`external task fixture is missing ${name}: ${path}`);
@@ -479,6 +501,27 @@ const validateFixture = (manifest: Manifest, taskDir: string): OracleConfig => {
             throw new Error(`external task fixture drifted at ${name}: expected ${expected}, received ${actual}`);
         }
     }
+};
+const validateFixture = (manifest: Manifest, taskDir: string): OracleConfig => {
+    assert.equal(manifest.schemaVersion, 1, "benchlet manifest schema must be version 1");
+    if (isTreeManifest(manifest)) {
+        assert.equal(manifest.kind, "terminal-bench", "tree manifest must be a terminal-bench task");
+        assert.ok(manifest.taskCache !== "", "tree manifest must name its task cache");
+        assert.ok(Number.isSafeInteger(manifest.budgetSeconds) && manifest.budgetSeconds > 0, "tree manifest must pin the task's agent budget");
+        assert.ok(manifest.environment.image !== "", "Docker environment must pin an image");
+        assert.ok(Number.isFinite(manifest.environment.cpus) && manifest.environment.cpus > 0);
+        assert.ok(Number.isSafeInteger(manifest.environment.memoryMb) && manifest.environment.memoryMb > 0);
+        assert.ok(Number.isSafeInteger(manifest.verifier.timeoutSeconds) && manifest.verifier.timeoutSeconds > 0);
+        verifyFixtureFiles(manifest, taskDir);
+        for (const required of ["instruction.md", "task.toml", "tests/test.sh"]) {
+            if (!(required in manifest.files)) throw new Error(`tree manifest must pin ${required}`);
+        }
+        // No oracle buckets: the tree verifier names its tests at grade time, all fail-to-pass.
+        return { base_commit: "", p2p_node_ids: [], f2p_node_ids: [] };
+    }
+    assert.ok(manifest.repositoryUrl !== "", "benchlet manifest must pin a repository URL");
+    assert.match(manifest.baseCommit, /^[0-9a-f]{40}$/, "benchlet manifest must pin a full Git commit");
+    verifyFixtureFiles(manifest, taskDir);
     const config = JSON.parse(readFileSync(resolve(taskDir, "tests/config.json"), "utf8")) as OracleConfig;
     // Upstream task data sometimes truncates the base commit; the pin carries the full one.
     assert.ok(
@@ -514,7 +557,7 @@ const validateFixture = (manifest: Manifest, taskDir: string): OracleConfig => {
     return config;
 };
 
-const ensureRepositoryCache = (manifest: Manifest, cache: string): void => {
+const ensureRepositoryCache = (manifest: HostManifest, cache: string): void => {
     if (!existsSync(cache)) {
         mkdirSync(dirname(cache), { recursive: true });
         shell("git", ["init", "--bare", "--quiet", cache]);
@@ -553,8 +596,8 @@ export const sourceProvenance = (repository: string): {
     };
 };
 
-export const allocateRun = (runsRoot: string, task: string, model: string): string => {
-    return allocateRunDirectory(runsRoot, ["deepswe", task, model]);
+export const allocateRun = (runsRoot: string, task: string, model: string, family = "deepswe"): string => {
+    return allocateRunDirectory(runsRoot, [family, task, model]);
 };
 
 const snapshotTask = (
@@ -596,11 +639,26 @@ const copyDockerBase = (manifest: DockerManifest, destination: string): void => 
     git(destination, ["config", "user.email", "plurnk@pm.me"]);
 };
 
+// {§benchlet-tree} — the image's /app is the task tree; it is copied out as-is, with no repository
+// to assert: the candidate daemon admits it through the harness member definition instead.
+const copyDockerTree = (image: string, destination: string): void => {
+    mkdirSync(destination, { recursive: true });
+    const container = shell("docker", ["create", image]).trim();
+    try {
+        shell("docker", ["cp", `${container}:/app/.`, destination]);
+    } finally {
+        removeContainer(container);
+    }
+};
 const prepareCandidateRepository = (
     manifest: Manifest,
     repositoryCache: string,
     destination: string,
 ): void => {
+    if (isTreeManifest(manifest)) {
+        copyDockerTree(manifest.environment.image, destination);
+        return;
+    }
     if (isDockerManifest(manifest)) {
         copyDockerBase(manifest, destination);
         return;
@@ -646,6 +704,31 @@ const capturePatches = async (
     };
 };
 
+// {§benchlet-tree} — a task tree has no patches: its state is the sorted listing of every file with
+// its sha256, and the tree itself is what the verifier grades. Submission and working state are one.
+export const captureTree = (
+    tree: string,
+    runDir: string,
+    prefix = "",
+): {
+    branch: string;
+    head: string;
+    status: string;
+    committed: boolean;
+    submissionSha256: string;
+    workingSha256: string;
+} => {
+    const files = readdirSync(tree, { recursive: true, withFileTypes: true })
+        .filter((entry) => entry.isFile())
+        .map((entry) => relative(tree, resolve(entry.parentPath, entry.name)))
+        .toSorted();
+    const listing = files.map((path) => ({ path, sha256: sha256(resolve(tree, path)) }));
+    writeJson(resolve(runDir, `${prefix}working-tree.json`), { tree: relative(runDir, tree), files: listing });
+    const digest = createHash("sha256")
+        .update(listing.map(({ path, sha256: hash }) => `${hash}  ${path}\n`).join(""))
+        .digest("hex");
+    return { branch: "", head: "", status: "", committed: false, submissionSha256: digest, workingSha256: digest };
+};
 const regexEscape = (value: string): string => value.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const gradeGoPatch = async (
@@ -863,6 +946,95 @@ const gradeTaskPatch = async (
     }
 };
 
+// {§benchlet-tree} — Harbor's text reward ("1" | "0") and the CTRF the task's pytest wrote. Every
+// test is fail-to-pass; the binary reward and the test evidence must agree.
+export const parseTreeVerifierArtifacts = (rewardText: string, ctrf?: CtrfReport): OracleResult => {
+    const reward = Number(rewardText.trim());
+    if (reward !== 0 && reward !== 1) throw new Error(`tree verifier wrote an unreadable reward: ${JSON.stringify(rewardText)}`);
+    const tests = ctrf === undefined ? [] : ctrf.results?.tests;
+    if (!Array.isArray(tests)) throw new Error("tree verifier emitted malformed CTRF test results");
+    const observed = tests.map((test) => ({
+        nodeId: test.name,
+        bucket: "f2p" as const,
+        status: (test.status === "passed" || test.status === "skipped" || test.status === "failed" ? test.status : "failed") as TestStatus,
+        output: test.message ?? test.trace ?? "",
+    }));
+    const f2pPassed = observed.filter((test) => test.status === "passed").length;
+    if (ctrf !== undefined && (reward === 1) !== (observed.length > 0 && f2pPassed === observed.length)) {
+        throw new Error(`tree verifier reward ${reward} disagrees with its CTRF evidence (${f2pPassed}/${observed.length} passed)`);
+    }
+    return {
+        applyFailed: false,
+        reward,
+        p2pPassed: 0,
+        p2pTotal: 0,
+        f2pPassed,
+        f2pTotal: observed.length,
+        partial: observed.length === 0 ? reward : f2pPassed / observed.length,
+        tests: observed,
+    };
+};
+// {§benchlet-tree} — grade a task tree in a fresh task container: the tree replaces the image's /app
+// byte for byte (null grades the pristine image), then the canonical tests/test.sh runs.
+const gradeTaskTree = async (
+    label: string,
+    tree: string | null,
+    artifactDir: string,
+    manifest: TreeManifest,
+    taskDir: string,
+): Promise<OracleResult> => {
+    mkdirSync(artifactDir, { recursive: true });
+    const verifierArtifacts = resolve(artifactDir, "verifier");
+    mkdirSync(verifierArtifacts);
+    const container = shell("docker", [
+        "create",
+        "--network",
+        manifest.environment.network,
+        "--cpus",
+        String(manifest.environment.cpus),
+        "--memory",
+        `${manifest.environment.memoryMb}m`,
+        manifest.environment.image,
+        "sleep",
+        "infinity",
+    ]).trim();
+    try {
+        shell("docker", ["start", container]);
+        shell("docker", ["exec", container, "mkdir", "-p", "/tests", "/logs/verifier"]);
+        shell("docker", ["cp", `${resolve(taskDir, "tests")}/.`, `${container}:/tests`]);
+        if (tree !== null) {
+            shell("docker", ["exec", container, "sh", "-c", "find /app -mindepth 1 -delete"]);
+            shell("docker", ["cp", `${tree}/.`, `${container}:/app`]);
+        }
+        const args = ["exec", container, "bash", "/tests/test.sh"];
+        const result = await runToFiles("docker", args, {
+            cwd: benchRoot,
+            stdoutPath: resolve(artifactDir, "stdout.log"),
+            stderrPath: resolve(artifactDir, "stderr.log"),
+            timeoutMs: manifest.verifier.timeoutSeconds * 1_000,
+        });
+        writeJson(resolve(artifactDir, "command.json"), {
+            command: "docker",
+            args,
+            status: result.status,
+            signal: result.signal,
+            error: result.error?.message ?? null,
+            timedOut: result.timedOut,
+        });
+        shell("docker", ["cp", `${container}:/logs/verifier/.`, verifierArtifacts]);
+        if (result.error !== undefined) throw result.error;
+        if (result.timedOut) throw new Error(`task verifier timed out for ${label}`);
+        const rewardPath = resolve(verifierArtifacts, "reward.txt");
+        if (!existsSync(rewardPath)) throw new Error(`task verifier did not grade ${label}`);
+        const ctrfPath = resolve(verifierArtifacts, "ctrf.json");
+        return parseTreeVerifierArtifacts(
+            readFileSync(rewardPath, "utf8"),
+            existsSync(ctrfPath) ? JSON.parse(readFileSync(ctrfPath, "utf8")) as CtrfReport : undefined,
+        );
+    } finally {
+        removeContainer(container);
+    }
+};
 const gradePatch = (
     label: string,
     patchPath: string,
@@ -871,7 +1043,10 @@ const gradePatch = (
     manifest: Manifest,
     taskDir: string,
     config: OracleConfig,
-): Promise<OracleResult> => isDockerManifest(manifest)
+    tree: string | null = null,
+): Promise<OracleResult> => isTreeManifest(manifest)
+    ? gradeTaskTree(label, tree, artifactDir, manifest, taskDir)
+    : isDockerManifest(manifest)
     ? gradeTaskPatch(label, patchPath, artifactDir, manifest, taskDir, config)
     : isHostManifest(manifest)
         ? gradeGoPatch(label, patchPath, artifactDir, repositoryCache, manifest, taskDir, config)
@@ -1102,7 +1277,8 @@ const main = async (): Promise<void> => {
     const preflightOnly = values.preflight;
     const model = selectedModel();
     const taskCache = resolveFrom(benchRoot, process.env.PLURNK_BENCHLET_TASK_CACHE ?? "");
-    const taskDir = resolve(taskCache, manifest.task);
+    // {§benchlet-tree} — a tree manifest names its own corpus; DeepSWE tasks use the configured cache.
+    const taskDir = resolve(isTreeManifest(manifest) ? resolveFrom(benchRoot, manifest.taskCache) : taskCache, manifest.task);
     const repositoryCacheRoot = resolveFrom(
         benchRoot,
         process.env.PLURNK_BENCHLET_REPOSITORY_CACHE_ROOT ?? "",
@@ -1116,7 +1292,10 @@ const main = async (): Promise<void> => {
         "PLURNK_BENCHLET_CLIENT_ROOT",
     );
     const candidatePolicy = candidatePolicyPath(serviceRoot);
-    const candidateTimeout = Number(process.env.PLURNK_BENCHLET_CANDIDATE_TIMEOUT_SEC);
+    // {§benchlet-tree} — a tree task runs on its own pinned agent budget (FrontierHarness parity).
+    const candidateTimeout = isTreeManifest(manifest)
+        ? manifest.budgetSeconds
+        : Number(process.env.PLURNK_BENCHLET_CANDIDATE_TIMEOUT_SEC);
     const candidateOverhead = Number(process.env.PLURNK_BENCHLET_CANDIDATE_OVERHEAD_SEC);
     const requiemTimeout = Number(process.env.PLURNK_BENCHLET_REQUIEM_TIMEOUT_SEC);
     const requiemEnabled = process.env.PLURNK_BENCHLET_REQUIEM === "1";
@@ -1156,7 +1335,7 @@ const main = async (): Promise<void> => {
     const imageId = manifest.environment.kind === "docker"
         ? dockerImageId(manifest.environment.image)
         : null;
-    if (manifest.environment.kind === "host") ensureRepositoryCache(manifest, repositoryCache);
+    if (isHostManifest(manifest)) ensureRepositoryCache(manifest, repositoryCache);
     const sources = {
         bench: sourceProvenance(benchRoot),
         service: sourceProvenance(serviceRoot),
@@ -1193,7 +1372,7 @@ const main = async (): Promise<void> => {
         return;
     }
 
-    const runDir = allocateRun(runsRoot, manifest.task, model);
+    const runDir = allocateRun(runsRoot, manifest.task, model, isTreeManifest(manifest) ? "terminal-bench" : "deepswe");
     const candidatePolicySnapshot = candidatePolicySnapshotPath(runDir);
     copyFileSync(candidatePolicy, candidatePolicySnapshot);
     const candidateRecapSnapshot = candidateRecap === null ? null : candidateRecapSnapshotPath(runDir);
@@ -1242,7 +1421,7 @@ const main = async (): Promise<void> => {
                     manifest.verifier.suites.map((suite) => [suite.name, suite.timeoutSeconds]),
                 )
                 : null,
-            oracleTaskTimeoutSeconds: manifest.verifier.kind === "task"
+            oracleTaskTimeoutSeconds: manifest.verifier.kind === "task" || manifest.verifier.kind === "tree"
                 ? manifest.verifier.timeoutSeconds
                 : null,
             requiemEnabled,
@@ -1298,6 +1477,9 @@ const main = async (): Promise<void> => {
         PLURNK_CANDIDATE_DIR: runDir,
         PLURNK_MODEL: model,
         PLURNK_CLIENT_CHECKOUT: clientRoot,
+        // {§benchlet-tree} — a task tree is no repository: the harness admits it as a service member
+        // definition, exactly as the Harbor agent does (terminal_bench/plurnk_agent.py).
+        ...(isTreeManifest(manifest) ? { PLURNK_MEMBERS_TASK: "**", PLURNK_MEMBERS_ENABLED: "[\"task\"]" } : {}),
         PLURNK_SERVICE_POLICY: candidatePolicySnapshot,
         ...(candidateRecapSnapshot === null ? {} : { PLURNK_SERVICE_RECAP: candidateRecapSnapshot }),
         ...(timeless ? { PLURNK_CANDIDATE_GRADE_DEADLINE_SEC: String(candidateTimeout) } : {}),
@@ -1322,7 +1504,9 @@ const main = async (): Promise<void> => {
     });
 
     activeStage = "capture";
-    const patchState = await capturePatches(repository, runDir, manifest.baseCommit);
+    const patchState = isTreeManifest(manifest)
+        ? captureTree(repository, runDir)
+        : await capturePatches(repository, runDir, manifest.baseCommit);
     writeJson(resolve(runDir, "git-state.json"), patchState);
     const digestPath = resolve(runDir, "digest/digest.json");
     if (!existsSync(digestPath)) throw new Error("candidate did not produce a digest");
@@ -1341,6 +1525,7 @@ const main = async (): Promise<void> => {
         manifest,
         taskDir,
         config,
+        repository,
     );
     writeJson(resolve(runDir, "oracle-working.json"), workingOracle);
     activeStage = "oracle-submission";
@@ -1372,7 +1557,9 @@ const main = async (): Promise<void> => {
     const deadlineRepo = resolve(runDir, "repo@deadline");
     if (timeless && existsSync(deadlineRepo)) {
         activeStage = "oracle-deadline";
-        const deadlineState = await capturePatches(deadlineRepo, runDir, manifest.baseCommit, "deadline-");
+        const deadlineState = isTreeManifest(manifest)
+            ? captureTree(deadlineRepo, runDir, "deadline-")
+            : await capturePatches(deadlineRepo, runDir, manifest.baseCommit, "deadline-");
         const deadlineWorking = await gradePatch(
             "deadline-working",
             resolve(runDir, "deadline-working.patch"),
@@ -1381,6 +1568,7 @@ const main = async (): Promise<void> => {
             manifest,
             taskDir,
             config,
+            deadlineRepo,
         );
         writeJson(resolve(runDir, "oracle-deadline-working.json"), deadlineWorking);
         const deadlineReused = deadlineState.submissionSha256 === deadlineState.workingSha256;

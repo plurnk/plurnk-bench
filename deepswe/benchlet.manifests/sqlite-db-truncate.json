@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "task": "sqlite-db-truncate",
+  "kind": "terminal-bench",
+  "taskCache": ".cache/terminal-bench-2-1/terminal-bench-2-1",
+  "repositoryUrl": null,
+  "baseCommit": null,
+  "budgetSeconds": 900,
+  "environment": {
+    "kind": "docker",
+    "image": "alexgshaw/sqlite-db-truncate:20251031",
+    "network": "bridge",
+    "cpus": 1,
+    "memoryMb": 2048
+  },
+  "verifier": {
+    "kind": "tree",
+    "timeoutSeconds": 900
+  },
+  "files": {
+    "environment/Dockerfile": "49ac9305c360f117c10c940b5d036a76fb4a29a0f4302e7d75e573c352db0aea",
+    "instruction.md": "465c135cd80be49023ea3ecf8f1d840c679b3a960efe425d510894e417b9d802",
+    "task.toml": "56061acd75d9933aa554aeb249b85d7d081227fca1b71a3da7e3dc97a675723e",
+    "tests/test.sh": "4770437ea96c3cc84684b4f99d55fb148fcac09f9ea1e8ef49de487716e6c334",
+    "tests/test_outputs.py": "8f5bc11018687d8c5894ebf1b4ec6fad004828e5ce442d3cc04d925ef53ef881"
+  }
+}

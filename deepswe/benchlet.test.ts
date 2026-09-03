@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import {
+    existsSync,
     mkdirSync,
     mkdtempSync,
     readFileSync,
@@ -12,6 +13,9 @@ import test from "node:test";
 import { execFileSync } from "node:child_process";
 import {
     allocateRun,
+    captureTree,
+    isTreeManifest,
+    parseTreeVerifierArtifacts,
     sourceProvenance,
     candidateTimeoutMs,
     candidatePolicyPath,
@@ -527,6 +531,47 @@ test("(#21) untracked paths that touch no tracked directory are inert and record
 
         writeFileSync(resolve(root, "pkg", "a.txt"), "changed\n");
         assert.equal(sourceProvenance(root).clean, false, "a tracked modification is dirt");
+    } finally {
+        rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test("[§benchlet-tree] a tree manifest is recognised by its verifier alone", () => {
+    const tree = { schemaVersion: 1, task: "t", kind: "terminal-bench", taskCache: ".cache/x", repositoryUrl: null, baseCommit: null, budgetSeconds: 900, environment: { kind: "docker", image: "i", network: "bridge", cpus: 1, memoryMb: 2048 }, verifier: { kind: "tree", timeoutSeconds: 900 }, files: {} } as never;
+    const docker = { ...(tree as object), verifier: { kind: "task", timeoutSeconds: 900 } } as never;
+    assert.equal(isTreeManifest(tree), true);
+    assert.equal(isTreeManifest(docker), false);
+    assert.match(allocateRun(mkdtempSync(resolve(tmpdir(), "benchlet-family-")), "sqlite-db-truncate", "kimi", "terminal-bench"), /run1-terminal-bench-sqlite-db-truncate-kimi$/);
+});
+
+test("[§benchlet-tree] the tree verifier's reward and CTRF must agree; every test is fail-to-pass", () => {
+    const passing = parseTreeVerifierArtifacts("1\n", { results: { tests: [{ name: "test_json_data", status: "passed" }, { name: "test_shape", status: "passed" }] } });
+    assert.equal(passing.reward, 1);
+    assert.deepEqual([passing.f2pPassed, passing.f2pTotal, passing.p2pTotal], [2, 2, 0]);
+    const failing = parseTreeVerifierArtifacts("0\n", { results: { tests: [{ name: "test_json_data", status: "failed", message: "no recover.json" }] } });
+    assert.equal(failing.reward, 0);
+    assert.equal(failing.tests[0]?.output, "no recover.json");
+    assert.throws(() => parseTreeVerifierArtifacts("1\n", { results: { tests: [{ name: "t", status: "failed" }] } }), /disagrees with its CTRF evidence/);
+    assert.throws(() => parseTreeVerifierArtifacts("maybe\n"), /unreadable reward/);
+    assert.equal(parseTreeVerifierArtifacts("0\n").f2pTotal, 0, "no CTRF is no evidence, never a pass");
+});
+
+test("[§benchlet-tree] a task tree's state is its sorted file listing; content changes move the hash", () => {
+    const root = mkdtempSync(resolve(tmpdir(), "benchlet-tree-"));
+    try {
+        const tree = resolve(root, "repo");
+        mkdirSync(resolve(tree, "sub"), { recursive: true });
+        writeFileSync(resolve(tree, "trunc.db"), "binary bytes");
+        writeFileSync(resolve(tree, "sub", "note.txt"), "one");
+        const first = captureTree(tree, root);
+        assert.equal(first.submissionSha256, first.workingSha256, "a tree has one state, not two patches");
+        assert.equal(first.committed, false);
+        const listing = JSON.parse(readFileSync(resolve(root, "working-tree.json"), "utf8")) as { files: Array<{ path: string }> };
+        assert.deepEqual(listing.files.map(({ path }) => path), ["sub/note.txt", "trunc.db"]);
+        assert.equal(captureTree(tree, root).workingSha256, first.workingSha256, "the listing hash is deterministic");
+        writeFileSync(resolve(tree, "recover.json"), "[]");
+        assert.notEqual(captureTree(tree, root, "deadline-").workingSha256, first.workingSha256);
+        assert.ok(existsSync(resolve(root, "deadline-working-tree.json")));
     } finally {
         rmSync(root, { recursive: true, force: true });
     }

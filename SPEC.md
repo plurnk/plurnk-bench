@@ -183,10 +183,13 @@ Covered: `host-paths.test.ts`, `publish.test.ts [§results-canon]`.
 
 ## §benchlet-diagnostic Pinned host-side diagnostics
 
-`deepswe/benchlet.sh [--task task] [model]` is the sole host-side entrypoint for
-iterative diagnosis against a checked-in task manifest. The default task is
-`abs-module-cache-flags`. A selected task, candidate model, source revisions,
-and policy snapshot remain fixed within a run. The benchlet is not a
+`deepswe/benchlet.sh --task <task>` is the sole host-side entrypoint for
+iterative diagnosis against a checked-in task manifest; there is no default
+task. The release gate runs the two FrontierHarness specimens chosen for being
+awkward for Plurnk rather than generically hard (#22): `sqlite-db-truncate`
+(a binary the model must read) and `fastapi-deprecation-response-headers`
+(2,915 tracked files to admit and embed). A selected task, candidate model,
+source revisions, and policy snapshot remain fixed within a run. The benchlet is not a
 leaderboard result and does not replace Pier; its value is repeatability and
 complete evidence while changing one experimental variable at a time.
 
@@ -207,6 +210,16 @@ complete evidence while changing one experimental variable at a time.
   canonical `tests/test.sh`, then require consistent `reward.json` and
   `ctrf.json` evidence. Malformed output is infrastructure failure; absent test
   evidence fails rather than passing by omission.
+- §benchlet-tree A Terminal-Bench 2.1 task is a tree manifest (`kind:
+  "terminal-bench"`, pinned by `pin-task.mjs --terminal-bench`): no repository,
+  the image's `/app` copied out as the candidate tree, the task's own `[agent]
+  timeout_sec` as the candidate budget, and the harness member definition
+  (`PLURNK_MEMBERS_TASK=**`) admitting the tree exactly as the Harbor agent
+  does. Its state is the sorted sha256 listing of every file, submission and
+  working state being one; grading copies the tree over a fresh task
+  container's `/app` and runs the canonical `tests/test.sh`, whose
+  `reward.txt` and `ctrf.json` must agree. The pristine image must grade 0
+  before a model is invoked.
 - §benchlet-two-patches `model.patch` is only `base..HEAD`, matching the
   committed submission the canonical benchmark grades. `working.patch`
   separately captures committed, tracked, and untracked working state. Both

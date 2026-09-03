@@ -39,11 +39,13 @@ pinned external task without Pier's full container ceremony:
 
 ```sh
 export PLURNK_BENCHLET_CLIENT_ROOT=/path/to/open-client
-deepswe/benchlet.sh --preflight
-PLURNK_MODEL=grok deepswe/benchlet.sh
-deepswe/benchlet.sh --task happy-dom-abort-pending-body-reads --preflight
+# the release gate: the two FrontierHarness specimens (#22), preflight first
+deepswe/benchlet.sh --task sqlite-db-truncate --preflight
+PLURNK_MODEL=kimi deepswe/benchlet.sh --task sqlite-db-truncate
+deepswe/benchlet.sh --task fastapi-deprecation-response-headers --preflight
+PLURNK_MODEL=kimi PLURNK_BENCHLET_TIMELESS=1 deepswe/benchlet.sh --task fastapi-deprecation-response-headers
+# any other pinned task
 PLURNK_MODEL=glm deepswe/benchlet.sh --task happy-dom-abort-pending-body-reads
-PLURNK_MODEL=rtx5070 PLURNK_BENCHLET_TIMELESS=1 deepswe/benchlet.sh --task abs-module-cache-flags
 ```
 
 `PLURNK_BENCHLET_TIMELESS=1` photographs the candidate's working tree at the
@@ -60,7 +62,10 @@ here rather than in `plurnk-meta/recap.md`.
 The outside client checkout is an explicit precondition. The harness never
 guesses a sibling under the shared parent directory.
 
-A task must be pinned before the benchlet will run it. `node deepswe/pin-task.mjs <task>...`
+A task must be pinned before the benchlet will run it. Terminal-Bench 2.1 tasks pin from
+`.cache/terminal-bench-2-1` with `node deepswe/pin-task.mjs --terminal-bench <task>...` (image,
+budgets, and resources from task.toml; the tree is graded by the task's own test.sh, see SPEC
+§benchlet-tree). DeepSWE: `node deepswe/pin-task.mjs <task>...`
 derives the manifest from the task cache (`.cache/deep-swe/tasks/<task>`): repository and
 base commit from the environment Dockerfile (the full commit read from the pinned image),
 the task image by `ext_id`, the task verifier, and the sha256 of every snapshotted file.
