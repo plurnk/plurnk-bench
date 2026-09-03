@@ -322,13 +322,16 @@ export const runToFiles = async (
         stderrPath: string;
         tee?: boolean;
         timeoutMs?: number;
+        signal?: AbortSignal;
     },
 ): Promise<CommandResult> => {
+    options.signal?.throwIfAborted();
     const stdout = createWriteStream(options.stdoutPath);
     const stderr = createWriteStream(options.stderrPath);
     const child = spawn(command, args, {
         cwd: options.cwd,
         env: options.env ?? process.env,
+        signal: options.signal,
         stdio: ["ignore", "pipe", "pipe"],
     });
     child.stdout.pipe(stdout);
@@ -362,6 +365,7 @@ export const runToFiles = async (
         });
     });
     await Promise.all([finished(stdout), finished(stderr)]);
+    options.signal?.throwIfAborted();
     return result;
 };
 
@@ -370,34 +374,40 @@ const streamGitDiff = async (
     args: string[],
     path: string,
     env: NodeJS.ProcessEnv = process.env,
+    signal?: AbortSignal,
 ): Promise<void> => {
+    signal?.throwIfAborted();
     const fd = openSync(path, "w");
-    const child = spawn("git", ["-C", repository, ...args], {
-        env,
-        stdio: ["ignore", fd, "pipe"],
-    });
-    let errorText = "";
-    child.stderr!.setEncoding("utf8");
-    child.stderr!.on("data", (chunk: string) => {
-        errorText += chunk;
-    });
-    const result = await new Promise<CommandResult>((accept) => {
-        child.once("error", (error) => accept({
-            status: null,
-            signal: null,
-            timedOut: false,
-            error,
-        }));
-        child.once("close", (status, signal) => accept({
-            status,
+    try {
+        const child = spawn("git", ["-C", repository, ...args], {
+            env,
             signal,
-            timedOut: false,
-        }));
-    });
-    closeSync(fd);
-    if (result.error !== undefined) throw result.error;
-    if (result.status !== 0) {
-        throw new Error(`git diff failed (${result.status ?? result.signal ?? "unknown"}): ${errorText.trim()}`);
+            stdio: ["ignore", fd, "pipe"],
+        });
+        let errorText = "";
+        let processError: Error | undefined;
+        child.stderr!.setEncoding("utf8");
+        child.stderr!.on("data", (chunk: string) => {
+            errorText += chunk;
+        });
+        child.once("error", (error) => {
+            processError = error;
+        });
+        const result = await new Promise<CommandResult>((accept) => {
+            child.once("close", (status, childSignal) => accept({
+                status,
+                signal: childSignal,
+                timedOut: false,
+                ...(processError === undefined ? {} : { error: processError }),
+            }));
+        });
+        signal?.throwIfAborted();
+        if (result.error !== undefined) throw result.error;
+        if (result.status !== 0) {
+            throw new Error(`git diff failed (${result.status ?? result.signal ?? "unknown"}): ${errorText.trim()}`);
+        }
+    } finally {
+        closeSync(fd);
     }
 };
 
@@ -676,6 +686,7 @@ const capturePatches = async (
     runDir: string,
     baseCommit: string,
     prefix = "",
+    signal?: AbortSignal,
 ): Promise<{
     branch: string;
     head: string;
@@ -684,18 +695,19 @@ const capturePatches = async (
     submissionSha256: string;
     workingSha256: string;
 }> => {
+    signal?.throwIfAborted();
     const status = git(repository, ["status", "--porcelain=v2", "--branch"]);
     const branch = git(repository, ["branch", "--show-current"]).trim();
     const head = git(repository, ["rev-parse", "HEAD"]).trim();
     const submissionPath = resolve(runDir, `${prefix}model.patch`);
-    await streamGitDiff(repository, ["diff", "--binary", baseCommit, "HEAD", "--"], submissionPath);
+    await streamGitDiff(repository, ["diff", "--binary", baseCommit, "HEAD", "--"], submissionPath, process.env, signal);
 
     const alternateIndex = resolve(runDir, `${prefix}working-tree.index`);
     const indexEnv = { ...process.env, GIT_INDEX_FILE: alternateIndex };
     git(repository, ["read-tree", "HEAD"], { env: indexEnv });
     git(repository, ["add", "-A"], { env: indexEnv });
     const workingPath = resolve(runDir, `${prefix}working.patch`);
-    await streamGitDiff(repository, ["diff", "--cached", "--binary", baseCommit, "--"], workingPath, indexEnv);
+    await streamGitDiff(repository, ["diff", "--cached", "--binary", baseCommit, "--"], workingPath, indexEnv, signal);
     rmSync(alternateIndex, { force: true });
 
     return {
@@ -743,7 +755,9 @@ const gradeGoPatch = async (
     manifest: HostManifest,
     taskDir: string,
     config: OracleConfig,
+    signal?: AbortSignal,
 ): Promise<OracleResult> => {
+    signal?.throwIfAborted();
     mkdirSync(artifactDir, { recursive: true });
     const workRoot = mkdtempSync(resolve(tmpdir(), `plurnk-benchlet-${label}-`));
     const repository = resolve(workRoot, "repo");
@@ -814,6 +828,7 @@ const gradeGoPatch = async (
                 },
                 stdoutPath,
                 stderrPath,
+                signal,
             });
             writeJson(resolve(artifactDir, `${suite.name}.command.json`), {
                 command: "go",
@@ -895,7 +910,9 @@ const gradeTaskPatch = async (
     manifest: DockerManifest,
     taskDir: string,
     config: OracleConfig,
+    signal?: AbortSignal,
 ): Promise<OracleResult> => {
+    signal?.throwIfAborted();
     mkdirSync(artifactDir, { recursive: true });
     const verifierArtifacts = resolve(artifactDir, "verifier");
     mkdirSync(verifierArtifacts);
@@ -922,6 +939,7 @@ const gradeTaskPatch = async (
             stdoutPath: resolve(artifactDir, "stdout.log"),
             stderrPath: resolve(artifactDir, "stderr.log"),
             timeoutMs: manifest.verifier.timeoutSeconds * 1_000,
+            signal,
         });
         writeJson(resolve(artifactDir, "command.json"), {
             command: "docker",
@@ -986,7 +1004,9 @@ const gradeTaskTree = async (
     artifactDir: string,
     manifest: TreeManifest,
     taskDir: string,
+    signal?: AbortSignal,
 ): Promise<OracleResult> => {
+    signal?.throwIfAborted();
     mkdirSync(artifactDir, { recursive: true });
     const verifierArtifacts = resolve(artifactDir, "verifier");
     mkdirSync(verifierArtifacts);
@@ -1016,6 +1036,7 @@ const gradeTaskTree = async (
             stdoutPath: resolve(artifactDir, "stdout.log"),
             stderrPath: resolve(artifactDir, "stderr.log"),
             timeoutMs: manifest.verifier.timeoutSeconds * 1_000,
+            signal,
         });
         writeJson(resolve(artifactDir, "command.json"), {
             command: "docker",
@@ -1048,12 +1069,13 @@ const gradePatch = (
     taskDir: string,
     config: OracleConfig,
     tree: string | null = null,
+    signal?: AbortSignal,
 ): Promise<OracleResult> => isTreeManifest(manifest)
-    ? gradeTaskTree(label, tree, artifactDir, manifest, taskDir)
+    ? gradeTaskTree(label, tree, artifactDir, manifest, taskDir, signal)
     : isDockerManifest(manifest)
-    ? gradeTaskPatch(label, patchPath, artifactDir, manifest, taskDir, config)
+    ? gradeTaskPatch(label, patchPath, artifactDir, manifest, taskDir, config, signal)
     : isHostManifest(manifest)
-        ? gradeGoPatch(label, patchPath, artifactDir, repositoryCache, manifest, taskDir, config)
+        ? gradeGoPatch(label, patchPath, artifactDir, repositoryCache, manifest, taskDir, config, signal)
         : Promise.reject(new Error("benchlet manifest environment and verifier are incompatible"));
 
 const failureText = (
@@ -1236,6 +1258,37 @@ export const candidateTimeoutMs = (
     ? undefined
     : (candidateTimeout + candidateOverhead) * 1_000;
 
+export const recordInfrastructureFailure = (
+    runDir: string,
+    stage: string,
+    startedAt: Date | undefined,
+    error: unknown,
+    completedAt = new Date(),
+): void => {
+    const rendered = error instanceof Error ? error.stack ?? error.message : String(error);
+    writeFileSync(resolve(runDir, "infrastructure-error.log"), `${rendered}\n`);
+    writeJson(resolve(runDir, "result.json"), {
+        schemaVersion: 2,
+        harnessStatus: "infrastructure_error",
+        infrastructure: {
+            stage,
+            message: error instanceof Error ? error.message : String(error),
+        },
+        startedAt: startedAt?.toISOString() ?? null,
+        completedAt: completedAt.toISOString(),
+        durationMs: startedAt === undefined ? null : completedAt.getTime() - startedAt.getTime(),
+    });
+    const provenancePath = resolve(runDir, "provenance.json");
+    if (!existsSync(provenancePath)) return;
+    const provenance = JSON.parse(readFileSync(provenancePath, "utf8")) as Record<string, unknown>;
+    writeJson(provenancePath, {
+        ...provenance,
+        state: "infrastructure_error",
+        failedStage: stage,
+        completedAt: completedAt.toISOString(),
+    });
+};
+
 export const requiemModelAlias = (
     enabled: boolean,
     configured: string | undefined,
@@ -1252,7 +1305,8 @@ const requiemSummary = (path: string): RequiemAccountingSummary => {
     return summarizeRequiemAccounting(report);
 };
 
-const main = async (): Promise<void> => {
+const main = async (signal?: AbortSignal): Promise<void> => {
+    signal?.throwIfAborted();
     const operatorEnv = loadBenchmarkEnvironment(
         process.env.PLURNK_BENCHLET_OPERATOR_ENV,
         resolve(benchRoot, ".env.defaults"),
@@ -1362,6 +1416,8 @@ const main = async (): Promise<void> => {
                 manifest,
                 taskDir,
                 config,
+                null,
+                signal,
             );
             if (baseline.p2pPassed !== baseline.p2pTotal || baseline.f2pPassed !== 0) {
                 throw new Error(
@@ -1458,6 +1514,8 @@ const main = async (): Promise<void> => {
         manifest,
         taskDir,
         config,
+        null,
+        signal,
     );
     writeJson(resolve(runDir, "oracle-baseline.json"), baseline);
     if (baseline.p2pPassed !== baseline.p2pTotal || baseline.f2pPassed !== 0) {
@@ -1510,12 +1568,13 @@ const main = async (): Promise<void> => {
         stderrPath: resolve(runDir, "candidate.stderr.log"),
         tee: true,
         timeoutMs: candidateTimeoutMs(clientTimeout, candidateOverhead),
+        signal,
     });
 
     activeStage = "capture";
     const patchState = isTreeManifest(manifest)
         ? captureTree(repository, runDir)
-        : await capturePatches(repository, runDir, manifest.baseCommit);
+        : await capturePatches(repository, runDir, manifest.baseCommit, "", signal);
     writeJson(resolve(runDir, "git-state.json"), patchState);
     const digestPath = resolve(runDir, "digest/digest.json");
     if (!existsSync(digestPath)) throw new Error("candidate did not produce a digest");
@@ -1535,6 +1594,7 @@ const main = async (): Promise<void> => {
         taskDir,
         config,
         repository,
+        signal,
     );
     writeJson(resolve(runDir, "oracle-working.json"), workingOracle);
     activeStage = "oracle-submission";
@@ -1549,6 +1609,8 @@ const main = async (): Promise<void> => {
             manifest,
             taskDir,
             config,
+            null,
+            signal,
         );
     writeJson(resolve(runDir, "oracle-submission.json"), submissionOracle);
     if (submissionReusedWorking) {
@@ -1568,7 +1630,7 @@ const main = async (): Promise<void> => {
         activeStage = "oracle-deadline";
         const deadlineState = isTreeManifest(manifest)
             ? captureTree(deadlineRepo, runDir, "deadline-")
-            : await capturePatches(deadlineRepo, runDir, manifest.baseCommit, "deadline-");
+            : await capturePatches(deadlineRepo, runDir, manifest.baseCommit, "deadline-", signal);
         const deadlineWorking = await gradePatch(
             "deadline-working",
             resolve(runDir, "deadline-working.patch"),
@@ -1578,6 +1640,7 @@ const main = async (): Promise<void> => {
             taskDir,
             config,
             deadlineRepo,
+            signal,
         );
         writeJson(resolve(runDir, "oracle-deadline-working.json"), deadlineWorking);
         const deadlineReused = deadlineState.submissionSha256 === deadlineState.workingSha256;
@@ -1591,6 +1654,8 @@ const main = async (): Promise<void> => {
                 manifest,
                 taskDir,
                 config,
+                null,
+                signal,
             );
         writeJson(resolve(runDir, "oracle-deadline-submission.json"), deadlineSubmission);
         deadlineOracle = {
@@ -1636,6 +1701,7 @@ const main = async (): Promise<void> => {
             stderrPath: resolve(runDir, "requiem.stderr.log"),
             tee: true,
             timeoutMs: requiemTimeout * 1_000,
+            signal,
         });
         const markdownPath = resolve(runDir, "digest/requiem.md");
         const reportPath = resolve(runDir, "digest/requiem.json");
@@ -1707,35 +1773,21 @@ const main = async (): Promise<void> => {
 };
 
 if (import.meta.main) {
-    void main().catch((error) => {
+    const interruption = new AbortController();
+    const onSigint = (): void => interruption.abort(new Error("benchlet interrupted by SIGINT"));
+    const onSigterm = (): void => interruption.abort(new Error("benchlet interrupted by SIGTERM"));
+    process.once("SIGINT", onSigint);
+    process.once("SIGTERM", onSigterm);
+    void main(interruption.signal).catch((error) => {
         const rendered = error instanceof Error ? error.stack ?? error.message : String(error);
         process.stderr.write(`${rendered}\n`);
         if (activeRunDir !== undefined) {
-            const completedAt = new Date();
-            writeFileSync(resolve(activeRunDir, "infrastructure-error.log"), `${rendered}\n`);
-            writeJson(resolve(activeRunDir, "result.json"), {
-                schemaVersion: 2,
-                harnessStatus: "infrastructure_error",
-                infrastructure: {
-                    stage: activeStage,
-                    message: error instanceof Error ? error.message : String(error),
-                },
-                startedAt: activeStartedAt?.toISOString() ?? null,
-                completedAt: completedAt.toISOString(),
-                durationMs: activeStartedAt === undefined ? null : completedAt.getTime() - activeStartedAt.getTime(),
-            });
-            const provenancePath = resolve(activeRunDir, "provenance.json");
-            if (existsSync(provenancePath)) {
-                const provenance = JSON.parse(readFileSync(provenancePath, "utf8")) as Record<string, unknown>;
-                writeJson(provenancePath, {
-                    ...provenance,
-                    state: "infrastructure_error",
-                    failedStage: activeStage,
-                    completedAt: completedAt.toISOString(),
-                });
-            }
+            recordInfrastructureFailure(activeRunDir, activeStage, activeStartedAt, error);
             process.stderr.write(`artifact=${activeRunDir}\n`);
         }
         process.exitCode = 1;
+    }).finally(() => {
+        process.removeListener("SIGINT", onSigint);
+        process.removeListener("SIGTERM", onSigterm);
     });
 }

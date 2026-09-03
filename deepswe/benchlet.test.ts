@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { basename, resolve } from "node:path";
 import test from "node:test";
 import { execFileSync } from "node:child_process";
+import { setTimeout as delay } from "node:timers/promises";
 import {
     allocateRun,
     captureTree,
@@ -27,6 +28,7 @@ import {
     manifestPathForTask,
     parseGoTestEvents,
     parseTaskVerifierArtifacts,
+    recordInfrastructureFailure,
     requiemIsComplete,
     requiemModelAlias,
     runToFiles,
@@ -386,6 +388,84 @@ test("[§benchlet-evidence] benchlet marks and terminates a process that exceeds
 
         assert.equal(result.timedOut, true);
         assert.equal(result.signal, "SIGTERM");
+    } finally {
+        rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test("[§benchlet-evidence] benchlet interruption terminates its child after durable output", async () => {
+    const root = mkdtempSync(resolve(tmpdir(), "plurnk-benchlet-interruption-"));
+    try {
+        const stdoutPath = resolve(root, "stdout.log");
+        const stderrPath = resolve(root, "stderr.log");
+        const controller = new AbortController();
+        const running = runToFiles(process.execPath, [
+            "-e",
+            'process.stdout.write("ready\\n"); setInterval(() => {}, 1_000);',
+        ], {
+            cwd: root,
+            stdoutPath,
+            stderrPath,
+            signal: controller.signal,
+            timeoutMs: 1_000,
+        });
+        const outputIsReady = (): boolean => existsSync(stdoutPath)
+            && readFileSync(stdoutPath, "utf8").includes("ready");
+        for (let attempt = 0; attempt < 100 && !outputIsReady(); attempt += 1) {
+            await delay(5);
+        }
+        assert.equal(readFileSync(stdoutPath, "utf8"), "ready\n");
+
+        controller.abort(new Error("benchlet interrupted by SIGTERM"));
+
+        await assert.rejects(running, /benchlet interrupted by SIGTERM/);
+        assert.equal(readFileSync(stdoutPath, "utf8"), "ready\n");
+        assert.equal(readFileSync(stderrPath, "utf8"), "");
+    } finally {
+        rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test("[§benchlet-failure] benchlet interruption closes its provenance and records the failed stage", () => {
+    const root = mkdtempSync(resolve(tmpdir(), "plurnk-benchlet-interruption-record-"));
+    try {
+        const startedAt = new Date("2026-09-03T12:00:00.000Z");
+        const completedAt = new Date("2026-09-03T12:00:09.000Z");
+        writeFileSync(resolve(root, "provenance.json"), `${JSON.stringify({
+            schemaVersion: 1,
+            state: "running",
+            identity: "preserved",
+        })}\n`);
+
+        recordInfrastructureFailure(
+            root,
+            "candidate",
+            startedAt,
+            new Error("benchlet interrupted by SIGTERM"),
+            completedAt,
+        );
+
+        const result = JSON.parse(readFileSync(resolve(root, "result.json"), "utf8")) as Record<string, unknown>;
+        assert.deepEqual(result, {
+            schemaVersion: 2,
+            harnessStatus: "infrastructure_error",
+            infrastructure: {
+                stage: "candidate",
+                message: "benchlet interrupted by SIGTERM",
+            },
+            startedAt: startedAt.toISOString(),
+            completedAt: completedAt.toISOString(),
+            durationMs: 9_000,
+        });
+        const provenance = JSON.parse(readFileSync(resolve(root, "provenance.json"), "utf8")) as Record<string, unknown>;
+        assert.deepEqual(provenance, {
+            schemaVersion: 1,
+            state: "infrastructure_error",
+            identity: "preserved",
+            failedStage: "candidate",
+            completedAt: completedAt.toISOString(),
+        });
+        assert.match(readFileSync(resolve(root, "infrastructure-error.log"), "utf8"), /benchlet interrupted by SIGTERM/);
     } finally {
         rmSync(root, { recursive: true, force: true });
     }
