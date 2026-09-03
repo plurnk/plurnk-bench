@@ -1,0 +1,53 @@
+{
+    "name": "FrontierHarness Eval v1",
+    "source": "https://github.com/runta-dev/frontier-harness-eval",
+    "status": "frozen",
+    "model": {
+        "name": "Kimi K3",
+        "provider": "Fireworks",
+        "route": "fireworks-ai/accounts/fireworks/models/kimi-k3"
+    },
+    "terminal_bench": {
+        "dataset": "terminal-bench/terminal-bench-2-1",
+        "cache": ".cache/terminal-bench-2-1/terminal-bench-2-1",
+        "tasks": [
+            "build-cython-ext",
+            "chess-best-move",
+            "code-from-image",
+            "constraints-scheduling",
+            "db-wal-recovery",
+            "dna-insert",
+            "extract-elf",
+            "gcode-to-text",
+            "git-leak-recovery",
+            "kv-store-grpc",
+            "largest-eigenval",
+            "log-summary-date-ranges",
+            "merge-diff-arc-agi-task",
+            "modernize-scientific-stack",
+            "multi-source-data-merger",
+            "openssl-selfsigned-cert",
+            "polyglot-c-py",
+            "regex-log",
+            "sanitize-git-repo",
+            "sqlite-db-truncate",
+            "vulnerable-secret"
+        ]
+    },
+    "deep_swe": {
+        "repository": "datacurve-ai/deep-swe",
+        "version": "v1.1",
+        "cache": ".cache/deep-swe/tasks",
+        "tasks": [
+            "anko-typed-variable-bindings",
+            "arktype-json-schema-refs-dependencies",
+            "expr-try-catch-errors",
+            "fastapi-deprecation-response-headers",
+            "httpx-multipart-response-parsing",
+            "katex-multicolumn-array-spans",
+            "meriyah-explicit-resource-declarations",
+            "python-statemachine-state-data-scoping",
+            "scc-bounded-memory-spilling"
+        ]
+    }
+}

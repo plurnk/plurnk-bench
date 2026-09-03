@@ -7,7 +7,7 @@ Benchmarking harnesses for [plurnk-service](https://github.com/plurnk/plurnk-ser
 | family | status |
 |---|---|
 | `deepswe/` | **active** — the bench; local-model target (rtx5070), revived 2026-08-31 (#17) |
-| `terminal_bench/` | retired, revivable (2026-08-31, #17 — unaffordable at frontier budgets); adapter committed and working |
+| `terminal_bench/` | **revived for parity** — FrontierHarness Eval v1 lane (2026-09-02, #22): `terminal_bench/frontier.sh`, 30 tasks, one Harbor job each; the TB 4.0 leaderboard shape stays retired (#17) |
 | `atlas/` | retired, revivable (2026-08-31, #16) |
 | `enterprise/` | retired, revivable (2026-08-31, #16); its standing MCP fixtures are down |
 

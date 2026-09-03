@@ -11,7 +11,7 @@
     "scripts": {
         "test:lint": "tsc --noEmit",
         "test:driver": "python -m unittest discover -s deepswe -p 'test_*.py' && python -m unittest discover -s enterprise -p 'test_*.py'",
-        "test:unit": "node --test 'src/**/*.test.ts' 'deepswe/**/*.test.ts' 'atlas/**/*.test.ts' 'enterprise/**/*.test.ts'",
+        "test:unit": "node --test 'src/**/*.test.ts' 'deepswe/**/*.test.ts' 'atlas/**/*.test.ts' 'enterprise/**/*.test.ts' 'terminal_bench/**/*.test.ts'",
         "test": "npm run test:lint && npm run test:driver && npm run test:unit"
     },
     "dependencies": {
