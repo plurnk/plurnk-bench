@@ -243,10 +243,15 @@ complete evidence while changing one experimental variable at a time.
   channel observations sharing one worker-owned stream address are one stream
   incident whose channels remain listed as evidence. The summary reports both
   incident counts by Problem type and the number of underlying observation rows.
+  Every asynchronous child shares the benchlet's cancellation signal; an operator
+  interruption terminates the child and drains both streams before evidence is finalized,
+  while a harness watchdog remains distinctly recorded as `timedOut`.
 - §benchlet-failure A run with no physical provider request is infrastructure, not a
   model score. A requiem is complete only when its process succeeds and both
   `requiem.md` and `requiem.json` exist. Infrastructure failures retain the
-  stage, error, provenance, and all artifacts written before the failure.
+  stage, error, provenance, and all artifacts written before the failure. An
+  interrupted allocated run is such a terminal infrastructure failure, never a
+  permanently `running` run.
 - §benchlet-requiem-witness The requiem is an independent forensic model call,
   not another candidate turn. `PLURNK_BENCHLET_REQUIEM_MODEL` names its
   required witness alias; the candidate alias is never an implicit fallback.
