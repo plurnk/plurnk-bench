@@ -232,6 +232,11 @@ class PlurnkAgent(BaseInstalledAgent):
         command = f"""
 set -uo pipefail
 mkdir -p {shlex.quote(str(agent_dir))}
+# A task directory outside any repository has no tracked members ({{§membership-baseline}}): admit its
+# tree as service configuration so READ, FIND, and EDIT see it. Inside a repository, tracked-only stands.
+if ! git -C "$PWD" rev-parse --show-toplevel >/dev/null 2>&1; then
+  export PLURNK_MEMBERS_TASK='**' PLURNK_MEMBERS_ENABLED='["task"]'
+fi
 DB="${{PLURNK_SERVICE_DB_PATH:-${{PLURNK_DB_PATH:-${{XDG_DATA_HOME:-$HOME/.local/share}}/plurnk/plurnk.db}}}}"
 plurnk-service start > {shlex.quote(str(daemon_log))} 2>&1 &
 for _ in $(seq 1 {DAEMON_READY_TIMEOUT_S}); do
