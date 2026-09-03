@@ -596,6 +596,10 @@ export const sourceProvenance = (repository: string): {
     };
 };
 
+// {§benchlet-tree} — the container path every Terminal-Bench instruction names for its tree.
+export const TREE_TASK_ROOT = "/app";
+export const treeInstruction = (instruction: string, root: string): string =>
+    instruction.replaceAll(new RegExp(`${TREE_TASK_ROOT}(?=/|\\b)`, "g"), root);
 export const allocateRun = (runsRoot: string, task: string, model: string, family = "deepswe"): string => {
     return allocateRunDirectory(runsRoot, [family, task, model]);
 };
@@ -1397,6 +1401,7 @@ const main = async (): Promise<void> => {
             baseCommit: manifest.baseCommit,
             manifestSha256: sha256(manifestPath),
             files: manifest.files,
+            ...(isTreeManifest(manifest) ? { instructionRewrite: { from: TREE_TASK_ROOT, to: resolve(runDir, "repo") } } : {}),
             environment: {
                 ...manifest.environment,
                 imageId,
@@ -1464,7 +1469,11 @@ const main = async (): Promise<void> => {
 
     const repository = resolve(runDir, "repo");
     prepareCandidateRepository(manifest, repositoryCache, repository);
-    const instruction = readFileSync(resolve(taskDir, "instruction.md"), "utf8");
+    // {§benchlet-tree} — a Terminal-Bench instruction names the container path `/app`; the host
+    // candidate's tree lives in the run directory, so the instruction names that path instead and the
+    // rewrite is recorded. The verifier still sees the tree at /app inside its container.
+    const instructionSource = readFileSync(resolve(taskDir, "instruction.md"), "utf8");
+    const instruction = isTreeManifest(manifest) ? treeInstruction(instructionSource, repository) : instructionSource;
     const candidateArgs = [
         "scripts/candidate.mjs",
         "--auto",

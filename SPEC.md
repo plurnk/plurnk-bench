@@ -219,7 +219,10 @@ complete evidence while changing one experimental variable at a time.
   working state being one; grading copies the tree over a fresh task
   container's `/app` and runs the canonical `tests/test.sh`, whose
   `reward.txt` and `ctrf.json` must agree. The pristine image must grade 0
-  before a model is invoked.
+  before a model is invoked. The instruction names the container path `/app`;
+  the host candidate reads it with that path rewritten to its own tree and the
+  rewrite recorded in provenance, since the tree lives in the run directory on
+  the host and at `/app` only inside the verifier's container.
 - §benchlet-two-patches `model.patch` is only `base..HEAD`, matching the
   committed submission the canonical benchmark grades. `working.patch`
   separately captures committed, tracked, and untracked working state. Both

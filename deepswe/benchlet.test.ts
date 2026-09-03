@@ -15,6 +15,7 @@ import {
     allocateRun,
     captureTree,
     isTreeManifest,
+    treeInstruction,
     parseTreeVerifierArtifacts,
     sourceProvenance,
     candidateTimeoutMs,
@@ -575,4 +576,12 @@ test("[§benchlet-tree] a task tree's state is its sorted file listing; content 
     } finally {
         rmSync(root, { recursive: true, force: true });
     }
+});
+
+test("[§benchlet-tree] the instruction's /app becomes the host tree; unrelated words survive", () => {
+    assert.equal(
+        treeInstruction("Write to /app/recover.json; the db is /app/trunc.db (in /app).", "/tmp/run/repo"),
+        "Write to /tmp/run/repo/recover.json; the db is /tmp/run/repo/trunc.db (in /tmp/run/repo).",
+    );
+    assert.equal(treeInstruction("the /application folder and /apps", "/x"), "the /application folder and /apps");
 });
