@@ -3,7 +3,7 @@
 # (21 Terminal-Bench 2.1 + 9 DeepSWE v1.1), one Harbor job per task through the plurnk agent,
 # each client timeout = the task's own [agent] budget minus headroom (SPEC §frontier-parity).
 #   PLURNK_MODEL=<alias> terminal_bench/frontier.sh [--preflight] [task ...]
-#   PLURNK_BENCH_JOBS      tasks in flight at once (default 4)
+#   PLURNK_BENCH_JOBS      tasks in flight at once (default 1)
 #   PLURNK_BENCH_SERVICE_VERSION / _CLIENT_VERSION   the published @plurnk versions the agent installs
 #                          in every container (default: the registry's latest at launch, resolved once and recorded)
 #   PLURNK_BENCH_RUNS_DIR  where run directories land (default jobs/)
@@ -16,6 +16,11 @@
 #   the DeepSWE task cache under .cache/deep-swe/tasks (deepswe/README.md)
 set -euo pipefail
 cd "$(dirname "$0")/.."
+
+JOBS="${PLURNK_BENCH_JOBS:-1}"
+case "$JOBS" in
+  ''|*[!0-9]*|0) echo "frontier: PLURNK_BENCH_JOBS must be a positive integer" >&2; exit 2 ;;
+esac
 
 PREFLIGHT=0
 ONLY=()
@@ -65,7 +70,7 @@ printf '%s\n' "$PLAN" > "$RUN/plan.jsonl"
   echo "service_version=$SERVICE_VERSION"
   echo "client_version=$CLIENT_VERSION"
   echo "embedding_route=${PLURNK_BENCH_EMBEDDING_ROUTE:-bundled}"
-  echo "jobs=${PLURNK_BENCH_JOBS:-4}"
+  echo "jobs=$JOBS"
   echo "harbor=$(harbor --version 2>/dev/null | head -1)"
   echo "started=$(date -Iseconds)"
   echo "manifest_sha256=$(sha256sum terminal_bench/frontier.manifest.json | cut -d' ' -f1)"
@@ -76,7 +81,7 @@ echo "frontier: run directory $RUN"
 printf '%s\n' "$PLAN" | node -e '
   const rows = require("node:fs").readFileSync(0, "utf8").trim().split("\n").map((line) => JSON.parse(line));
   for (const row of rows) console.log([row.task, row.dir, row.client_timeout_sec].join("\t"));
-' | xargs -P "${PLURNK_BENCH_JOBS:-4}" -L 1 bash -c '
+' | xargs -P "$JOBS" -L 1 bash -c '
   task="$0"; dir="$1"; budget="$2"
   echo "frontier: launch $task (client_timeout_sec=$budget)"
   terminal_bench/run.sh -p "$dir" -m "$MODEL" --agent-kwarg "client_timeout_sec=$budget" \
