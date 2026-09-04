@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { HEADROOM_SEC, plan, readManifest, summary, tomlValue } from "./frontier.mjs";
+import { HEADROOM_SEC, median, plan, readManifest, summary, tomlValue } from "./frontier.mjs";
 
 const TOML = `schema_version = "1.1"
 
@@ -86,4 +86,52 @@ test("[§frontier-parity] the summary reads Harbor's reward.txt per job and coun
         deep_swe: { cache: join(root, "cache"), tasks: ["ds-one", "ds-two"] },
     }));
     assert.equal(summary(run, manifest).missing, 1, "a task with no trial dir is missing, never a fail");
+});
+
+test("[§frontier-parity] the summary reports task-level success, cost, cache, and duration medians", () => {
+    const { root, manifest } = fixture();
+    const run = join(root, "run");
+    const writeTrial = (task: string, reward: number, costUsd: string, inputTokens: number, cacheReadTokens: number, wallMs: number) => {
+        const trial = join(run, task, `${task}__trial`);
+        mkdirSync(join(trial, "verifier"), { recursive: true });
+        mkdirSync(join(trial, "agent"), { recursive: true });
+        writeFileSync(join(trial, "verifier", "reward.txt"), `${reward}\n`);
+        writeFileSync(join(trial, "agent", "plurnk.json"), JSON.stringify({
+            usage: {
+                accounting: {
+                    costUsd,
+                    usage: { inputTokens, inputTokenDetails: { cacheReadTokens } },
+                },
+            },
+        }));
+        const started = new Date("2026-09-04T12:00:00.000Z");
+        writeFileSync(join(trial, "result.json"), JSON.stringify({
+            started_at: started.toISOString(),
+            finished_at: new Date(started.getTime() + wallMs).toISOString(),
+        }));
+    };
+    writeTrial("tb-one", 1, "0.50", 1_000, 800, 240_000);
+    writeTrial("ds-one", 0, "1.50", 2_000, 1_000, 480_000);
+
+    const result = summary(run, manifest);
+    assert.equal(result.metrics.passRate, 0.5);
+    assert.deepEqual(result.metrics.medianCostPerSuccessfulTaskUsd, { value: 0.5, reported: 1, eligible: 1 });
+    assert.deepEqual(result.metrics.medianCostPerTaskUsd, { value: 1, reported: 2, eligible: 2 });
+    assert.deepEqual(result.metrics.medianCacheHitRatePerSuccessfulTask, { value: 0.8, reported: 1, eligible: 1 });
+    assert.deepEqual(result.metrics.medianTimePerSuccessfulTaskMs, { value: 240_000, reported: 1, eligible: 1 });
+});
+
+test("[§frontier-parity] medians are task-weighted and average the middle pair", () => {
+    assert.equal(median([]), null);
+    assert.equal(median([9, 1, 5]), 5);
+    assert.equal(median([10, 2, 8, 4]), 6);
+});
+
+test("[§frontier-parity] an active trial's empty client document is missing telemetry, not malformed evidence", () => {
+    const { root, manifest } = fixture();
+    const trial = join(root, "run", "tb-one", "tb-one__active");
+    mkdirSync(join(trial, "agent"), { recursive: true });
+    writeFileSync(join(trial, "agent", "plurnk.json"), "");
+    const result = summary(join(root, "run"), manifest);
+    assert.deepEqual(result.metrics.medianCostPerTaskUsd, { value: null, reported: 0, eligible: 0 });
 });
