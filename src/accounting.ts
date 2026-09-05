@@ -14,7 +14,7 @@ export interface ProviderUsageProjection {
 }
 
 // Deliberately narrow views of the contracts-owned accounting shapes. Bench
-// preserves request evidence verbatim and consumes only the aggregate projection;
+// preserves request evidence verbatim and selects purposes for diagnostic metrics;
 // it does not normalize provider responses or calculate provider charges.
 export interface ProviderAccountingProjection {
     requests: readonly unknown[];
@@ -24,11 +24,12 @@ export interface ProviderAccountingProjection {
 
 interface ProviderRequestProjection {
     model: string;
+    usage?: ProviderUsageProjection;
 }
 
 export interface DigestAccountingInput {
     workspaces: Array<{ accounting: ProviderAccountingProjection | null }>;
-    provider_requests: Array<{ accounting: ProviderRequestProjection | null }>;
+    provider_requests: Array<{ kind: string; accounting: ProviderRequestProjection | null }>;
     turn_attempts: Array<{ accepted: boolean | null }>;
 }
 
@@ -141,6 +142,39 @@ export const cacheEffectivenessOf = (
     };
 };
 
+const cacheEffectivenessForRequests = (requests: readonly unknown[]): CacheEffectiveness | null => {
+    const projections = requests.map((request, index) => {
+        if (request === null) return null;
+        const accounting = recordOf(request, `provider request ${index} accounting`);
+        return accounting.usage === undefined ? null : cacheEffectivenessOf(
+            assertProviderUsageProjection(accounting.usage, `provider request ${index} usage`),
+        );
+    });
+    const known = projections.filter((value): value is CacheEffectiveness => value !== null);
+    if (known.length === 0 || known.length !== projections.length) return null;
+    const sum = (values: number[]): number => observedTokens(
+        values.reduce((total, value) => total + value, 0), "aggregate cache tokens",
+    )!;
+    const writes = known.map(({ cacheWriteTokens }) => cacheWriteTokens);
+    return cacheEffectivenessOf({
+        inputTokens: sum(known.map(({ inputTokens }) => inputTokens)),
+        inputTokenDetails: {
+            cacheReadTokens: sum(known.map(({ cacheReadTokens }) => cacheReadTokens)),
+            ...(writes.every((value) => value !== undefined) ? { cacheWriteTokens: sum(writes) } : {}),
+        },
+    });
+};
+
+const isModelRequest = ({ kind }: DigestAccountingInput["provider_requests"][number]): boolean => {
+    switch (kind) {
+        case "emission":
+        case "bare": return true;
+        case "embedding_documents":
+        case "embedding_query": return false;
+        default: throw new TypeError(`unknown provider request kind ${JSON.stringify(kind)}`);
+    }
+};
+
 const providerModel = (value: unknown, subject: string): string => {
     const request = recordOf(value, subject);
     if (typeof request.model !== "string" || request.model.trim() === "") {
@@ -196,7 +230,8 @@ export const summarizeDigestAccounting = (digest: DigestAccountingInput): Accoun
         rejectedEmissions,
         models: [...new Set(requestModels.filter((model): model is string => model !== null))].toSorted(),
         usage,
-        cacheEffectiveness: cacheEffectivenessOf(usage),
+        cacheEffectiveness: cacheEffectivenessForRequests(digest.provider_requests
+            .filter(isModelRequest).map(({ accounting }) => accounting)),
         costUsd: workspaceAccounting?.costUsd ?? null,
     };
 };
@@ -287,7 +322,7 @@ export const summarizeRequiemAccounting = (
         workers: accountings.length,
         providerRequests: accountings.reduce((sum, accounting) => sum + accounting.requests.length, 0),
         usage,
-        cacheEffectiveness: cacheEffectivenessOf(usage),
+        cacheEffectiveness: cacheEffectivenessForRequests(accountings.flatMap(({ requests }) => requests)),
         costUsd: addSettledUsd(...accountings.map(({ costUsd }) => costUsd)),
     };
 };

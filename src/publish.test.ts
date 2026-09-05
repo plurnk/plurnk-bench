@@ -35,7 +35,7 @@ test("[§publish-task-accounting] publication includes child requests and preser
         writeFileSync(join(digestDir, "digest.json"), JSON.stringify({
             turns: [{ producer: "model" }],
             workspaces: [{ accounting }],
-            provider_requests: accounting.requests.map((request) => ({ accounting: request })),
+            provider_requests: accounting.requests.map((request) => ({ kind: "emission", accounting: request })),
             turn_attempts: [{ accepted: true }],
         }));
     });
@@ -136,7 +136,7 @@ test("[§publish-task-accounting] interrupted requests remain unknown rather tha
     };
     const digest = {
         workspaces: [{ accounting: null }],
-        provider_requests: [{ accounting: null }],
+        provider_requests: [{ kind: "emission", accounting: null }],
         turn_attempts: [{ accepted: null }],
     };
     const published = publishedRecord(record, "/bench/run/plurnk.db", digest);
@@ -187,6 +187,7 @@ test("[§publish-requiem-accounting] a banked interview's spend folds into recor
                         provider: "provider:fixture",
                         model: "requiem-witness",
                         outcome: "response",
+                        usage: { inputTokens: 10, inputTokenDetails: { cacheReadTokens: 1 } },
                         cost: { kind: "charged", amount: { amount: "0.05", currency: "USD" }, source: "fixture" },
                     }],
                     usage: {

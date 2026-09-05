@@ -128,14 +128,18 @@ Problem under `problem`; Pier exceptions are mapped once to a `bench:pier`
 Problem. Earlier client schemas, legacy session/run coordinates, pico-USD, the
 old `error` field, and flattened failure strings are rejected rather than translated.
 
-§accounting-cache-effectiveness Benchlet summaries derive one diagnostic cache
-metric from the daemon's authoritative aggregate usage. When both total input
-tokens and cache-read tokens are known, `cacheEffectiveness` preserves those
-counts, any known cache-write count, and reports
-`cacheReadTokenRatio = cacheReadTokens / inputTokens`. Zero input has a `null`
-ratio; missing quantities make the complete projection `null`. The ratio is
-token-weighted, not a request hit rate, and never substitutes for the retained
-accounting evidence.
+§accounting-cache-effectiveness `cacheEffectiveness` measures model prompt caching
+from the daemon's physical request ledger: every `emission` and `bare` request,
+across workers, retries and rejected emissions. Embedding requests are excluded
+only from this metric, never from whole-task usage or cost. Requiem interviews
+use their own model-request ledger. Each included request must report input and
+cache-read tokens; otherwise the projection is `null`, not a selected complete
+subset. With complete evidence, sum those counts and report
+`cacheReadTokenRatio = cacheReadTokens / inputTokens`; include cache-write tokens
+only when every included request reports them. No model requests yields `null`;
+explicit zero input yields counts with a `null` ratio. Invalid per-request counts
+fail before aggregation. The ratio is token-weighted, not a request hit rate,
+and never substitutes for the retained accounting evidence.
 
 ## §provenance Job-tree walking and trial identity
 

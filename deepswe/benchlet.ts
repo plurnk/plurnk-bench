@@ -192,6 +192,7 @@ interface DigestJson {
         accepted: boolean | null;
     }>;
     provider_requests: Array<{
+        kind: string;
         accounting: { model: string } | null;
     }>;
     log_entries: Array<{

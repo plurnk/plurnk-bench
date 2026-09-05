@@ -73,6 +73,7 @@ interface Digest {
         readonly accepted: boolean | null;
     }>;
     readonly provider_requests: Array<{
+        readonly kind: string;
         readonly accounting: { readonly model: string } | null;
     }>;
     readonly log_entries: Array<{

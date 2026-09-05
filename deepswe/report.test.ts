@@ -55,10 +55,13 @@ test("{§deepswe-report} saved-job reporting reads the workspace digest, not par
     write(join(trial, "agent", "plurnk.json"), { schemaVersion: 6, finalStatus: 200, wallMs: 5000 });
     write(join(trial, "verifier", "reward.json"), { reward: 1 });
     writeFileSync(join(trial, ".plurnk-bench-published"), published);
-    const requests = ["parent", "child"].map((model) => ({ model, cost: { kind: "estimated" } }));
+    const requests = ["parent", "child"].map((model) => ({
+        model, cost: { kind: "estimated" },
+        usage: { inputTokens: 50, inputTokenDetails: { cacheReadTokens: 45 } },
+    }));
     write(join(published, "digest", "digest.json"), {
         workspaces: [{ accounting: { requests, costUsd: "0.3", usage: { inputTokens: 100, inputTokenDetails: { cacheReadTokens: 90 } } } }],
-        provider_requests: requests.map((accounting) => ({ accounting })), turn_attempts: [],
+        provider_requests: requests.map((accounting) => ({ kind: "emission", accounting })), turn_attempts: [],
     });
     const report = reportJob(root);
     assert.equal(report.totalTrials, 113);
@@ -66,4 +69,22 @@ test("{§deepswe-report} saved-job reporting reads the workspace digest, not par
     assert.equal(report.recordedCost.totalUsd, "0.3");
     assert.equal(report.metrics.medianCacheHitRatePerSuccessfulTask.value, 0.9);
     assert.deepEqual(report.runnerSnapshot, { n_completed_trials: 1 });
+
+    const embedding = { model: "embedder", usage: { inputTokens: 900 }, cost: { kind: "estimated" } };
+    write(join(published, "digest", "digest.json"), {
+        workspaces: [{ accounting: {
+            requests: [...requests, embedding], costUsd: "0.5",
+            usage: { inputTokens: 1000, inputTokenDetails: { cacheReadTokens: 90 } },
+        } }],
+        provider_requests: [
+            ...requests.map((accounting) => ({ kind: "emission", accounting })),
+            { kind: "embedding_documents", accounting: embedding },
+        ],
+        turn_attempts: [],
+    });
+    const withEmbedding = reportJob(root);
+    assert.equal(withEmbedding.metrics.medianCacheHitRatePerSuccessfulTask.value, 0.9);
+    assert.equal(withEmbedding.rows[0]?.accounting?.providerRequests, 3);
+    assert.equal(withEmbedding.rows[0]?.accounting?.usage?.inputTokens, 1000);
+    assert.equal(withEmbedding.recordedCost.totalUsd, "0.5");
 });

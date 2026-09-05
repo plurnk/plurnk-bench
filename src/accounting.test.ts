@@ -2,14 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
     addSettledUsd,
+    cacheEffectivenessOf,
     summarizeDigestAccounting,
     summarizeRequiemAccounting,
 } from "./accounting.ts";
 
-const request = (model: string) => ({
+const request = (model: string, inputTokens = 75, cacheReadTokens = 5) => ({
     provider: "provider:fixture",
     model,
     outcome: "response",
+    usage: { inputTokens, inputTokenDetails: { cacheReadTokens } },
     cost: {
         kind: "charged",
         amount: { amount: "0.1", currency: "USD" },
@@ -33,7 +35,7 @@ test("bench accounting copies the one workspace's authoritative physical-request
                 costUsd: "0.031941728",
             },
         }],
-        provider_requests: requests.map((accounting) => ({ accounting })),
+        provider_requests: requests.map((accounting) => ({ kind: "emission", accounting })),
         turn_attempts: [{ accepted: true }, { accepted: false }],
     }), {
         providerRequests: 2,
@@ -58,7 +60,7 @@ test("bench accounting copies the one workspace's authoritative physical-request
 test("an unsettled physical request remains cardinal while aggregate accounting stays unknown", () => {
     assert.deepEqual(summarizeDigestAccounting({
         workspaces: [{ accounting: null }],
-        provider_requests: [{ accounting: null }],
+        provider_requests: [{ kind: "emission", accounting: null }],
         turn_attempts: [{ accepted: null }],
     }), {
         providerRequests: 1,
@@ -99,7 +101,7 @@ test("requiem composes worker projections with exact decimals and unknown-field 
     assert.deepEqual(summarizeRequiemAccounting({
         workers: [{
             accounting: {
-                requests: [request("requiem-a")],
+                requests: [request("requiem-a", 10, 1)],
                 usage: {
                     inputTokens: 10,
                     outputTokens: 2,
@@ -111,7 +113,7 @@ test("requiem composes worker projections with exact decimals and unknown-field 
             },
         }, {
             accounting: {
-                requests: [request("requiem-b")],
+                requests: [request("requiem-b", 20, 3)],
                 usage: {
                     inputTokens: 20,
                     outputTokens: 4,
@@ -144,54 +146,27 @@ test("requiem composes worker projections with exact decimals and unknown-field 
 });
 
 test("{§accounting-cache-effectiveness}: cache reporting is token-weighted, exact about zero, and rejects impossible evidence", () => {
-    const summary = summarizeDigestAccounting({
-        workspaces: [{
-            accounting: {
-                requests: [],
-                usage: {
-                    inputTokens: 100,
-                    inputTokenDetails: { cacheReadTokens: 75, cacheWriteTokens: 10 },
-                },
-                costUsd: "0",
-            },
-        }],
-        provider_requests: [],
-        turn_attempts: [],
-    });
-    assert.deepEqual(summary.cacheEffectiveness, {
+    assert.deepEqual(cacheEffectivenessOf({
+        inputTokens: 100,
+        inputTokenDetails: { cacheReadTokens: 75, cacheWriteTokens: 10 },
+    }), {
         inputTokens: 100,
         cacheReadTokens: 75,
         cacheWriteTokens: 10,
         cacheReadTokenRatio: 0.75,
     });
 
-    assert.deepEqual(summarizeDigestAccounting({
-        workspaces: [{
-            accounting: {
-                requests: [],
-                usage: { inputTokens: 0, inputTokenDetails: { cacheReadTokens: 0 } },
-                costUsd: "0",
-            },
-        }],
-        provider_requests: [],
-        turn_attempts: [],
-    }).cacheEffectiveness, {
+    assert.deepEqual(cacheEffectivenessOf({
+        inputTokens: 0, inputTokenDetails: { cacheReadTokens: 0 },
+    }), {
         inputTokens: 0,
         cacheReadTokens: 0,
         cacheReadTokenRatio: null,
     });
 
     assert.throws(
-        () => summarizeDigestAccounting({
-            workspaces: [{
-                accounting: {
-                    requests: [],
-                    usage: { inputTokens: 4, inputTokenDetails: { cacheReadTokens: 5 } },
-                    costUsd: "0",
-                },
-            }],
-            provider_requests: [],
-            turn_attempts: [],
+        () => cacheEffectivenessOf({
+            inputTokens: 4, inputTokenDetails: { cacheReadTokens: 5 },
         }),
         /cache-read tokens cannot exceed total input tokens/,
     );
