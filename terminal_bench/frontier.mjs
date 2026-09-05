@@ -6,6 +6,8 @@ import { readFileSync, readdirSync, existsSync, statSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { median } from "../src/statistics.ts";
+export { median } from "../src/statistics.ts";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
@@ -98,13 +100,6 @@ const taskTelemetry = (trialDir) => {
         costKinds: accounting?.requests?.map(({ cost }) => cost.kind) ?? null,
         cacheHitRate,
     };
-};
-
-export const median = (values) => {
-    if (values.length === 0) return null;
-    const sorted = [...values].sort((left, right) => left - right);
-    const middle = Math.floor(sorted.length / 2);
-    return sorted.length % 2 === 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2;
 };
 
 const reported = (rows, read) => rows.map(read).filter((value) => value !== null);

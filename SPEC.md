@@ -71,6 +71,17 @@ Read from Pier's graded `model.patch`, never inferred from the loop's claims:
 Failure modes these compose to: `filesModified 0` → NO-ATTEMPT · `filesModified>0 +
 p2pRegressed` → BROKE-THE-BUILD · `filesModified>0, no regress, fraction<1` → NEAR-MISS.
 
+## §deepswe-report DeepSWE campaign reporting
+
+`deepswe/report.ts <job-directory>` joins finished Pier trial
+records to their published workspace digests. Binary oracle rewards determine
+pass rate; ungraded trials remain separate. Cost, cache, and duration medians are
+task-weighted and state their reported/eligible coverage. Unknown accounting is
+not zero. Request cost provenance distinguishes charged, estimated, and unknown
+amounts. Duration is the client's agent-loop wall time. The runner's saved counts
+are a timestamped snapshot, not a process-liveness assertion. Repeated attempts
+for one task require explicit selection rather than best-result picking.
+
 ## §digest-boundary Bench never reads the daemon DB
 
 DB→forensics belongs to the daemon's own digest (reused via
