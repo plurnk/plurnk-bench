@@ -121,7 +121,7 @@ class PlurnkAgent(BaseInstalledAgent):
             f"curl -fsSL https://deb.nodesource.com/setup_{NODE_MAJOR}.x | bash -\n"
             "apt-get install -y nodejs\n"
             # global install needs root; the agent user runs the bins off PATH at runtime
-            f"npm install -g {shlex.quote(service)} {shlex.quote(client)}\n"
+            f"npm install -g --no-audit --no-fund {shlex.quote(service)} {shlex.quote(client)}\n"
             # Harness provisioning (#460): the DeepSWE environment ships no git identity
             # (the dataset's own oracle inlines `-c user.name` per commit); the v1.1
             # protocol mandates committing, so a neutral identity is part of our agent

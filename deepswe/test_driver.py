@@ -82,6 +82,10 @@ class DriverContractTest(unittest.TestCase):
         self.assertIn("@plurnk/plurnk@0.71.3", command)
         self.assertNotIn("@latest", command)
 
+    def test_install_disables_registry_audit_requests(self):
+        command = driver.PlurnkAgent().install_spec().steps[0].run
+        self.assertIn("npm install -g --no-audit --no-fund ", command)
+
     def test_install_provisions_git_identity(self):
         # #460: the DeepSWE environment ships no git identity; provisioning a neutral
         # one is harness setup, so models stop hand-configuring before the mandated commit.
