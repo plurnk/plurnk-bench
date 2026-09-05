@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "task": "chess-best-move",
+  "kind": "terminal-bench",
+  "taskCache": ".cache/terminal-bench-2-1/terminal-bench-2-1",
+  "repositoryUrl": null,
+  "baseCommit": null,
+  "budgetSeconds": 900,
+  "environment": {
+    "kind": "docker",
+    "image": "alexgshaw/chess-best-move:20251031",
+    "network": "bridge",
+    "cpus": 1,
+    "memoryMb": 2048
+  },
+  "verifier": {
+    "kind": "tree",
+    "timeoutSeconds": 900
+  },
+  "files": {
+    "environment/Dockerfile": "d5697e7a11399e45f105bf43f40e5c95746d6a8601965ea6935a52b59bbbfa2b",
+    "instruction.md": "6ba25be4e291a4ad04ae42b2dddefcdaef67ca45ca9d5dce661a2e517b19ce7a",
+    "task.toml": "d8f01d3c84ed5836edbb49c6c3b3cc7b5b96d951cf01a0987467c9206fb22f9e",
+    "tests/test.sh": "4770437ea96c3cc84684b4f99d55fb148fcac09f9ea1e8ef49de487716e6c334",
+    "tests/test_outputs.py": "a540714e0156fc14564badedcb48d1f7b69a4b457d876036535439b30cb8f286"
+  }
+}
