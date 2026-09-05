@@ -135,3 +135,22 @@ test("[§frontier-parity] an active trial's empty client document is missing tel
     const result = summary(join(root, "run"), manifest);
     assert.deepEqual(result.metrics.medianCostPerTaskUsd, { value: null, reported: 0, eligible: 0 });
 });
+
+test("{§frontier-evidence} cost reporting distinguishes charged, estimated, and unknown requests", () => {
+    const { root, manifest } = fixture();
+    const trial = join(root, "run", "tb-one", "tb-one__cost");
+    mkdirSync(join(trial, "agent"), { recursive: true });
+    mkdirSync(join(trial, "verifier"), { recursive: true });
+    writeFileSync(join(trial, "verifier", "reward.txt"), "1");
+    writeFileSync(join(trial, "agent", "plurnk.json"), JSON.stringify({ usage: { accounting: {
+        costUsd: "0.50",
+        requests: [
+            { cost: { kind: "charged" } },
+            { cost: { kind: "estimated" } },
+            { cost: { kind: "unknown" } },
+        ],
+    } } }));
+    const result = summary(join(root, "run"), manifest);
+    assert.deepEqual(result.costEvidence, { charged: 1, estimated: 1, unknown: 1, unclassifiedTasks: 0 });
+    assert.equal(result.metrics.medianCostPerTaskUsd.value, 0.5, "preserve the service's recorded cost, not a recomputation");
+});

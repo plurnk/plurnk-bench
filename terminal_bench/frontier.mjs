@@ -92,6 +92,7 @@ const taskTelemetry = (trialDir) => {
         costUsd: cost === null || cost === undefined
             ? null
             : finiteNonNegative(Number(cost), `${documentPath}: usage.accounting.costUsd`),
+        costKinds: accounting?.requests?.map(({ cost }) => cost.kind) ?? null,
         cacheHitRate,
         durationMs,
     };
@@ -134,11 +135,25 @@ export const summary = (runDir, path) => {
     const taskCosts = reported(scored, ({ costUsd }) => costUsd);
     const successfulCacheRates = reported(successful, ({ cacheHitRate }) => cacheHitRate);
     const successfulDurations = reported(successful, ({ durationMs }) => durationMs);
+    const costEvidence = { charged: 0, estimated: 0, unknown: 0, unclassifiedTasks: 0 };
+    for (const row of scored) {
+        if (row.costKinds === null || row.costKinds === undefined) {
+            if (row.costUsd !== null) costEvidence.unclassifiedTasks += 1;
+            continue;
+        }
+        for (const kind of row.costKinds) {
+            if (!["charged", "estimated", "unknown"].includes(kind)) {
+                throw new TypeError(`${row.task}: invalid request cost kind ${kind}`);
+            }
+            costEvidence[kind] += 1;
+        }
+    }
     return {
         rows,
         passed,
         failed,
         missing: count("missing"),
+        costEvidence,
         terminal_bench: { passed: count("pass", "terminal_bench"), total: rows.filter((row) => row.source === "terminal_bench").length },
         deep_swe: { passed: count("pass", "deep_swe"), total: rows.filter((row) => row.source === "deep_swe").length },
         metrics: {
@@ -177,6 +192,8 @@ const main = () => {
         process.stdout.write(`Median Cost per Task: ${dollars(result.metrics.medianCostPerTaskUsd)}${coverage(result.metrics.medianCostPerTaskUsd)}\n`);
         process.stdout.write(`Median Cache Hit Rate per Successful Task: ${percent(result.metrics.medianCacheHitRatePerSuccessfulTask.value)}${coverage(result.metrics.medianCacheHitRatePerSuccessfulTask)}\n`);
         process.stdout.write(`Median Time per Successful Task: ${duration(result.metrics.medianTimePerSuccessfulTaskMs)}${coverage(result.metrics.medianTimePerSuccessfulTaskMs)}\n`);
+        const evidence = result.costEvidence;
+        process.stdout.write(`Cost evidence: ${evidence.charged} charged / ${evidence.estimated} estimated / ${evidence.unknown} unknown requests; ${evidence.unclassifiedTasks} tasks without request-level cost provenance. Medians use recorded USD amounts, including estimates; unknown charges are not imputed.\n`);
         return;
     }
     throw new Error("usage: frontier.mjs plan [--manifest <file>] | summary <run-dir> [--manifest <file>]");
