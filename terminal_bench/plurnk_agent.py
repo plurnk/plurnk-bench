@@ -3,8 +3,8 @@
 Port of the proven DeepSWE Pier driver (deepswe/driver.py) to Harbor's
 BaseInstalledAgent: install Node >= 26 plus the published @plurnk pair into the
 task container, boot the daemon, drive one client one-shot with the task
-instruction as the prompt, and persist the client --json record plus a WAL-safe
-daemon DB snapshot into /logs/agent for forensics.
+instruction as the prompt, and write the client --json record and daemon SQLite
+database directly into /logs/agent for forensics, including abrupt termination.
 
 Config reaches the in-container daemon by explicit forwarding (the #11 lesson):
 the model layer for the selected alias — its definition, alias-scoped knobs,
@@ -112,7 +112,7 @@ class PlurnkAgent(BaseInstalledAgent):
                 "apt-get install -y curl ca-certificates git\n"
                 f"curl -fsSL https://deb.nodesource.com/setup_{NODE_MAJOR}.x | bash -\n"
                 "apt-get install -y nodejs\n"
-                f"npm install -g {shlex.quote(service)} {shlex.quote(client)}\n"
+                f"npm install -g --no-audit --no-fund {shlex.quote(service)} {shlex.quote(client)}\n"
                 # Identity provisioning (#460): tasks may drive git; an identity-less
                 # container turns every commit into harness friction.
                 "git config --system user.name plurnk-candidate\n"
@@ -218,6 +218,7 @@ class PlurnkAgent(BaseInstalledAgent):
 
         env = self._model_env()
         env["NODE_USE_ENV_PROXY"] = "1"
+        env["PLURNK_SERVICE_DB_PATH"] = str(db_dest)
 
         # No web route -> the capability ceiling removes web tools and their
         # teaching (contamination honesty, the DeepSWE posture).
@@ -226,31 +227,50 @@ class PlurnkAgent(BaseInstalledAgent):
             deny_web = json.dumps({"deny": [{"traits": ["web"]}]})
             capability_args = f"--capabilities {shlex.quote(deny_web)} "
 
-        # One shell exec: daemon up -> AG-UI ready -> client one-shot in the task's
-        # own WORKDIR -> WAL-safe DB snapshot. A non-solving loop is a valid zero;
-        # a missing snapshot is not.
+        # {§frontier-evidence}: persistence must not depend on reaching an exit hook.
         command = f"""
 set -uo pipefail
 mkdir -p {shlex.quote(str(agent_dir))}
-# A task directory outside any repository has no tracked members ({{§membership-baseline}}): admit its
-# tree as service configuration so READ, FIND, and EDIT see it. Inside a repository, tracked-only stands.
+project_root="$PWD"
 if ! git -C "$PWD" rev-parse --show-toplevel >/dev/null 2>&1; then
-  export PLURNK_MEMBERS_TASK='**' PLURNK_MEMBERS_ENABLED='["task"]'
+  if [ "$PWD" = / ]; then
+    echo 'plurnk agent: a plain task needs a working directory below /' >&2
+    exit 1
+  fi
+  project_root=/
+  export PLURNK_MEMBERS_TASK="${{PWD#/}}/**" PLURNK_MEMBERS_ENABLED='["task"]'
 fi
-DB="${{PLURNK_SERVICE_DB_PATH:-${{PLURNK_DB_PATH:-${{XDG_DATA_HOME:-$HOME/.local/share}}/plurnk/plurnk.db}}}}"
 plurnk-service start > {shlex.quote(str(daemon_log))} 2>&1 &
+daemon_pid=$!
+cleanup() {{
+  result=$?
+  trap - EXIT
+  if kill -0 "$daemon_pid" 2>/dev/null; then kill -TERM "$daemon_pid"; fi
+  wait "$daemon_pid"
+  daemon_result=$?
+  if [ "$daemon_result" -ne 0 ] && [ "$daemon_result" -ne 143 ]; then
+    echo "plurnk agent: daemon exited $daemon_result" >&2
+    result=$daemon_result
+  fi
+  exit "$result"
+}}
+trap cleanup EXIT
+trap 'exit 143' TERM
+trap 'exit 130' INT
+ready=0
 for _ in $(seq 1 {DAEMON_READY_TIMEOUT_S}); do
-  if plurnk models >/dev/null 2>&1; then break; fi
+  if plurnk models >/dev/null 2>&1; then ready=1; break; fi
+  if ! kill -0 "$daemon_pid" 2>/dev/null; then break; fi
   sleep 1
 done
-plurnk --json --auto {capability_args}--project-root "$PWD" --timeout {self._client_timeout_sec} -- {escaped} \
-  > {shlex.quote(str(record))} 2> {shlex.quote(str(stderr))} || true
-node -e '
-  const {{ backup, DatabaseSync }} = require("node:sqlite");
-  const source = new DatabaseSync(process.argv[1], {{ readOnly: true }});
-  backup(source, process.argv[2])
-    .finally(() => source.close())
-    .catch((error) => {{ console.error(error); process.exitCode = 1; }});
-' "$DB" {shlex.quote(str(db_dest))}
+if [ "$ready" -ne 1 ]; then
+  echo 'plurnk agent: daemon did not become ready' >&2
+  exit 1
+fi
+plurnk --json --auto {capability_args}--project-root "$project_root" --timeout {self._client_timeout_sec} -- {escaped} \
+  > {shlex.quote(str(record))} 2> {shlex.quote(str(stderr))}
+client_result=$?
+printf '%s\\n' "$client_result" > {shlex.quote(str(agent_dir / 'client-exit-code.txt'))}
+exit 0
 """
         await self.exec_as_agent(environment, command=command, env=env)
