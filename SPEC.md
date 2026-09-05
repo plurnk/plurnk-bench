@@ -422,9 +422,29 @@ never reproduces an agent loop.
 | Plain directory below `/` | `/` | Only that directory's subtree, expressed relative to `/` (e.g. `PLURNK_MEMBERS_TASK=app/**`); `app/x` and `/app/x` identify the same resource. |
 | Plain `/` | None | Reject before daemon startup; do not admit the entire container filesystem. |
 
+### §frontier-trial-state Trial state and oracle verdict are independent
+
+| Evidence | Reported state |
+| --- | --- |
+| No trial directory | `unstarted` |
+| Trial without a finished result | `unfinished` (not proof that a process is still running) |
+| Finished `CancelledError` | `cancelled` |
+| Other exception before agent execution | `setup-error` |
+| Other exception after agent execution began | `execution-error` |
+| Finished without exception | `completed` |
+
+Preserve the exception type alongside the state. Only `verifier/reward.txt` determines pass/fail; a passing oracle can coexist with a teardown error, and an installation-only result has no oracle verdict.
+
 ### §frontier-evidence Evidence survives agent termination
 
 - The daemon writes `plurnk.db` directly into Harbor's retained agent log directory. Abrupt termination retains the database and its SQLite WAL sidecars; no post-run copy or signal trap is required to preserve committed records.
 - Normal exit and handled signals terminate and join the exact launched daemon. Startup failure remains a runner failure, not a completed agent trial. Client failure retains its exit code and any JSON record; the unchanged verifier determines success.
 - Mid-run inspection uses SQLite backup, never a raw copy of a live database. Keep WAL sidecars with an abruptly terminated database until SQLite recovers it.
 - Cost summaries preserve the service's recorded USD amounts and disclose request-level charged, estimated, and unknown cost counts. Estimates are not presented as bills; missing charges are not imputed.
+
+### §frontier-setup-evidence Installation diagnostics
+
+- Installation writes both output streams and phase markers directly to Harbor's retained `agent/setup/install.log` while running, including before a setup timeout or cancellation. No environment dump or shell tracing is recorded.
+- A completed installation records its actual exit status; pipeline logging must preserve a failed installer's status and stop subsequent steps. An interrupted log is not evidence of successful setup.
+- Installation compatibility probes use Harbor's `--install-only` path: the original task environment and installed-agent setup, without model inference or verification.
+- Official Debian/Ubuntu archive URLs use HTTPS with normal certificate verification. Repository hosts, suites, packages, and third-party source definitions remain unchanged; installation does not modify task instructions or verifiers.

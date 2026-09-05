@@ -40,6 +40,16 @@ Bench drives the daemon through the ordinary `plurnk` client and its AG-UI+
 HTTP/SSE surface (default `http://127.0.0.1:1066`). The model under test is the
 daemon's `PLURNK_MODEL` alias. See `.env.example` and SPEC `§config-carry`.
 
+## Frontier diagnostics
+
+`node terminal_bench/frontier.mjs summary <run-directory>` reports oracle verdicts
+separately from setup, cancellation, and execution outcomes. A missing reward is
+not a failed task; a passing reward does not hide a teardown error.
+
+Harbor retains live installation output at `<trial>/agent/setup/install.log`.
+To diagnose setup without inference, pass `--install-only` through the ordinary
+`terminal_bench/run.sh` invocation with the same task and pinned package versions.
+
 ## license
 
 MIT.

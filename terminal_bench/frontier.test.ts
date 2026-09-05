@@ -154,3 +154,46 @@ test("{§frontier-evidence} cost reporting distinguishes charged, estimated, and
     assert.deepEqual(result.costEvidence, { charged: 1, estimated: 1, unknown: 1, unclassifiedTasks: 0 });
     assert.equal(result.metrics.medianCostPerTaskUsd.value, 0.5, "preserve the service's recorded cost, not a recomputation");
 });
+
+test("{§frontier-trial-state} missing rewards distinguish unstarted, unfinished, cancelled, and failed setup", () => {
+    const { root, manifest } = fixture();
+    const run = join(root, "run");
+    assert.equal(summary(run, manifest).rows[0]?.state, "unstarted");
+    const trial = join(run, "tb-one", "tb-one__trial");
+    mkdirSync(trial, { recursive: true });
+    assert.equal(summary(run, manifest).rows[0]?.state, "unfinished");
+    for (const [exception, execution, state] of [
+        ["AgentSetupTimeoutError", null, "setup-error"],
+        ["CancelledError", null, "cancelled"],
+        ["NonZeroAgentExitCodeError", { started_at: "2026-09-04T12:01:00Z" }, "execution-error"],
+        [null, null, "completed"],
+    ] as const) {
+        writeFileSync(join(trial, "result.json"), JSON.stringify({
+            started_at: "2026-09-04T12:00:00Z",
+            finished_at: "2026-09-04T12:02:00Z",
+            agent_execution: execution,
+            exception_info: exception === null ? null : { exception_type: exception },
+        }));
+        const result = summary(run, manifest);
+        assert.equal(result.rows[0]?.state, state);
+        assert.equal(result.rows[0]?.exception, exception);
+        assert.equal(result.rows[0]?.verdict, "missing", "execution errors are not oracle failures");
+        assert.equal(result.metrics.passRate, null);
+    }
+});
+
+test("{§frontier-trial-state} a teardown error does not replace the verifier's passing reward", () => {
+    const { root, manifest } = fixture();
+    const trial = join(root, "run", "tb-one", "tb-one__trial");
+    mkdirSync(join(trial, "verifier"), { recursive: true });
+    writeFileSync(join(trial, "verifier", "reward.txt"), "1\n");
+    writeFileSync(join(trial, "result.json"), JSON.stringify({
+        started_at: "2026-09-04T12:00:00Z", finished_at: "2026-09-04T12:02:00Z",
+        agent_execution: { started_at: "2026-09-04T12:01:00Z" },
+        exception_info: { exception_type: "NonZeroAgentExitCodeError" },
+    }));
+    const result = summary(join(root, "run"), manifest);
+    assert.equal(result.rows[0]?.verdict, "pass");
+    assert.equal(result.rows[0]?.state, "execution-error");
+    assert.equal(result.metrics.passRate, 1);
+});

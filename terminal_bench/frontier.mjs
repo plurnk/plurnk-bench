@@ -51,12 +51,12 @@ const finiteNonNegative = (value, subject) => {
     return value;
 };
 
-const trialDurationMs = (trialDir) => {
-    if (trialDir === null) return null;
+const trialEvidence = (trialDir) => {
+    if (trialDir === null) return { state: "unstarted", exception: null, durationMs: null };
     const resultPath = join(trialDir, "result.json");
-    if (!existsSync(resultPath) || statSync(resultPath).size === 0) return null;
+    if (!existsSync(resultPath) || statSync(resultPath).size === 0) return { state: "unfinished", exception: null, durationMs: null };
     const result = JSON.parse(readFileSync(resultPath, "utf8"));
-    if (result.finished_at === null || result.finished_at === undefined) return null;
+    if (result.finished_at === null || result.finished_at === undefined) return { state: "unfinished", exception: null, durationMs: null };
     if (typeof result.started_at !== "string" || typeof result.finished_at !== "string") {
         throw new TypeError(`${resultPath}: started_at and finished_at must be ISO timestamps`);
     }
@@ -65,15 +65,18 @@ const trialDurationMs = (trialDir) => {
     if (!Number.isFinite(started) || !Number.isFinite(finished) || finished < started) {
         throw new TypeError(`${resultPath}: trial timestamps do not describe a non-negative duration`);
     }
-    return finished - started;
+    const exception = result.exception_info?.exception_type ?? null;
+    const state = exception === "CancelledError" ? "cancelled"
+        : exception !== null ? result.agent_execution?.started_at ? "execution-error" : "setup-error"
+        : "completed";
+    return { state, exception, durationMs: finished - started };
 };
 
 const taskTelemetry = (trialDir) => {
-    const durationMs = trialDurationMs(trialDir);
-    if (trialDir === null) return { costUsd: null, cacheHitRate: null, durationMs };
+    if (trialDir === null) return { costUsd: null, cacheHitRate: null };
     const documentPath = join(trialDir, "agent", "plurnk.json");
-    if (!existsSync(documentPath)) return { costUsd: null, cacheHitRate: null, durationMs };
-    if (statSync(documentPath).size === 0) return { costUsd: null, cacheHitRate: null, durationMs };
+    if (!existsSync(documentPath)) return { costUsd: null, cacheHitRate: null };
+    if (statSync(documentPath).size === 0) return { costUsd: null, cacheHitRate: null };
     const document = JSON.parse(readFileSync(documentPath, "utf8"));
     const accounting = document.usage?.accounting;
     const cost = accounting?.costUsd;
@@ -94,7 +97,6 @@ const taskTelemetry = (trialDir) => {
             : finiteNonNegative(Number(cost), `${documentPath}: usage.accounting.costUsd`),
         costKinds: accounting?.requests?.map(({ cost }) => cost.kind) ?? null,
         cacheHitRate,
-        durationMs,
     };
 };
 
@@ -123,6 +125,7 @@ export const summary = (runDir, path) => {
             task,
             reward,
             verdict: reward === null ? "missing" : reward >= 1 ? "pass" : "fail",
+            ...trialEvidence(trialDir),
             ...taskTelemetry(trialDir),
         };
     });
@@ -185,7 +188,7 @@ const main = () => {
     if (command === "summary") {
         if (!arg) throw new Error("summary needs a run directory");
         const result = summary(resolve(arg), values.manifest);
-        for (const row of result.rows) process.stdout.write(`${row.verdict.padEnd(7)} ${row.source.padEnd(14)} ${row.task}\n`);
+        for (const row of result.rows) process.stdout.write(`${row.verdict.padEnd(7)} ${row.source.padEnd(14)} ${row.task} — ${row.state}${row.exception === null ? "" : ` (${row.exception})`}\n`);
         process.stdout.write(`passed ${result.passed}/${result.rows.length} (terminal_bench ${result.terminal_bench.passed}/${result.terminal_bench.total}, deep_swe ${result.deep_swe.passed}/${result.deep_swe.total}); failed ${result.failed}; missing ${result.missing}\n`);
         process.stdout.write(`Pass Rate: ${percent(result.metrics.passRate)} (${result.passed}/${result.passed + result.failed} scored)\n`);
         process.stdout.write(`Median Cost per Successful Task: ${dollars(result.metrics.medianCostPerSuccessfulTaskUsd)}${coverage(result.metrics.medianCostPerSuccessfulTaskUsd)}\n`);

@@ -34,6 +34,7 @@ from harbor.models.trial.paths import EnvironmentPaths
 
 # @plurnk/* require Node >= 26 (package.json engines — the enterprise-image lesson).
 NODE_MAJOR = "26"
+APT_DIR = Path("/etc/apt")
 DAEMON_READY_TIMEOUT_S = 60
 # TB 4.0 calibrates every task to a FLAT 8h agent budget. §config-budget: a shorter
 # client timeout starves the model below the benchmark's allowance and understates
@@ -100,18 +101,34 @@ class PlurnkAgent(BaseInstalledAgent):
     async def install(self, environment: BaseEnvironment) -> None:
         client = f"@plurnk/plurnk@{self._client_version or 'latest'}"
         service = f"@plurnk/plurnk-service@{self._service_version or 'latest'}"
+        setup_dir = EnvironmentPaths.agent_dir / "setup"
         await self.exec_as_root(
             environment,
             command=(
                 "set -euo pipefail\n"
+                f"mkdir -p {shlex.quote(str(setup_dir))}\n"
+                "(\n"
+                "trap 'result=$?; printf \"plurnk setup: exit %s\\n\" \"$result\"' EXIT\n"
                 "if ! command -v apt-get >/dev/null 2>&1; then\n"
                 "  echo 'plurnk agent: unsupported base image (needs apt-get)' >&2; exit 1\n"
                 "fi\n"
                 "export DEBIAN_FRONTEND=noninteractive\n"
+                "echo 'plurnk setup: official archive HTTPS transport'\n"
+                f"for source in {shlex.quote(str(APT_DIR / 'sources.list'))} "
+                f"{shlex.quote(str(APT_DIR / 'sources.list.d'))}/*.list "
+                f"{shlex.quote(str(APT_DIR / 'sources.list.d'))}/*.sources; do\n"
+                "  [ -f \"$source\" ] || continue\n"
+                "  sed -E -i 's@http://(archive\\.ubuntu\\.com|security\\.ubuntu\\.com|ports\\.ubuntu\\.com|deb\\.debian\\.org|security\\.debian\\.org)/@https://\\1/@g' \"$source\"\n"
+                "done\n"
+                "echo 'plurnk setup: package indexes'\n"
                 "apt-get update\n"
+                "echo 'plurnk setup: base dependencies'\n"
                 "apt-get install -y curl ca-certificates git\n"
+                "echo 'plurnk setup: Node repository'\n"
                 f"curl -fsSL https://deb.nodesource.com/setup_{NODE_MAJOR}.x | bash -\n"
+                "echo 'plurnk setup: Node runtime'\n"
                 "apt-get install -y nodejs\n"
+                "echo 'plurnk setup: published packages'\n"
                 f"npm install -g --no-audit --no-fund {shlex.quote(service)} {shlex.quote(client)}\n"
                 # Identity provisioning (#460): tasks may drive git; an identity-less
                 # container turns every commit into harness friction.
@@ -119,6 +136,7 @@ class PlurnkAgent(BaseInstalledAgent):
                 "git config --system user.email candidate@plurnk.invalid\n"
                 "command -v plurnk\n"
                 "command -v plurnk-service\n"
+                f") 2>&1 | tee {shlex.quote(str(setup_dir / 'install.log'))}\n"
             ),
             env={"DEBIAN_FRONTEND": "noninteractive"},
         )

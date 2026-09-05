@@ -34,6 +34,10 @@ def install_harbor_stubs() -> None:
             environment.command = command
             environment.env = env
 
+        async def exec_as_root(self, environment, command, env):
+            environment.command = command
+            environment.env = env
+
     sys.modules["harbor.agents.installed.base"].BaseInstalledAgent = BaseInstalledAgent
     sys.modules["harbor.agents.installed.base"].with_prompt_template = lambda fn: fn
     sys.modules["harbor.environments.base"].BaseEnvironment = object
@@ -93,6 +97,93 @@ class PlainTaskTreeTest(unittest.TestCase):
         self.assertEqual(environment.env["PLURNK_MODEL"], "test")
         self.assertEqual(environment.env["PLURNK_EMBEDDING_MODEL"], "")
         self.assertEqual(environment.env["PLURNK_SERVICE_DB_PATH"], "/logs/agent/plurnk.db")
+
+
+class InstallationEvidenceTest(unittest.TestCase):
+    """{§frontier-setup-evidence}: retained output exists before setup finishes."""
+
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory(prefix="plurnk-install-test-")
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.logs = self.root / "logs"
+        self.apt = self.root / "apt"
+        (self.apt / "sources.list.d").mkdir(parents=True)
+        self.bin = self.root / "bin"
+        self.bin.mkdir()
+        fixture = (Path(__file__).parent / "fixtures" / "install-command.mjs").resolve()
+        for name in ["apt-get", "curl", "npm", "git", "plurnk", "plurnk-service"]:
+            (self.bin / name).symlink_to(fixture)
+        environment = types.SimpleNamespace()
+        with patch.object(agent_module.EnvironmentPaths, "agent_dir", self.logs), \
+             patch.object(agent_module, "APT_DIR", self.apt):
+            asyncio.run(agent().install(environment))
+        self.command = environment.command
+        self.env = {**os.environ, **environment.env, "PATH": f"{self.bin}:{os.environ['PATH']}"}
+
+    def start(self, **env):
+        process = subprocess.Popen(["bash", "-c", self.command], cwd=self.root,
+                                   env={**self.env, **env}, start_new_session=True,
+                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+
+        def cleanup():
+            if process.poll() is None:
+                os.killpg(process.pid, signal.SIGKILL)
+            process.communicate(timeout=10)
+
+        self.addCleanup(cleanup)
+        return process
+
+    def test_success_retains_both_streams_and_completion(self):
+        process = self.start()
+        stdout, stderr = process.communicate(timeout=10)
+        self.assertEqual(process.returncode, 0, stderr)
+        log = (self.logs / "setup" / "install.log").read_text()
+        self.assertIn("apt-get update stdout", log)
+        self.assertIn("apt-get update stderr", log)
+        self.assertIn("plurnk setup: exit 0", log)
+        self.assertEqual(stdout, log)
+
+    def test_official_archives_use_https_without_changing_suites_or_third_party_sources(self):
+        sources = {
+            self.apt / "sources.list": "deb http://archive.ubuntu.com/ubuntu noble main\n",
+            self.apt / "sources.list.d" / "ubuntu.sources": "Types: deb\nURIs: http://security.ubuntu.com/ubuntu\nSuites: noble-security\n",
+            self.apt / "sources.list.d" / "debian.sources": "URIs: http://deb.debian.org/debian http://security.debian.org/debian-security\nSuites: bookworm bookworm-security\n",
+            self.apt / "sources.list.d" / "custom.list": "deb http://example.org/repo stable main\n",
+        }
+        for path, content in sources.items():
+            path.write_text(content)
+        process = self.start()
+        process.communicate(timeout=10)
+        self.assertEqual(process.returncode, 0)
+        for path, content in sources.items():
+            expected = content if path.name == "custom.list" else content.replace("http://", "https://")
+            self.assertEqual(path.read_text(), expected)
+
+    def test_failure_retains_exit_status_and_does_not_run_later_steps(self):
+        process = self.start(TEST_SETUP_FAIL="1")
+        process.communicate(timeout=10)
+        self.assertEqual(process.returncode, 7)
+        log = (self.logs / "setup" / "install.log").read_text()
+        self.assertIn("apt-get update stderr", log)
+        self.assertIn("plurnk setup: exit 7", log)
+        self.assertNotIn("npm install", log)
+
+    def test_cancellation_retains_live_output_without_a_completion_claim(self):
+        process = self.start(TEST_SETUP_HANG="1")
+        log_path = self.logs / "setup" / "install.log"
+        deadline = time.monotonic() + 5
+        while not log_path.exists() or "apt-get update stderr" not in log_path.read_text():
+            self.assertIsNone(process.poll())
+            self.assertLess(time.monotonic(), deadline, "setup output did not become durable while running")
+            time.sleep(0.01)
+        os.killpg(process.pid, signal.SIGTERM)
+        process.communicate(timeout=10)
+        self.assertNotEqual(process.returncode, 0)
+        log = log_path.read_text()
+        self.assertIn("apt-get update stdout", log)
+        self.assertIn("apt-get update stderr", log)
+        self.assertNotIn("plurnk setup: exit 0", log)
 
 
 class ExecutionTest(unittest.TestCase):
