@@ -50,6 +50,18 @@ Harbor retains live installation output at `<trial>/agent/setup/install.log`.
 To diagnose setup without inference, pass `--install-only` through the ordinary
 `terminal_bench/run.sh` invocation with the same task and pinned package versions.
 
+Setup is not an agent-phase connectivity test. For a task with a public setup
+baseline and `no-network` agent policy, run the deterministic probe with Harbor's
+Python environment (unauthenticated HTTPS only, no inference or verifier):
+
+```sh
+python -m terminal_bench.network_probe <task-dir> <provider-https-url> <unrelated-https-url> \
+  --service-version <version> --client-version <version>
+```
+
+It prints the evidence directory and exits nonzero if the provider allowance,
+unrelated-host denial, or baseline restoration fails. See {§frontier-egress-probe}.
+
 ## license
 
 MIT.

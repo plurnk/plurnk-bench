@@ -414,6 +414,21 @@ never reproduces an agent loop.
 
 `terminal_bench/frontier.manifest.json` names the frozen selection of [FrontierHarness Eval v1](https://github.com/runta-dev/frontier-harness-eval): 21 Terminal-Bench 2.1 tasks (Harbor dataset `terminal-bench/terminal-bench-2-1`) and 9 DeepSWE v1.1 tasks, each once, with the published model route. `terminal_bench/frontier.sh` runs them serially by default through the existing Harbor agent (`terminal_bench/plurnk_agent.py`), one Harbor job per task; `PLURNK_BENCH_JOBS` deliberately opts into concurrency. Every client timeout is that task's own `[agent] timeout_sec` minus the boot-and-shutdown headroom (`deepswe/smoke.sh`'s 120 s); a Harbor job carries one agent-kwarg set and the budgets differ per task. The plan is read from the task dirs before any launch (`--preflight` stops there), a run directory records manifest, plan, and provenance, and the summary reads Harbor's `verifier/reward.txt` per job: pass, fail, or missing — a task without a trial is never a fail. It reports pass rate over scored tasks and task-weighted medians for cost per successful task, cost per scored task, successful-task cache-read ratio, and successful-task Harbor trial wall time; incomplete telemetry remains visible as reported/eligible coverage rather than being imputed. The DeepSWE nine run through Harbor here for one mechanism per comparison; Pier remains the DeepSWE publication path ({§benchlet-diagnostic}, {§results-canon}), and a frontier run is a diagnostic beside published harness results, never a corpus record. Corpus state stays downloaded under `.cache/`, never committed. The Harbor agent forwards one embedding route the way the corpus driver does ({§config-embedding-route}): absent or `bundled` selects the daemon's bundled wasm model with an explicit empty selection; a hosted route rides with its openai-compatible provider lines, and the operator's own embedding config never does.
 
+### §frontier-egress-probe Restricted inference connectivity
+
+`terminal_bench/network_probe.py` exercises the original task image and Harbor's
+phase-policy resolver without model inference or credentials. It installs the
+explicit published client/service versions, then compares public baseline,
+agent-only hostname allowance, the original agent restriction, and restored
+baseline. It records DNS and unauthenticated HTTPS results for the allowed and
+unrelated destinations; a pre-resolved-address probe distinguishes DNS failure
+from HTTPS filtering. Success requires both public controls to respond, the
+allowed provider to resolve and respond during its allowed phase, and denied
+HTTPS destinations to remain unreachable even with pre-resolved addresses.
+Harbor version, package pins, task-file hashes, phase policies, and results are
+retained. The probe never executes or modifies the task's verifier and is not
+an oracle result or proof of verifier isolation.
+
 ### §frontier-task-root Container task membership
 
 | Task working directory | Plurnk root | Membership |
