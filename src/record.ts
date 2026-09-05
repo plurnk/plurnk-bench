@@ -18,11 +18,10 @@ import type {
 
 export type Outcome = "pass" | "fail" | "error" | "timeout" | "cancelled";
 
-// The complete loop usage envelope from the client document. Physical requests
-// remain the source evidence; aggregate usage and exact-decimal USD are preserved
-// verbatim rather than projected into a bench-owned accounting representation.
+// Ingest preserves the client envelope; publication replaces accounting with
+// the digest's whole-workspace projection. Context fields remain primary-loop scoped.
 export interface Usage {
-    accounting: ProviderAccountingProjection;
+    accounting: ProviderAccountingProjection | null;
     curationWeight: number | null;
     curationBudget: number | null;
     contextTokens: number | null;

@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import Digest from "@plurnk/plurnk-service/digest";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, rmSync, readFileSync, readdirSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -16,6 +17,45 @@ import {
 import type { BenchRecord } from "./record.ts";
 import { allocateRunDirectory } from "./run-directory.ts";
 import { benchmarksHome } from "./host-paths.ts";
+
+test("[§publish-task-accounting] publication includes child requests and preserves the primary context", (t) => {
+    const root = mkdtempSync(join(tmpdir(), "bench-pub-accounting-"));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    const dbPath = join(root, "source.db");
+    writeFileSync(dbPath, "fixture");
+    const parent = { model: "parent", usage: { inputTokens: 100 }, cost: { kind: "estimated" } };
+    const child = { model: "child", usage: { inputTokens: 50 }, cost: { kind: "charged" } };
+    const accounting = {
+        requests: [parent, child],
+        usage: { inputTokens: 150, outputTokens: 30, inputTokenDetails: { cacheReadTokens: 80 } },
+        costUsd: "0.03",
+    };
+    t.mock.method(Digest, "run", ({ digestDir }: { digestDir: string }) => {
+        mkdirSync(digestDir);
+        writeFileSync(join(digestDir, "digest.json"), JSON.stringify({
+            turns: [{ producer: "model" }],
+            workspaces: [{ accounting }],
+            provider_requests: accounting.requests.map((request) => ({ accounting: request })),
+            turn_attempts: [{ accepted: true }],
+        }));
+    });
+    const record: BenchRecord = {
+        harness: "deepswe", taskId: "fixture", model: "fixture", durationMs: 1,
+        status: 200, outcome: "fail", reward: 0, turns: 1,
+        run: { dbPath, workspaceId: 1, workerId: 4 },
+        usage: {
+            accounting: { requests: [parent], usage: { inputTokens: 100 }, costUsd: "0.01" },
+            curationWeight: 20, curationBudget: 40, contextTokens: 30, contextCapacity: 60, meta: {},
+        },
+    };
+    const output = publishRun(record, join(root, "runs"));
+    assert.notEqual(output, null);
+    const published = JSON.parse(readFileSync(join(output!, "record.json"), "utf8")) as BenchRecord;
+    assert.deepEqual(published.usage?.accounting, accounting);
+    assert.equal(published.usage?.contextTokens, 30);
+    assert.equal(published.reward, 0);
+    assert.equal(record.usage?.accounting?.requests.length, 1, "publication does not rewrite client evidence");
+});
 
 // run<N> auto-increments off the highest existing run, ignoring non-run dirs.
 test("[§publish-numbering] a published run is named run<N>-<harness>-<task>-<model>, N continuing the tree", () => {
@@ -75,7 +115,10 @@ test("[§publish-self-referential] publishedRecord re-points the DB handle and p
         reward: 0, filesModified: 1, p2pRegressed: true, testPassFraction: 0.13,
         run: { dbPath: "/jobs/scratch/agent/plurnk.db", workerId: 7, workspaceId: 1, loopId: 8 },
     };
-    const published = publishedRecord(record, "/benchmarks/run9/plurnk.db");
+    const published = publishedRecord(record, "/benchmarks/run9/plurnk.db", {
+        workspaces: [{ accounting: { requests: [], usage: null, costUsd: "0" } }],
+        provider_requests: [], turn_attempts: [],
+    });
     assert.equal(published.run!.dbPath, "/benchmarks/run9/plurnk.db");   // self-referential, not jobs/
     assert.equal(published.run!.workerId, 7);                             // handle otherwise intact
     // the oracle side that forced reads back to jobs/ now travels with the published record
@@ -84,6 +127,28 @@ test("[§publish-self-referential] publishedRecord re-points the DB handle and p
     assert.equal(published.filesModified, 1);
     assert.equal(published.p2pRegressed, true);
     assert.equal(record.run!.dbPath, "/jobs/scratch/agent/plurnk.db");   // input not mutated
+});
+
+test("[§publish-task-accounting] interrupted requests remain unknown rather than parent-only or zero", () => {
+    const record: BenchRecord = {
+        harness: "deepswe", taskId: "interrupted", model: "fixture", durationMs: 1,
+        status: 499, outcome: "cancelled", turns: 1,
+    };
+    const digest = {
+        workspaces: [{ accounting: null }],
+        provider_requests: [{ accounting: null }],
+        turn_attempts: [{ accepted: null }],
+    };
+    const published = publishedRecord(record, "/bench/run/plurnk.db", digest);
+    assert.equal(published.usage?.accounting, null);
+    assert.equal(published.usage?.contextTokens, null);
+    assert.equal(published.outcome, "cancelled");
+    assert.throws(() => publishedRecord(record, "/bench/run/plurnk.db", {
+        ...digest, workspaces: [...digest.workspaces, ...digest.workspaces],
+    }), /exactly one workspace/);
+    assert.throws(() => publishedRecord(record, "/bench/run/plurnk.db", {
+        ...digest, workspaces: [{ accounting: { requests: [], usage: null, costUsd: "0" } }],
+    }), /request count does not match/);
 });
 
 // The shared tree is a sibling of the bench repo.

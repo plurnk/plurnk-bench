@@ -114,7 +114,7 @@ test("joinRecord rejects malformed monetary evidence instead of treating it as u
                 usage: {
                     ...doc().usage!,
                     accounting: {
-                        ...doc().usage!.accounting,
+                        ...doc().usage!.accounting!,
                         costUsd: undefined as unknown as null,
                     },
                 },

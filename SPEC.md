@@ -97,8 +97,8 @@ a JSONL line.
 Covered: `record.test.ts [§record-serial]`, `[§verdicts]`.
 
 The accepted client-document schema is version 6. Its run reference uses
-`workspaceId`/`workerId`/`loopId`, and its complete `usage` envelope is preserved
-verbatim: ordered physical requests are the accounting evidence, known aggregate
+`workspaceId`/`workerId`/`loopId`, and ingest preserves its complete `usage` envelope.
+Publication applies {§publish-task-accounting}: ordered physical requests are the accounting evidence, known aggregate
 token quantities remain optional, and `costUsd` is an exact decimal string or
 `null`. Curation `curationWeight`/`curationBudget`, physical context
 `contextTokens`/`contextCapacity`, and provider metadata remain sibling fields;
@@ -161,6 +161,13 @@ daemon DB), **`digest/`** (rendered from the COPY — the dir is self-contained)
   exclude workspace-owned (turnless) embedding derivations — the vector pump's entire
   ledger — plus any child worker's own evidence. record.json keeps `run.workerId` as a
   drill-down handle only. Covered: `src/publish.test.ts [§publish-workspace-scope]`.
+- §publish-task-accounting Published `record.json` uses the digest's sole workspace
+  `accounting` projection verbatim under `usage.accounting`, including child, BARE,
+  and failed physical requests. An unsettled projection remains `null`, never a
+  parent-only total or zero. Primary-loop context fields retain client values, or
+  `null` when absent. Ambiguous workspace scope and inconsistent request cardinality
+  fail publication. Client and provider source artifacts remain unchanged.
+  Covered: `src/publish.test.ts [§publish-task-accounting]`.
 - §publish-requiem-accounting A banked interview's spend is part of the run's ledger:
   after the requiem lands, its accounting summary (workers, provider requests, usage,
   cache effectiveness, exact nullable USD) folds into `record.json` under `requiem`, so

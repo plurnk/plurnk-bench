@@ -14,8 +14,8 @@ import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { parseArgs } from "node:util";
 import Digest from "@plurnk/plurnk-service/digest";
-import { summarizeRequiemAccounting } from "./accounting.ts";
-import type { RequiemAccountingInput } from "./accounting.ts";
+import { summarizeDigestAccounting, summarizeRequiemAccounting } from "./accounting.ts";
+import type { DigestAccountingInput, RequiemAccountingInput } from "./accounting.ts";
 import { isTrialDir, readTrialDir } from "./ingest.ts";
 import { benchmarksHome, jobsRoot } from "./host-paths.ts";
 import { allocateRunDirectory } from "./run-directory.ts";
@@ -55,10 +55,22 @@ export const digestHasModelTurns = (digestDir: string): boolean =>
 
 // SPEC §publish-self-referential. The record persisted into the run dir: the joined record with its
 // digest handle re-pointed at the published (copied) DB, so it never references jobs/ scratch.
-export const publishedRecord = (record: BenchRecord, dbPath: string): BenchRecord => ({
-    ...record,
-    run: { ...record.run, dbPath },
-});
+export const publishedRecord = (record: BenchRecord, dbPath: string, digest: DigestAccountingInput): BenchRecord => {
+    summarizeDigestAccounting(digest);
+    return {
+        ...record,
+        run: { ...record.run, dbPath },
+        usage: {
+            curationWeight: null,
+            curationBudget: null,
+            contextTokens: null,
+            contextCapacity: null,
+            meta: {},
+            ...record.usage,
+            accounting: digest.workspaces[0]!.accounting,
+        },
+    };
+};
 
 // Copy the run's DB + render its digest into the allocated run dir. The digest reads the
 // COPIED DB, so the run dir is self-contained. No run handle → nothing to publish (null).
@@ -83,7 +95,8 @@ export const publishRun = (record: BenchRecord, benchmarksDir: string): string |
     }
     // Persist the joined record (self-referential to the copied DB) so the run dir
     // answers pass/fail without the jobs/ tree.
-    writeFileSync(join(runDir, "record.json"), JSON.stringify(publishedRecord(record, db), null, 4) + "\n");
+    const digest = JSON.parse(readFileSync(join(digestDir, "digest.json"), "utf8")) as DigestAccountingInput;
+    writeFileSync(join(runDir, "record.json"), JSON.stringify(publishedRecord(record, db, digest), null, 4) + "\n");
     return runDir;
 };
 
