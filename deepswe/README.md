@@ -12,6 +12,8 @@ During or after a corpus run, `node deepswe/report.ts <job-directory>` reports
 graded pass rate and task-level cost/cache/time medians from the saved whole-workspace
 digests. Add `--json` for structured output. Estimates remain explicitly distinct
 from provider-billed costs; missing evidence is not replaced with zero.
+To compare the same completed tasks against a saved upstream `trials.json`, add
+`--baseline <file> --profile mini_swe_agent_deepseek_v4_flash_max`.
 
 The runner resolves exact current service/client publications before constructing the
 agent image, making Docker cache reuse version-sensitive. The driver persists the live

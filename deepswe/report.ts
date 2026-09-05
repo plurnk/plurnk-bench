@@ -6,6 +6,7 @@ import type { AccountingSummary, DigestAccountingInput } from "../src/accounting
 import { readTrialDir } from "../src/ingest.ts";
 import { PUBLISHED_MARKER } from "../src/publish.ts";
 import { median } from "../src/statistics.ts";
+import { compareBaseline, type BaselineTrial } from "./comparison.ts";
 
 type CostEvidence = { charged: number; estimated: number; unknown: number };
 export interface TaskReport {
@@ -97,10 +98,16 @@ export const reportJob = (job: string) => {
 };
 
 if (import.meta.main) {
-    const { positionals, values } = parseArgs({ allowPositionals: true, options: { json: { type: "boolean" } } });
+    const { positionals, values } = parseArgs({ allowPositionals: true, options: {
+        json: { type: "boolean" }, baseline: { type: "string" }, profile: { type: "string" },
+    } });
     if (positionals.length !== 1) throw new Error("usage: report.ts <job-directory> [--json]");
+    if (Boolean(values.baseline) !== Boolean(values.profile)) throw new Error("--baseline and --profile are required together");
     const report = reportJob(resolve(positionals[0]!));
-    if (values.json) console.log(JSON.stringify(report, null, 2));
+    const comparison = values.baseline === undefined ? undefined : compareBaseline(
+        report.rows, json<{ rows: BaselineTrial[] }>(values.baseline).rows, values.profile!,
+    );
+    if (values.json) console.log(JSON.stringify({ ...report, comparison }, null, 2));
     else {
         for (const row of report.rows) {
             console.log(`${row.reward === 1 ? "PASS" : row.reward === 0 ? "FAIL" : "UNSCORED"} ${row.task} (${row.outcome}) — ${row.evidence}`);
@@ -110,5 +117,6 @@ if (import.meta.main) {
         console.log(`Recorded USD (not necessarily billed): ${JSON.stringify(report.recordedCost)}`);
         console.log(`Request cost evidence: ${JSON.stringify(report.costEvidence)}`);
         console.log(`Runner's last saved state (${report.lastRunnerUpdate}; not a process-liveness check): ${JSON.stringify(report.runnerSnapshot)}`);
+        if (comparison !== undefined) console.log(`Matched baseline comparison: ${JSON.stringify(comparison, null, 2)}`);
     }
 }

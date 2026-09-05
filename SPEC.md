@@ -82,6 +82,14 @@ amounts. Duration is the client's agent-loop wall time. The runner's saved count
 are a timestamped snapshot, not a process-liveness assertion. Repeated attempts
 for one task require explicit selection rather than best-result picking.
 
+§deepswe-comparison Optional `--baseline <trials.json> --profile <config>`
+matches graded candidate tasks to the exact selected upstream configuration.
+All upstream trials marked `included_in_score` contribute their binary
+`score_value`; never select each task's best attempt. Missing counterpart tasks
+remain explicit and are excluded from both matched denominators. Peer token and
+agent-time medians use that same matched set. Historical USD figures are not
+silently compared under different rate cards.
+
 ## §digest-boundary Bench never reads the daemon DB
 
 DB→forensics belongs to the daemon's own digest (reused via
