@@ -19,20 +19,18 @@ const digest = (requests: Array<{
 }>) => ({
     workspaces: [{ accounting: requests.some(({ accounting }) => accounting === null) ? null : {
         requests: requests.map(({ accounting }) => accounting),
-        usage: cached(10_000, 220),
+        usage: cached(350, 220),
         costUsd: "12.34",
     } }],
     provider_requests: requests,
     turn_attempts: [{ accepted: false }, { accepted: true }],
 });
 
-test("{§accounting-cache-effectiveness} model cache excludes embeddings without losing task accounting", () => {
+test("{§accounting-cache-effectiveness} cache and task accounting include every model request", () => {
     const evidence = digest([
         request("emission", cached(100, 80)),
         request("emission", cached(200, 100)),
         request("bare", cached(50, 40)),
-        request("embedding_documents", { inputTokens: 9_000 }),
-        request("embedding_query", { inputTokens: 650 }),
     ]);
     const summary = summarizeDigestAccounting(evidence);
     assert.deepEqual(summary.cacheEffectiveness, {
@@ -42,7 +40,7 @@ test("{§accounting-cache-effectiveness} model cache excludes embeddings without
     });
     assert.equal(summary.usage, evidence.workspaces[0]!.accounting!.usage);
     assert.equal(summary.costUsd, "12.34");
-    assert.equal(summary.providerRequests, 5);
+    assert.equal(summary.providerRequests, 3);
     assert.equal(summary.rejectedEmissions, 1);
 });
 
@@ -59,14 +57,14 @@ test("{§accounting-cache-effectiveness} missing model evidence is unknown, neve
     }
 });
 
-test("{§accounting-cache-effectiveness} unsettled embedding evidence does not obscure measured model cache", () => {
+test("{§accounting-cache-effectiveness} unsettled evidence leaves task cost, usage and cache unknown", () => {
     const summary = summarizeDigestAccounting(digest([
         request("emission", cached(100, 80)),
-        { kind: "embedding_documents", accounting: null },
+        { kind: "bare", accounting: null },
     ]));
     assert.equal(summary.costUsd, null);
     assert.equal(summary.usage, null);
-    assert.equal(summary.cacheEffectiveness?.cacheReadTokenRatio, 0.8);
+    assert.equal(summary.cacheEffectiveness, null);
 });
 
 test("{§accounting-cache-effectiveness} zero model input differs from no model requests", () => {
@@ -74,9 +72,6 @@ test("{§accounting-cache-effectiveness} zero model input differs from no model 
         request("emission", cached(0, 0)),
     ])).cacheEffectiveness, { inputTokens: 0, cacheReadTokens: 0, cacheReadTokenRatio: null });
     assert.equal(summarizeDigestAccounting(digest([])).cacheEffectiveness, null);
-    assert.equal(summarizeDigestAccounting(digest([
-        request("embedding_documents", { inputTokens: 100 }),
-    ])).cacheEffectiveness, null);
 });
 
 test("{§accounting-cache-effectiveness} validates each model request before aggregating", () => {

@@ -165,16 +165,6 @@ const cacheEffectivenessForRequests = (requests: readonly unknown[]): CacheEffec
     });
 };
 
-const isModelRequest = ({ kind }: DigestAccountingInput["provider_requests"][number]): boolean => {
-    switch (kind) {
-        case "emission":
-        case "bare": return true;
-        case "embedding_documents":
-        case "embedding_query": return false;
-        default: throw new TypeError(`unknown provider request kind ${JSON.stringify(kind)}`);
-    }
-};
-
 const providerModel = (value: unknown, subject: string): string => {
     const request = recordOf(value, subject);
     if (typeof request.model !== "string" || request.model.trim() === "") {
@@ -202,10 +192,14 @@ export const summarizeDigestAccounting = (digest: DigestAccountingInput): Accoun
     }
 
     const workspaceAccounting = digest.workspaces[0]!.accounting;
-    const requestModels = digest.provider_requests.map((request, index) =>
-        request.accounting === null
+    const requestModels = digest.provider_requests.map((request, index) => {
+        if (request.kind !== "emission" && request.kind !== "bare") {
+            throw new TypeError(`unknown provider request kind ${JSON.stringify(request.kind)}`);
+        }
+        return request.accounting === null
             ? null
-            : providerModel(request.accounting, `provider request ${index} accounting`));
+            : providerModel(request.accounting, `provider request ${index} accounting`);
+    });
     if (workspaceAccounting === null) {
         if (!digest.provider_requests.some((request) => request.accounting === null)) {
             throw new TypeError("workspace accounting is null without an unsettled provider request");
@@ -231,7 +225,7 @@ export const summarizeDigestAccounting = (digest: DigestAccountingInput): Accoun
         models: [...new Set(requestModels.filter((model): model is string => model !== null))].toSorted(),
         usage,
         cacheEffectiveness: cacheEffectivenessForRequests(digest.provider_requests
-            .filter(isModelRequest).map(({ accounting }) => accounting)),
+            .map(({ accounting }) => accounting)),
         costUsd: workspaceAccounting?.costUsd ?? null,
     };
 };

@@ -70,21 +70,21 @@ test("{§deepswe-report} saved-job reporting reads the workspace digest, not par
     assert.equal(report.metrics.medianCacheHitRatePerSuccessfulTask.value, 0.9);
     assert.deepEqual(report.runnerSnapshot, { n_completed_trials: 1 });
 
-    const embedding = { model: "embedder", usage: { inputTokens: 900 }, cost: { kind: "estimated" } };
+    const bare = { model: "fixture", usage: { inputTokens: 900, inputTokenDetails: { cacheReadTokens: 0 } }, cost: { kind: "estimated" } };
     write(join(published, "digest", "digest.json"), {
         workspaces: [{ accounting: {
-            requests: [...requests, embedding], costUsd: "0.5",
+            requests: [...requests, bare], costUsd: "0.5",
             usage: { inputTokens: 1000, inputTokenDetails: { cacheReadTokens: 90 } },
         } }],
         provider_requests: [
             ...requests.map((accounting) => ({ kind: "emission", accounting })),
-            { kind: "embedding_documents", accounting: embedding },
+            { kind: "bare", accounting: bare },
         ],
         turn_attempts: [],
     });
-    const withEmbedding = reportJob(root);
-    assert.equal(withEmbedding.metrics.medianCacheHitRatePerSuccessfulTask.value, 0.9);
-    assert.equal(withEmbedding.rows[0]?.accounting?.providerRequests, 3);
-    assert.equal(withEmbedding.rows[0]?.accounting?.usage?.inputTokens, 1000);
-    assert.equal(withEmbedding.recordedCost.totalUsd, "0.5");
+    const withBare = reportJob(root);
+    assert.equal(withBare.metrics.medianCacheHitRatePerSuccessfulTask.value, 0.09);
+    assert.equal(withBare.rows[0]?.accounting?.providerRequests, 3);
+    assert.equal(withBare.rows[0]?.accounting?.usage?.inputTokens, 1000);
+    assert.equal(withBare.recordedCost.totalUsd, "0.5");
 });

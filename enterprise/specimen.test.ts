@@ -13,7 +13,7 @@ test("[§enterprise-specimen] the daemon comes from a checkout, the benchmark ke
 });
 
 test("[§enterprise-specimen] the specimen carries the Harbor posture and records provenance", () => {
-    assert.match(specimen, /PLURNK_EXECS_ONLY="sh,pm,crm,fileserver" PLURNK_SERVICE_MAX_EMBED_SIZE=262144/);
+    assert.match(specimen, /PLURNK_EXECS_ONLY="sh,pm,crm,fileserver"/);
     assert.match(specimen, /PLURNK_MCP_ENABLED='\["pm","crm","fileserver"\]' PLURNK_MCP_EXPANDED='\["pm","crm","fileserver"\]'/);
     assert.match(specimen, /\["enterprise-specimen", process\.argv\[2\], process\.argv\[3\]\]/);
     assert.match(specimen, /service_dirty=/);

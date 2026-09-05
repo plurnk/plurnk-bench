@@ -44,21 +44,6 @@ test("[§config-carry] `all` mode runs the corpus web-free on the minimal manife
     assert.doesNotMatch(smoke, /\[ "\$TASK" = all \] && exit 0/);
 });
 
-test("[§config-embedding-route] every mode forwards ONE embedding route — bundled by default, hosted branch preserved; the operator's embedding config never rides", () => {
-    const defaults = readFileSync(new URL("../.env.defaults", import.meta.url), "utf8");
-    assert.match(defaults, /^PLURNK_BENCH_EMBEDDING_ROUTE=bundled$/m, "the corpus runs the bundled wasm route (operator ruling 2026-08-31)");
-    assert.match(defaults, /^# PLURNK_BENCH_EMBEDDING_BASE_URL=https:\/\/embed\.plurnk\.ai\/v1/m, "the hosted-era value stays documented for a hosted return");
-    assert.match(smoke, /PLURNK_EMBEDDING_\*\) continue;;/, "the operator's own embedding config never rides");
-    assert.match(smoke, /PLURNK_BENCH_EMBEDDING_ROUTE is required \(a hosted route, or 'bundled'\)/);
-    // Bundled: an explicit empty selection forces the structural fallback, no egress host.
-    assert.match(smoke, /--agent-env "PLURNK_EMBEDDING_MODEL="/);
-    // Hosted branch preserved verbatim for a hosted-route return.
-    assert.match(smoke, /--agent-env "PLURNK_EMBEDDING_MODEL=\$PLURNK_BENCH_EMBEDDING_ROUTE"/);
-    assert.match(smoke, /--agent-env "PLURNK_PROVIDERS_PROVIDER_\$\{EMBED_PREFIX\}_NPM=@ai-sdk\/openai-compatible"/);
-    assert.match(smoke, /--agent-env "PLURNK_PROVIDERS_PROVIDER_\$\{EMBED_PREFIX\}_BASE_URL=\$PLURNK_BENCH_EMBEDDING_BASE_URL"/);
-    assert.match(smoke, /EGRESS_DOMAINS="\$\{EGRESS_DOMAINS:\+\$EGRESS_DOMAINS,\}\$EMBED_HOST"/);
-});
-
 test("[§config-resource-samples] every run samples docker stats once a minute into the job directory until pier exits", () => {
     assert.match(smoke, /while kill -0 "\$PIER_PID" 2>\/dev\/null; do/);
     assert.match(smoke, /docker stats --no-stream --format '\{\{json \.\}\}'/);

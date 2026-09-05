@@ -70,7 +70,7 @@ docker cp "$TASK_PATH/tests/." "$CONTAINER:/tests/"
 export PLURNK_MODEL="$MODEL"
 export PLURNK_MCP_PM="http://127.0.0.1:8011/mcp" PLURNK_MCP_CRM="http://127.0.0.1:8012/mcp" PLURNK_MCP_FILESERVER="http://127.0.0.1:8013/mcp"
 export PLURNK_MCP_ENABLED='["pm","crm","fileserver"]' PLURNK_MCP_EXPANDED='["pm","crm","fileserver"]'
-export PLURNK_EXECS_ONLY="sh,pm,crm,fileserver" PLURNK_SERVICE_MAX_EMBED_SIZE=262144
+export PLURNK_EXECS_ONLY="sh,pm,crm,fileserver"
 export PLURNK_CLIENT_CHECKOUT="$CLIENT_ROOT" PLURNK_BENCHMARKS="$HOME_DIR" PLURNK_CANDIDATE_DIR="$RUN_DIR"
 INSTRUCTION="$(cat "$TASK_PATH/instruction.md")"
 set +e

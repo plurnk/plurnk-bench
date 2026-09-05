@@ -33,8 +33,6 @@
 #   (every run samples docker stats once a minute into <job>/docker-stats.jsonl — SPEC §config-resource-samples)
 #   (every run first pre-pulls its task images via deepswe/prepull.sh — SPEC §config-image-prepull — and refuses
 #    to start trials without them; the bench's own @plurnk/plurnk-service must equal the corpus's — SPEC §config-digest-preflight)
-#   PLURNK_BENCH_EMBEDDING_ROUTE, PLURNK_BENCH_EMBEDDING_BASE_URL
-#                             the public embedding route EVERY mode forwards (SPEC §config-embedding-route)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -179,10 +177,6 @@ else
       # The MCP fleet is structurally dead under the egress wall: its traffic cannot pass,
       # so booting the servers only distorts the run with connect noise. Never forward.
       PLURNK_MCP_*) continue;;
-      # SPEC §config-embedding-route: the container embeds over the bench's public route (below),
-      # never the operator's selection or profile facts — a loopback GPU server is unreachable,
-      # and duplicate facts for a known route refuse the daemon's boot.
-      PLURNK_EMBEDDING_*) continue;;
       # A non-llama backend (xai/openrouter) can't enforce GBNF; 0.70.0's daemon refuses to
       # boot with GBNF requested-but-unenforceable. PLURNK_BENCH_NO_GBNF=1 runs unconstrained.
       PLURNK_PROVIDERS_GBNF) [ -n "${PLURNK_BENCH_NO_GBNF:-}" ] && continue;;
@@ -201,30 +195,6 @@ else
   [ -n "${PLURNK_BENCH_NO_GBNF:-}" ] && flags+=(--agent-env "PLURNK_PROVIDERS_GBNF=0")
 fi
 
-# SPEC §config-embedding-route: every mode forwards ONE public OpenAI-compatible embedding
-# route (a built-in daemon profile — no facts) and allowlists its host. The container can't
-# reach a loopback embedder, and the corpus must not embed on the task's CPU allotment.
-[ -n "${PLURNK_BENCH_EMBEDDING_ROUTE:-}" ] || {
-  echo "smoke: PLURNK_BENCH_EMBEDDING_ROUTE is required (a hosted route, or 'bundled')" >&2; exit 1
-}
-if [ "$PLURNK_BENCH_EMBEDDING_ROUTE" = bundled ]; then
-  # Local era (#17): the container embeds on its own bundled CPU/wasm profile — an
-  # explicit empty selection is the daemon's structural bundled fallback. At JOBS=1
-  # the whole host serves one trial, so on-CPU embedding no longer competes with
-  # anything; no egress host, no provider lines.
-  flags+=(--agent-env "PLURNK_EMBEDDING_MODEL=")
-else
-  [ -n "${PLURNK_BENCH_EMBEDDING_BASE_URL:-}" ] || {
-    echo "smoke: PLURNK_BENCH_EMBEDDING_BASE_URL is required with a hosted embedding route" >&2; exit 1
-  }
-  EMBED_PREFIX="$(printf '%s' "${PLURNK_BENCH_EMBEDDING_ROUTE%%/*}" | tr -c 'A-Za-z0-9' '_' | tr 'a-z' 'A-Z')"
-  EMBED_HOST="${PLURNK_BENCH_EMBEDDING_BASE_URL#*://}"; EMBED_HOST="${EMBED_HOST%%[:/]*}"
-  flags+=(--agent-env "PLURNK_EMBEDDING_MODEL=$PLURNK_BENCH_EMBEDDING_ROUTE")
-  flags+=(--agent-env "PLURNK_PROVIDERS_PROVIDER_${EMBED_PREFIX}_NPM=@ai-sdk/openai-compatible")
-  flags+=(--agent-env "PLURNK_PROVIDERS_PROVIDER_${EMBED_PREFIX}_BASE_URL=$PLURNK_BENCH_EMBEDDING_BASE_URL")
-  EGRESS_DOMAINS="${EGRESS_DOMAINS:+$EGRESS_DOMAINS,}$EMBED_HOST"
-fi
-
 # SPEC §config-tavily-route: Tavily is ordinary optional provider configuration. Carry
 # it when configured, retain the no-key default, and record only presence + effective depth.
 # The official corpus runs web-free: force the route absent in `all` mode.
@@ -241,11 +211,8 @@ TAVILY_ROUTE=absent
 # A configured tavily route is deliberate web egress: allowlist its API host too.
 [ "$TAVILY_CONFIGURED" = 1 ] && EGRESS_DOMAINS="${EGRESS_DOMAINS:+$EGRESS_DOMAINS,}api.tavily.com"
 
-# CPUs (SPEC §config-native-cpus): default to the task's native allotment (leaderboard-compliant — an --override-cpus
-# disqualifies submissions). We used to force host cores to stop the embedder thrashing its
-# WASM pool, but the embedder reforms (lazy on ~query #316, binary-free corpus #320) shrank
-# the load enough that the native allotment copes. Opt into an override with PLURNK_BENCH_CPUS
-# (e.g. on a tiny box, or a task that indexes a huge repo).
+# SPEC §config-native-cpus: use the task's native CPU allotment. An explicit
+# PLURNK_BENCH_CPUS override is diagnostic, not leaderboard-compliant.
 cpu_flags=()
 [ -n "${PLURNK_BENCH_CPUS:-}" ] && cpu_flags+=(--override-cpus "$PLURNK_BENCH_CPUS")
 
@@ -291,7 +258,7 @@ if [ "$TASK" = all ]; then
   fi
 fi
 
-echo "smoke: model=$MODEL task=$TASK service=$SERVICE_VERSION client=$CLIENT_VERSION tavily=$TAVILY_ROUTE embed=$PLURNK_BENCH_EMBEDDING_ROUTE egress=$EGRESS_DOMAINS cpus=${PLURNK_BENCH_CPUS:-native} client_timeout=${CLIENT_TIMEOUT_SEC}s (budget ${AGENT_BUDGET:-?}s)${PLURNK_BENCH_FORCE_BUILD:+ [force-build]}" >&2
+echo "smoke: model=$MODEL task=$TASK service=$SERVICE_VERSION client=$CLIENT_VERSION tavily=$TAVILY_ROUTE egress=$EGRESS_DOMAINS cpus=${PLURNK_BENCH_CPUS:-native} client_timeout=${CLIENT_TIMEOUT_SEC}s (budget ${AGENT_BUDGET:-?}s)${PLURNK_BENCH_FORCE_BUILD:+ [force-build]}" >&2
 # The default personality ships on: the daemon seeds PLURNK_PERSONALITY.md to
 # the XDG policy file and foists it headless (confirmed via digest, PLURNK_POLICY unset).
 # So we DON'T set PLURNK_POLICY — the benchmark gets the real product default as-is.

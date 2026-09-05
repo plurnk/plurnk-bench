@@ -130,8 +130,7 @@ old `error` field, and flattened failure strings are rejected rather than transl
 
 §accounting-cache-effectiveness `cacheEffectiveness` measures model prompt caching
 from the daemon's physical request ledger: every `emission` and `bare` request,
-across workers, retries and rejected emissions. Embedding requests are excluded
-only from this metric, never from whole-task usage or cost. Requiem interviews
+across workers, retries and rejected emissions. Requiem interviews
 use their own model-request ledger. Each included request must report input and
 cache-read tokens; otherwise the projection is `null`, not a selected complete
 subset. With complete evidence, sum those counts and report
@@ -181,8 +180,7 @@ daemon DB), **`digest/`** (rendered from the COPY — the dir is self-contained)
   opt-in gate); the live requiem itself is validated against real runs only.
 - §publish-workspace-scope The published digest is workspace-scoped, never worker-narrowed:
   the trial container's DB holds one fresh workspace, and the workerId selector would
-  exclude workspace-owned (turnless) embedding derivations — the vector pump's entire
-  ledger — plus any child worker's own evidence. record.json keeps `run.workerId` as a
+  exclude child worker evidence. record.json keeps `run.workerId` as a
   drill-down handle only. Covered: `src/publish.test.ts [§publish-workspace-scope]`.
 - §publish-task-accounting Published `record.json` uses the digest's sole workspace
   `accounting` projection verbatim under `usage.accounting`, including child, BARE,
@@ -318,11 +316,6 @@ to the host LAN IP. Child contracts:
   the resolved candidate when their contract permits an unset value. Covered:
   `host-paths.test.ts`, `smoke.test.ts`, and `[§config-model-default]` in
   `benchlet.test.ts`.
-- §config-embedding-route Every mode forwards ONE public OpenAI-compatible embedding route
-  (`PLURNK_BENCH_EMBEDDING_ROUTE` on `PLURNK_BENCH_EMBEDDING_BASE_URL`, a built-in daemon
-  profile needing no facts) and allowlists its host; the operator's own `PLURNK_EMBEDDING_*`
-  never rides. The container cannot reach a loopback embedder, and the corpus must not embed
-  on the task's CPU allotment. Covered: `[§config-embedding-route]` in `smoke.test.ts`.
 - §config-image-prepull Every task image is pulled outside the run — `deepswe/prepull.sh
   [task-glob|all]`: bounded parallelism (default 3), retries with backoff, a docker-volume
   disk floor (default 40 GB), a loud list of anything unresolvable — and the launcher runs it
@@ -407,11 +400,7 @@ never reproduces an agent loop.
   branch-tagged workers are refused), web-free and non-interactive, with executors limited
   to the shell and the benchmark's MCP aliases.
   The shell is the task's own submission path: every instruction tells the agent to POST
-  its answer to the container's `/submit_agent_response`. Vector embedding is capped at
-  256 KB per channel (`PLURNK_SERVICE_MAX_EMBED_SIZE`, recorded in provenance): the
-  daemon's unlimited default let one unfiltered 8.4 MB SOQL result stall a loop for seven
-  minutes of synchronous embedding on the task's two CPUs; the cap rejects vectors only,
-  leaving FTS, READ, and the graph exhaustive over such dumps. Covered: `test_driver.py`.
+  its answer to the container's `/submit_agent_response`. Covered: `test_driver.py`.
 - §enterprise-answer The harness never submits on the model's behalf. An unsubmitted or
   duplicated answer is the model's failure and the benchmark's judge records it as such;
   the submitted answer, when present, is kept beside the record as `agent/responses.jsonl`.
@@ -442,7 +431,7 @@ never reproduces an agent loop.
 
 ## §frontier-parity FrontierHarness Eval v1 is a parity lane, not a corpus
 
-`terminal_bench/frontier.manifest.json` names the frozen selection of [FrontierHarness Eval v1](https://github.com/runta-dev/frontier-harness-eval): 21 Terminal-Bench 2.1 tasks (Harbor dataset `terminal-bench/terminal-bench-2-1`) and 9 DeepSWE v1.1 tasks, each once, with the published model route. `terminal_bench/frontier.sh` runs them serially by default through the existing Harbor agent (`terminal_bench/plurnk_agent.py`), one Harbor job per task; `PLURNK_BENCH_JOBS` deliberately opts into concurrency. Every client timeout is that task's own `[agent] timeout_sec` minus the boot-and-shutdown headroom (`deepswe/smoke.sh`'s 120 s); a Harbor job carries one agent-kwarg set and the budgets differ per task. The plan is read from the task dirs before any launch (`--preflight` stops there), a run directory records manifest, plan, and provenance, and the summary reads Harbor's `verifier/reward.txt` per job: pass, fail, or missing — a task without a trial is never a fail. It reports pass rate over scored tasks and task-weighted medians for cost per successful task, cost per scored task, successful-task cache-read ratio, and successful-task Harbor trial wall time; incomplete telemetry remains visible as reported/eligible coverage rather than being imputed. The DeepSWE nine run through Harbor here for one mechanism per comparison; Pier remains the DeepSWE publication path ({§benchlet-diagnostic}, {§results-canon}), and a frontier run is a diagnostic beside published harness results, never a corpus record. Corpus state stays downloaded under `.cache/`, never committed. The Harbor agent forwards one embedding route the way the corpus driver does ({§config-embedding-route}): absent or `bundled` selects the daemon's bundled wasm model with an explicit empty selection; a hosted route rides with its openai-compatible provider lines, and the operator's own embedding config never does.
+`terminal_bench/frontier.manifest.json` names the frozen selection of [FrontierHarness Eval v1](https://github.com/runta-dev/frontier-harness-eval): 21 Terminal-Bench 2.1 tasks (Harbor dataset `terminal-bench/terminal-bench-2-1`) and 9 DeepSWE v1.1 tasks, each once, with the published model route. `terminal_bench/frontier.sh` runs them serially by default through the existing Harbor agent (`terminal_bench/plurnk_agent.py`), one Harbor job per task; `PLURNK_BENCH_JOBS` deliberately opts into concurrency. Every client timeout is that task's own `[agent] timeout_sec` minus the boot-and-shutdown headroom (`deepswe/smoke.sh`'s 120 s); a Harbor job carries one agent-kwarg set and the budgets differ per task. The plan is read from the task dirs before any launch (`--preflight` stops there), a run directory records manifest, plan, and provenance, and the summary reads Harbor's `verifier/reward.txt` per job: pass, fail, or missing — a task without a trial is never a fail. It reports pass rate over scored tasks and task-weighted medians for cost per successful task, cost per scored task, successful-task cache-read ratio, and successful-task Harbor trial wall time; incomplete telemetry remains visible as reported/eligible coverage rather than being imputed. The DeepSWE nine run through Harbor here for one mechanism per comparison; Pier remains the DeepSWE publication path ({§benchlet-diagnostic}, {§results-canon}), and a frontier run is a diagnostic beside published harness results, never a corpus record. Corpus state stays downloaded under `.cache/`, never committed.
 
 ### §frontier-egress-probe Restricted inference connectivity
 

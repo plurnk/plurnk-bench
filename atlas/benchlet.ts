@@ -827,7 +827,6 @@ const main = async (): Promise<void> => {
         PLURNK_CANDIDATE_SKIP_BUILD: "1",
         PLURNK_CLIENT_CHECKOUT: clientRoot,
         PLURNK_SERVICE_POLICY: resolve(runDir, "candidate-policy.md"),
-        PLURNK_SERVICE_EMBED_DISABLE: "1",
         PLURNK_CANDIDATE_CLIENT_ENV: JSON.stringify({
             PLURNK_EXECS_ONLY: "atlas",
         }),

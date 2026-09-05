@@ -7,9 +7,6 @@
 #   PLURNK_BENCH_SERVICE_VERSION / _CLIENT_VERSION   the published @plurnk versions the agent installs
 #                          in every container (default: the registry's latest at launch, resolved once and recorded)
 #   PLURNK_BENCH_RUNS_DIR  where run directories land (default jobs/)
-#   PLURNK_BENCH_EMBEDDING_ROUTE / _BASE_URL   the container's embedding route (SPEC §config-embedding-route):
-#                          absent or 'bundled' = the daemon's bundled wasm model; a hosted route such as
-#                          local-embed/sentence-transformers/all-MiniLM-L6-v2 on https://embed.plurnk.ai/v1
 # Provider keys are exports in the operator's shell: launch as `bash -lic '…'`.
 # Corpus state (downloaded, never committed):
 #   harbor dataset download terminal-bench/terminal-bench-2-1 -o .cache/terminal-bench-2-1
@@ -69,7 +66,6 @@ printf '%s\n' "$PLAN" > "$RUN/plan.jsonl"
   echo "model_knobs=$(grep -E "^PLURNK_PROVIDERS_[A-Z_]+_$MODEL=" "${XDG_CONFIG_HOME:-$HOME/.config}/plurnk/.env" 2>/dev/null | tr '\n' ' ')"
   echo "service_version=$SERVICE_VERSION"
   echo "client_version=$CLIENT_VERSION"
-  echo "embedding_route=${PLURNK_BENCH_EMBEDDING_ROUTE:-bundled}"
   echo "jobs=$JOBS"
   echo "harbor=$(harbor --version 2>/dev/null | head -1)"
   echo "started=$(date -Iseconds)"
