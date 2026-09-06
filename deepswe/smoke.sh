@@ -14,7 +14,7 @@
 #   model        selected by the ordinary PLURNK_MODEL cascade
 #
 # `all` is the official-corpus mode: it forwards the MINIMAL manifest — the model layer for
-# the run's aliases plus their provider credentials, nothing else. No MCP fleet, no web
+# the run's aliases, their provider credentials, and the unattended capability policy. No MCP fleet, no web
 # keys, no foreign provider credentials inside a container that executes model-authored
 # commands; Tavily is forced absent (contamination honesty). Single-task mode keeps
 # operator-config parity for diagnostics, minus the MCP fleet (structurally dead under the
@@ -117,9 +117,10 @@ MANIFEST="$(MODEL="$MODEL" node -e '
 EGRESS_DOMAINS="$(printf '%s\n' "$MANIFEST" | head -1)"; EGRESS_DOMAINS="${EGRESS_DOMAINS#DOMAINS=}"
 
 if [ "$TASK" = all ]; then
-  # Official-corpus manifest: the model layer for the run's aliases + their provider
-  # credentials, nothing else (see header). Alias-scoped knobs ride with their alias.
-  flags=(--agent-env "PLURNK_MODEL=$MODEL")
+  # Official-corpus manifest: the selected model layer and unattended capability posture.
+  # Alias-scoped knobs ride with their alias.
+  flags=(--agent-env "PLURNK_MODEL=$MODEL"
+    --agent-env "PLURNK_SERVICE_CAPABILITIES=$PLURNK_SERVICE_CAPABILITIES")
   [ -n "${PLURNK_MODEL_CHILD:-}" ] && flags+=(--agent-env "PLURNK_MODEL_CHILD=$PLURNK_MODEL_CHILD")
   for alias in "$MODEL" "${PLURNK_MODEL_CHILD:-}"; do
     [ -n "$alias" ] || continue

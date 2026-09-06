@@ -54,15 +54,8 @@ def _prefix(provider_id: str) -> str:
 
 
 @functools.cache
-def _operator_env() -> dict[str, str]:
-    """The operator XDG config, parsed with the daemon's own parseEnv semantics.
-
-    The authoritative model layer lives in this FILE, not the shell (SPEC
-    §config-carry) — reading it here makes the agent launchable bare, with no
-    wrapper step to remember.
-    """
-    config_home = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
-    path = Path(config_home) / "plurnk" / ".env"
+def _env_file(path: Path) -> dict[str, str]:
+    """Read configuration with the daemon's native parseEnv semantics."""
     if not path.is_file():
         return {}
     out = subprocess.run(
@@ -74,6 +67,13 @@ def _operator_env() -> dict[str, str]:
         capture_output=True, text=True, check=True,
     )
     return json.loads(out.stdout)
+
+
+@functools.cache
+def _operator_env() -> dict[str, str]:
+    """Read the authoritative operator model layer without a wrapper step."""
+    config_home = os.environ.get("XDG_CONFIG_HOME") or str(Path.home() / ".config")
+    return _env_file(Path(config_home) / "plurnk" / ".env")
 
 
 class PlurnkAgent(BaseInstalledAgent):
@@ -213,6 +213,10 @@ class PlurnkAgent(BaseInstalledAgent):
         env = self._model_env()
         env["NODE_USE_ENV_PROXY"] = "1"
         env["PLURNK_SERVICE_DB_PATH"] = str(db_dest)
+        capabilities = self._host_env("PLURNK_SERVICE_CAPABILITIES")
+        if capabilities is None:
+            capabilities = _env_file(Path(__file__).resolve().parent.parent / ".env.defaults")["PLURNK_SERVICE_CAPABILITIES"]
+        env["PLURNK_SERVICE_CAPABILITIES"] = capabilities
 
         # No web route -> the capability ceiling removes web tools and their
         # teaching (contamination honesty, the DeepSWE posture).

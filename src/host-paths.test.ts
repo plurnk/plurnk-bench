@@ -74,3 +74,10 @@ test("[§config-model-default] the candidate selection is the ordinary PLURNK_MO
     assert.throws(() => selectedModel({}), /PLURNK_MODEL/);
     assert.throws(() => selectedModel({ PLURNK_MODEL: " " }), /PLURNK_MODEL/);
 });
+
+test("[§config-unattended] the committed bench floor denies human interaction", () => {
+    const defaults = parseEnv(readFileSync(new URL("../.env.defaults", import.meta.url), "utf8"));
+    assert.deepEqual(JSON.parse(defaults.PLURNK_SERVICE_CAPABILITIES!), {
+        deny: [{ traits: ["interaction"] }],
+    });
+});

@@ -147,8 +147,8 @@ class PlurnkAgent(BaseInstalledAgent):
             "PLURNK_CLIENT_PROJECT_ROOT": "/workspace",
         }
         # Enterprise-Bench posture: never interactive, never the open web — the corpus is
-        # answerable only through its MCP services. The daemon 403-teaches gated schemes.
-        loop_flags = json.dumps({"noWeb": True, "noInteraction": True})
+        # answerable only through its MCP services. Admission and documentation share the ceiling.
+        capabilities = json.dumps({"deny": [{"traits": ["web"]}, {"traits": ["interaction"]}]})
         provenance = {
             "schemaVersion": 1,
             "mcp": {
@@ -182,7 +182,7 @@ for _ in $(seq 1 {DAEMON_READY_TIMEOUT_S}); do
   if plurnk models >/dev/null 2>&1; then break; fi
   sleep 1
 done
-plurnk --json --auto --flags {shlex.quote(loop_flags)} --project-root '' --timeout {self._client_timeout_sec} -- {escaped} \
+plurnk --json --auto --capabilities {shlex.quote(capabilities)} --project-root '' --timeout {self._client_timeout_sec} -- {escaped} \
   > {shlex.quote(str(record))} 2> {shlex.quote(str(stderr))} || true
 [ -f /agent-logs/conversational/responses.jsonl ] && cp /agent-logs/conversational/responses.jsonl {shlex.quote(str(answer_copy))}
 snapshot_db "$DB" {shlex.quote(str(db_dest))}
