@@ -74,7 +74,7 @@ export PLURNK_EXECS_ONLY="sh,pm,crm,fileserver"
 export PLURNK_CLIENT_CHECKOUT="$CLIENT_ROOT" PLURNK_BENCHMARKS="$HOME_DIR" PLURNK_CANDIDATE_DIR="$RUN_DIR"
 INSTRUCTION="$(cat "$TASK_PATH/instruction.md")"
 set +e
-( cd "$SERVICE_ROOT" && node scripts/candidate.mjs --json --auto --flags '{"noWeb": true, "noInteraction": true}' --project-root '' --timeout "$TIMEOUT" -- "$INSTRUCTION" ) > "$RUN_DIR/candidate.stdout" 2> "$RUN_DIR/candidate.stderr"
+( cd "$SERVICE_ROOT" && node scripts/candidate.mjs --json --auto --capabilities '{"deny":[{"traits":["web"]}]}' --project-root '' --timeout "$TIMEOUT" -- "$INSTRUCTION" ) > "$RUN_DIR/candidate.stdout" 2> "$RUN_DIR/candidate.stderr"
 echo "candidate_exit=$?" >> "$RUN_DIR/provenance.txt"
 set -e
 # The client's --json document leads the candidate's stdout; the digest's own line follows it.

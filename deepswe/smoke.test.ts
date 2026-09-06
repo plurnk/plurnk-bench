@@ -4,9 +4,9 @@ import test from "node:test";
 
 const smoke = readFileSync(new URL("./smoke.sh", import.meta.url), "utf8");
 
-test("[§config-unattended] the official minimal manifest retains the capability posture", () => {
+test("[§config-unattended] the official minimal manifest retains the executor switch", () => {
     const official = smoke.split('if [ "$TASK" = all ]; then')[2]!.split("\nelse\n")[0]!;
-    assert.match(official, /--agent-env "PLURNK_SERVICE_CAPABILITIES=\$PLURNK_SERVICE_CAPABILITIES"/);
+    assert.match(official, /--agent-env "PLURNK_EXECS_QUESTION=\$PLURNK_EXECS_QUESTION"/);
 });
 
 test("[§config-package-version] smoke pins resolved service and client publications", () => {

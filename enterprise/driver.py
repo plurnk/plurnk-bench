@@ -146,9 +146,8 @@ class PlurnkAgent(BaseInstalledAgent):
             # worker is refused honestly (409) rather than never existing.
             "PLURNK_CLIENT_PROJECT_ROOT": "/workspace",
         }
-        # Enterprise-Bench posture: never interactive, never the open web — the corpus is
-        # answerable only through its MCP services. Admission and documentation share the ceiling.
-        capabilities = json.dumps({"deny": [{"traits": ["web"]}, {"traits": ["interaction"]}]})
+        # The executor allowlist excludes question; web admission is a separate corpus restriction.
+        capabilities = json.dumps({"deny": [{"traits": ["web"]}]})
         provenance = {
             "schemaVersion": 1,
             "mcp": {

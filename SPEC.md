@@ -309,13 +309,13 @@ container-boundary transform: loopback (`127.0.0.1`/`localhost`) in a `*_BASE_UR
 to the host LAN IP. Child contracts:
 
 - §config-unattended Unattended runs default to
-  `PLURNK_SERVICE_CAPABILITIES={"deny":[{"traits":["interaction"]}]}` from
-  `.env.defaults`. The capability ceiling removes human-interaction tools and their
-  teaching together, including `question.md`. Host benchlets inherit the setting;
+  `PLURNK_EXECS_QUESTION=0` from `.env.defaults`. The ordinary executor switch
+  removes the question tool and its teaching, including `question.md`.
+  Host benchlets inherit the setting;
   DeepSWE forwards it even in the official minimal manifest; Terminal-Bench carries
   it alongside the model manifest. Explicit operator values retain normal precedence.
-  Corpus-specific mandatory restrictions, such as Enterprise's noninteractive and
-  web-free posture, remain additional capability denials rather than legacy flags.
+  Enterprise's executor allowlist already excludes question; its independent
+  web restriction remains a capability policy.
 - §config-model-default The candidate model uses the product's ordinary
   `PLURNK_MODEL` cascade: an invoking-shell value, then the XDG operator file,
   then the committed benchmark default. Harnesses admit no positional or
