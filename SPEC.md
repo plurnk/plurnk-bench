@@ -238,6 +238,20 @@ complete evidence while changing one experimental variable at a time.
   canonical `tests/test.sh`, then require consistent `reward.json` and
   `ctrf.json` evidence. Malformed output is infrastructure failure; absent test
   evidence fails rather than passing by omission.
+- §benchlet-oracle-exclusion A pass-to-pass test that fails on the pristine
+  baseline in this environment cannot discriminate a candidate here, so it
+  leaves the graded set for that run only: the pinned task files stay
+  byte-identical, the verifier receives the pinned config merged with the
+  reduced `p2p_node_ids` (kept beside the grading artifacts as `config.json`),
+  and the run records every excluded id with its baseline output in
+  `oracle-exclusions.json` and under `oracle.environmentExcludedP2p` in
+  `result.json`. Fail-to-pass tests are never excused: a baseline where any
+  passes is a broken task. One exclusion is a flaky test; more than one must
+  stay within a tenth of the p2p set, otherwise the environment is broken and
+  the run stays an infrastructure failure. `--preflight` names what a run would
+  exclude. Origin: eicrud's own login rate limiter answered 425 to a test
+  expecting 401 because this host ran two attempts inside the framework's
+  minimum interval — three runs, the same test, no model involved.
 - §benchlet-tree A Terminal-Bench 2.1 task is a tree manifest (`kind:
   "terminal-bench"`, pinned by `pin-task.mjs --terminal-bench`): no repository,
   the image's `/app` copied out as the candidate tree, the task's own `[agent]
@@ -292,7 +306,7 @@ complete evidence while changing one experimental variable at a time.
   the positive cap, or `-1` — the plurnk no-limit idiom — which removes the
   candidate timer entirely; the overhead still applies to the run's records.
 
-Covered: `benchlet.test.ts [§benchlet-oracle]`,
+Covered: `benchlet.test.ts [§benchlet-oracle]`, `[§benchlet-oracle-exclusion]`,
 `[§benchlet-evidence]`, `[§benchlet-failure]`, `[§benchlet-location]`,
 `[§benchlet-requiem-witness]`, `[§benchlet-candidate-timeout]`, and
 `client-checkout.test.ts [§benchlet-client-checkout]`. The real `--preflight`

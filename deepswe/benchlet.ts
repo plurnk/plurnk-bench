@@ -468,6 +468,34 @@ export const parseGoTestEvents = (text: string): Map<string, TestObservation> =>
     return observations;
 };
 
+// {§benchlet-oracle-exclusion} — a pass-to-pass test that fails on the pristine baseline in THIS
+// environment cannot discriminate a candidate here (2026-09-08: eicrud's own login rate limiter
+// answered 425 to a test that expects 401 because this host ran two attempts inside the framework's
+// minimum interval; three runs, same test, no model involved). Such tests leave the graded set for
+// this run only — pinned task files stay byte-identical — and the exclusion is evidence in
+// oracle-exclusions.json and result.json. Fail-to-pass tests are never excused: a baseline where any
+// f2p passes is a broken task. One exclusion is a flaky test; more than one must stay within a tenth
+// of the p2p set, or the environment is broken rather than flaky and the run stays an
+// infrastructure failure.
+export const environmentExcludedP2p = (baseline: OracleResult): OracleResult["tests"] =>
+    baseline.tests.filter((test) => test.bucket === "p2p" && test.status !== "passed");
+
+export const baselineInvalidity = (baseline: OracleResult): string | null => {
+    if (baseline.f2pPassed !== 0) {
+        return `external oracle baseline is invalid: p2p ${baseline.p2pPassed}/${baseline.p2pTotal}, f2p ${baseline.f2pPassed}/${baseline.f2pTotal}`;
+    }
+    const excluded = environmentExcludedP2p(baseline).length;
+    if (excluded > Math.max(1, Math.floor(baseline.p2pTotal / 10))) {
+        return `external oracle baseline is invalid: p2p ${baseline.p2pPassed}/${baseline.p2pTotal} (more than a tenth fail before any model runs), f2p ${baseline.f2pPassed}/${baseline.f2pTotal}`;
+    }
+    return null;
+};
+
+export const withoutExcluded = (config: OracleConfig, excluded: ReadonlyArray<{ nodeId: string }>): OracleConfig => {
+    const drop = new Set(excluded.map(({ nodeId }) => nodeId));
+    return { ...config, p2p_node_ids: config.p2p_node_ids.filter((nodeId) => !drop.has(nodeId)) };
+};
+
 export const gradeObservations = (
     config: OracleConfig,
     observations: Map<string, TestObservation>,
@@ -933,6 +961,17 @@ const gradeTaskPatch = async (
         shell("docker", ["start", container]);
         shell("docker", ["exec", container, "mkdir", "-p", "/tests", "/logs/artifacts", "/logs/verifier"]);
         shell("docker", ["cp", `${resolve(taskDir, "tests")}/.`, `${container}:/tests`]);
+        // {§benchlet-oracle-exclusion} — the verifier grades the run's whitelist: the pinned config
+        // merged with the derived p2p set, written beside the artifacts as evidence and copied over
+        // the container's copy only when an id was excluded.
+        const pinned = JSON.parse(readFileSync(resolve(taskDir, "tests", "config.json"), "utf8")) as Record<string, unknown>;
+        const pinnedP2p = pinned.p2p_node_ids;
+        if (!Array.isArray(pinnedP2p)) throw new Error("pinned tests/config.json carries no p2p_node_ids array");
+        if (pinnedP2p.length !== config.p2p_node_ids.length) {
+            const overlay = resolve(artifactDir, "config.json");
+            writeJson(overlay, { ...pinned, p2p_node_ids: config.p2p_node_ids });
+            shell("docker", ["cp", overlay, `${container}:/tests/config.json`]);
+        }
         shell("docker", ["cp", patchPath, `${container}:/logs/artifacts/model.patch`]);
         const args = ["exec", container, "bash", "/tests/test.sh"];
         const result = await runToFiles("docker", args, {
@@ -1420,11 +1459,11 @@ const main = async (signal?: AbortSignal): Promise<void> => {
                 null,
                 signal,
             );
-            if (baseline.p2pPassed !== baseline.p2pTotal || baseline.f2pPassed !== 0) {
-                throw new Error(
-                    `external oracle baseline is invalid: p2p ${baseline.p2pPassed}/${baseline.p2pTotal}, `
-                    + `f2p ${baseline.f2pPassed}/${baseline.f2pTotal}`,
-                );
+            const invalid = baselineInvalidity(baseline);
+            if (invalid !== null) throw new Error(invalid);
+            const excluded = environmentExcludedP2p(baseline);
+            if (excluded.length > 0) {
+                process.stderr.write(`benchlet: ${excluded.length} pass-to-pass test(s) fail on the pristine baseline here and would be excluded from grading: ${excluded.map(({ nodeId }) => nodeId).join(", ")}\n`);
             }
             process.stdout.write(`${JSON.stringify({ status: "ready", baseline }, null, 2)}\n`);
         } finally {
@@ -1519,11 +1558,17 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         signal,
     );
     writeJson(resolve(runDir, "oracle-baseline.json"), baseline);
-    if (baseline.p2pPassed !== baseline.p2pTotal || baseline.f2pPassed !== 0) {
-        throw new Error(
-            `external oracle baseline is invalid: p2p ${baseline.p2pPassed}/${baseline.p2pTotal}, `
-            + `f2p ${baseline.f2pPassed}/${baseline.f2pTotal}`,
-        );
+    const invalid = baselineInvalidity(baseline);
+    if (invalid !== null) throw new Error(invalid);
+    const excludedP2p = environmentExcludedP2p(baseline);
+    const runConfig = withoutExcluded(config, excludedP2p);
+    writeJson(resolve(runDir, "oracle-exclusions.json"), {
+        p2p: excludedP2p.map(({ nodeId, output }) => ({ nodeId, baselineOutput: output })),
+        p2pGraded: runConfig.p2p_node_ids.length,
+        p2pPinned: config.p2p_node_ids.length,
+    });
+    if (excludedP2p.length > 0) {
+        process.stderr.write(`benchlet: excluding ${excludedP2p.length} pass-to-pass test(s) that fail on the pristine baseline here: ${excludedP2p.map(({ nodeId }) => nodeId).join(", ")}\n`);
     }
 
     const repository = resolve(runDir, "repo");
@@ -1593,7 +1638,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         repositoryCache,
         manifest,
         taskDir,
-        config,
+        runConfig,
         repository,
         signal,
     );
@@ -1609,7 +1654,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             repositoryCache,
             manifest,
             taskDir,
-            config,
+            runConfig,
             null,
             signal,
         );
@@ -1639,7 +1684,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             repositoryCache,
             manifest,
             taskDir,
-            config,
+            runConfig,
             deadlineRepo,
             signal,
         );
@@ -1654,7 +1699,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
                 repositoryCache,
                 manifest,
                 taskDir,
-                config,
+                runConfig,
                 null,
                 signal,
             );
@@ -1750,6 +1795,8 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         git: patchState,
         oracle: {
             baseline,
+            // {§benchlet-oracle-exclusion} — what this run did not grade, and why.
+            environmentExcludedP2p: excludedP2p.map(({ nodeId, output }) => ({ nodeId, baselineOutput: output })),
             working: workingOracle,
             submission: submissionOracle,
             submissionEvidence: {

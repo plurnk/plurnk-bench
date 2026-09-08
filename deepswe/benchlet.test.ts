@@ -24,6 +24,8 @@ import {
     candidatePolicySnapshotPath,
     candidateRecapSnapshotPath,
     digestSummary,
+    baselineInvalidity,
+    environmentExcludedP2p,
     gradeObservations,
     manifestPathForTask,
     parseGoTestEvents,
@@ -33,6 +35,7 @@ import {
     requiemModelAlias,
     runToFiles,
     summarizeFailures,
+    withoutExcluded,
 } from "./benchlet.ts";
 
 test("[§benchlet-evidence] benchlet resolves and snapshots the service candidate policy", () => {
@@ -100,6 +103,50 @@ test("[§benchlet-oracle] benchlet preserves a test interrupted before its termi
             "go test ended after starting this test without emitting a terminal event",
         ].join("\n"),
     });
+});
+
+test("[§benchlet-oracle-exclusion] a pass-to-pass test failing on the pristine baseline leaves this run's graded set with evidence", () => {
+    const config = {
+        base_commit: "base",
+        p2p_node_ids: ["pkg.Stable", "pkg.LoginTiming", "pkg.AlsoStable"],
+        f2p_node_ids: ["pkg.Feature"],
+    };
+    const baseline = gradeObservations(config, new Map([
+        ["pkg.Stable", { status: "passed", output: "" }],
+        ["pkg.LoginTiming", { status: "failed", output: "Expected: 401\nReceived: 425" }],
+        ["pkg.AlsoStable", { status: "passed", output: "" }],
+        ["pkg.Feature", { status: "failed", output: "not yet" }],
+    ]));
+    assert.equal(baselineInvalidity(baseline), null, "one timing-flaky p2p test is an exclusion, not a broken task");
+    const excluded = environmentExcludedP2p(baseline);
+    assert.deepEqual(excluded.map(({ nodeId, output }) => [nodeId, output]), [["pkg.LoginTiming", "Expected: 401\nReceived: 425"]]);
+    const runConfig = withoutExcluded(config, excluded);
+    assert.deepEqual(runConfig.p2p_node_ids, ["pkg.Stable", "pkg.AlsoStable"]);
+    assert.deepEqual(runConfig.f2p_node_ids, ["pkg.Feature"], "fail-to-pass ids are never excused");
+    assert.deepEqual(config.p2p_node_ids, ["pkg.Stable", "pkg.LoginTiming", "pkg.AlsoStable"], "the pinned config is untouched");
+    const graded = gradeObservations(runConfig, new Map([
+        ["pkg.Stable", { status: "passed", output: "" }],
+        ["pkg.AlsoStable", { status: "passed", output: "" }],
+        ["pkg.Feature", { status: "passed", output: "" }],
+    ]));
+    assert.equal(graded.reward, 1, "the candidate is graded on what can discriminate here");
+    assert.equal(graded.p2pTotal, 2);
+});
+
+test("[§benchlet-oracle-exclusion] a passing fail-to-pass test or a tenth of p2p failing at baseline is still a broken environment", () => {
+    const config = {
+        base_commit: "base",
+        p2p_node_ids: Array.from({ length: 20 }, (_, index) => `pkg.P${index}`),
+        f2p_node_ids: ["pkg.Feature"],
+    };
+    const observe = (failingP2p: number, featurePasses: boolean) => gradeObservations(config, new Map([
+        ...config.p2p_node_ids.map((nodeId, index): [string, { status: "passed" | "failed"; output: string }] =>
+            [nodeId, { status: index < failingP2p ? "failed" : "passed", output: "" }]),
+        ["pkg.Feature", { status: featurePasses ? "passed" : "failed", output: "" }],
+    ]));
+    assert.equal(baselineInvalidity(observe(2, false)), null, "two of twenty is within a tenth");
+    assert.match(baselineInvalidity(observe(3, false)) ?? "", /more than a tenth fail before any model runs/u);
+    assert.match(baselineInvalidity(observe(0, true)) ?? "", /f2p 1\/1/u);
 });
 
 test("[§benchlet-oracle] benchlet grading distinguishes absent evidence from a pass", () => {
