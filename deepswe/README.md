@@ -57,6 +57,27 @@ PLURNK_MODEL=kimi PLURNK_BENCHLET_TIMELESS=1 deepswe/benchlet.sh --task fastapi-
 PLURNK_MODEL=glm deepswe/benchlet.sh --task happy-dom-abort-pending-body-reads
 ```
 
+### frozen trees for parallel lanes (#9, #19)
+
+The benchlet runs the candidate daemon from source, so the tree under test must
+not be the checkout you are editing, and two lanes must not share one build.
+Give each run a detached worktree of the exact commit and point the benchlet at
+it; run-directory allocation is mkdir-atomic, so lanes never collide:
+
+```sh
+git -C ../plurnk-service worktree add --detach ../bench-lanes/plurnk-service <sha>
+git -C ../plurnk worktree add --detach ../bench-lanes/plurnk <sha>
+(cd ../bench-lanes/plurnk-service && npm ci --no-audit --no-fund)   # prepare builds
+(cd ../bench-lanes/plurnk && npm ci --no-audit --no-fund)
+export PLURNK_BENCHLET_SERVICE_ROOT=$PWD/../bench-lanes/plurnk-service
+export PLURNK_BENCHLET_CLIENT_ROOT=$PWD/../bench-lanes/plurnk
+setsid -f deepswe/benchlet.sh --task <task>    # one lane; start more with other tasks
+```
+
+`sourceProvenance` refuses a dirty tree (an untracked file inside a tracked
+directory counts, #21), so commit the pinned manifests before launching. Find
+running lanes with `ps -eo args | grep deepswe/benchlet.ts`.
+
 `PLURNK_BENCHLET_TIMELESS=1` photographs the candidate's working tree at the
 budget deadline, lets the run play on to `PLURNK_BENCHLET_TIMELESS_CAP` × budget
 (default 2), and grades the deadline photograph beside the final trees.
