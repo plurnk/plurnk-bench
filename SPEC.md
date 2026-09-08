@@ -262,7 +262,9 @@ complete evidence while changing one experimental variable at a time.
   command into the container at the same path, as the host user with `HOME=/tmp`,
   stdin and exit status intact; any other working directory runs the real binary
   through the saved host PATH, so the client build and the daemon's own tooling stay
-  host-side. The container is removed when the candidate finishes or the run fails.
+  host-side. Each shim carries the container id, repository path, user, and host PATH
+  as literals, because the daemon scrubs its own variables from subprocess
+  environments; only PATH reaches the command. The container is removed when the candidate finishes or the run fails.
   `candidate-execution.json` records the image, network, container, mounts, and shim
   set (`kind: "task-container"`; host manifests record `kind: "host"`). Origin: on
   2026-09-08 the host lacked the images' optional test dependencies, toolchain

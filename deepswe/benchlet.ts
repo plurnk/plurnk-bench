@@ -707,29 +707,31 @@ export const EXECUTOR_SHIMS: readonly string[] = Object.freeze([
     "jq", "sqlite3", "npm", "npx", "pnpm", "yarn", "cargo", "rustc", "go", "make",
 ]);
 
-export const executorShim = (name: string): string => [
+export interface ContainerExec {
+    readonly container: string;
+    readonly repository: string;
+    readonly user: string;
+    readonly realPath: string;
+}
+
+// The shim carries every value as a literal: the daemon scrubs its own PLURNK_* variables from
+// subprocess environments, so nothing but PATH is relied upon to reach the command.
+const shq = (value: string): string => "'" + value.replaceAll("'", "'\\''") + "'";
+export const executorShim = (name: string, exec: ContainerExec): string => [
     "#!/bin/sh",
     "# {§benchlet-container-exec} — inside the candidate repository the command runs in the task container",
     "# at the same path; anywhere else it runs on the host.",
     'case "${PWD}/" in',
-    '    "${PLURNK_BENCHLET_REPO}/"*) exec docker exec -i -u "${PLURNK_BENCHLET_EXEC_USER}" -w "${PWD}" -e HOME=/tmp "${PLURNK_BENCHLET_CONTAINER}" ' + name + ' "$@" ;;',
+    "    " + shq(exec.repository + "/") + '*) exec docker exec -i -u ' + shq(exec.user) + ' -w "${PWD}" -e HOME=/tmp ' + shq(exec.container) + " " + name + ' "$@" ;;',
     "esac",
-    'PATH="${PLURNK_BENCHLET_REAL_PATH}" exec ' + name + ' "$@"',
+    "PATH=" + shq(exec.realPath) + " exec " + name + ' "$@"',
     "",
 ].join("\n");
 
-export const writeExecutorShims = (binDir: string): void => {
+export const writeExecutorShims = (binDir: string, exec: ContainerExec): void => {
     mkdirSync(binDir, { recursive: true });
-    for (const name of EXECUTOR_SHIMS) writeFileSync(resolve(binDir, name), executorShim(name), { mode: 0o755 });
+    for (const name of EXECUTOR_SHIMS) writeFileSync(resolve(binDir, name), executorShim(name, exec), { mode: 0o755 });
 };
-
-export const containerExecEnvironment = (input: { container: string; repository: string; binDir: string; path: string; uid: number; gid: number }): Record<string, string> => ({
-    PATH: input.binDir + ":" + input.path,
-    PLURNK_BENCHLET_REAL_PATH: input.path,
-    PLURNK_BENCHLET_CONTAINER: input.container,
-    PLURNK_BENCHLET_REPO: input.repository,
-    PLURNK_BENCHLET_EXEC_USER: input.uid + ":" + input.gid,
-});
 
 let activeCandidateContainer: string | undefined;
 const startCandidateContainer = (manifest: DockerManifest, repository: string): string => {
@@ -1652,9 +1654,10 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         ? (() => {
             const container = startCandidateContainer(manifest, repository);
             const binDir = resolve(runDir, "bin");
-            writeExecutorShims(binDir);
+            const realPath = process.env.PATH ?? "";
+            writeExecutorShims(binDir, { container, repository, user: process.getuid!() + ":" + process.getgid!(), realPath });
             return {
-                env: containerExecEnvironment({ container, repository, binDir, path: process.env.PATH ?? "", uid: process.getuid!(), gid: process.getgid!() }),
+                env: { PATH: binDir + ":" + realPath },
                 record: { kind: "task-container", image: manifest.environment.image, network: manifest.environment.network, container, mounts: [repository, "/app"], executors: [...EXECUTOR_SHIMS] },
             };
         })()

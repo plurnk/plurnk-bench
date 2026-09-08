@@ -25,7 +25,6 @@ import {
     candidateRecapSnapshotPath,
     digestSummary,
     baselineInvalidity,
-    containerExecEnvironment,
     EXECUTOR_SHIMS,
     executorShim,
     environmentExcludedP2p,
@@ -108,21 +107,19 @@ test("[§benchlet-oracle] benchlet preserves a test interrupted before its termi
     });
 });
 
-test("[§benchlet-container-exec] an executor shim forwards into the task container only from inside the repository", () => {
+test("[§benchlet-container-exec] an executor shim carries its container, repository, user, and host PATH as literals and forwards only from inside the repository", () => {
     assert.ok(["sh", "node", "python3", "npm", "cargo", "go"].every((name) => EXECUTOR_SHIMS.includes(name)));
-    const shim = executorShim("python3");
-    assert.ok(shim.startsWith("#!/bin/sh\n"));
-    assert.match(shim, /case "\$\{PWD\}\/" in/u);
-    assert.match(shim, /"\$\{PLURNK_BENCHLET_REPO\}\/"\*\) exec docker exec -i -u "\$\{PLURNK_BENCHLET_EXEC_USER\}" -w "\$\{PWD\}" -e HOME=\/tmp "\$\{PLURNK_BENCHLET_CONTAINER\}" python3 "\$@" ;;/u);
-    assert.match(shim, /PATH="\$\{PLURNK_BENCHLET_REAL_PATH\}" exec python3 "\$@"\n$/u, "outside the repository the real binary runs through the saved host PATH");
-    const env = containerExecEnvironment({ container: "c0ffee", repository: "/runs/run7/repo", binDir: "/runs/run7/bin", path: "/usr/bin:/bin", uid: 1000, gid: 1000 });
-    assert.deepEqual(env, {
-        PATH: "/runs/run7/bin:/usr/bin:/bin",
-        PLURNK_BENCHLET_REAL_PATH: "/usr/bin:/bin",
-        PLURNK_BENCHLET_CONTAINER: "c0ffee",
-        PLURNK_BENCHLET_REPO: "/runs/run7/repo",
-        PLURNK_BENCHLET_EXEC_USER: "1000:1000",
-    });
+    const shim = executorShim("python3", { container: "c0ffee", repository: "/runs/run7/repo", user: "1000:1000", realPath: "/usr/bin:/bin" });
+    assert.equal(shim, [
+        "#!/bin/sh",
+        "# {§benchlet-container-exec} — inside the candidate repository the command runs in the task container",
+        "# at the same path; anywhere else it runs on the host.",
+        'case "${PWD}/" in',
+        "    '/runs/run7/repo/'*) exec docker exec -i -u '1000:1000' -w \"${PWD}\" -e HOME=/tmp 'c0ffee' python3 \"$@\" ;;",
+        "esac",
+        "PATH='/usr/bin:/bin' exec python3 \"$@\"",
+        "",
+    ].join("\n"));
 });
 
 test("[§benchlet-oracle-exclusion] a pass-to-pass test failing on the pristine baseline leaves this run's graded set with evidence", () => {
