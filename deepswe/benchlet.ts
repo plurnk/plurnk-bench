@@ -693,6 +693,67 @@ const copyDockerTree = (image: string, destination: string): void => {
         removeContainer(container);
     }
 };
+// {§benchlet-container-exec} — the candidate's commands run inside the task image, not on the host.
+// The daemon spawns every executor by name through PATH, so a shim directory in front of the
+// candidate's PATH forwards each one into a long-lived container of the task image when the command's
+// cwd is inside the candidate repository, mounted there at its own host path so cwd and every path in
+// output line up; commands from anywhere else (the client build, the daemon's own tooling) run on the
+// host through the saved real PATH. The container runs as the host user with HOME in its tmpfs, so
+// files it writes stay writable by the daemon. Network follows the manifest, as the verifier does.
+// Origin (2026-09-08): the host lacked the images' optional test dependencies, toolchain versions, and
+// services; models saw phantom collection errors and repaired our machine instead of the task.
+export const EXECUTOR_SHIMS: readonly string[] = Object.freeze([
+    "sh", "bash", "node", "python3", "python", "perl", "ruby", "lua", "deno", "bun", "tclsh", "bc", "awk",
+    "jq", "sqlite3", "npm", "npx", "pnpm", "yarn", "cargo", "rustc", "go", "make",
+]);
+
+export const executorShim = (name: string): string => [
+    "#!/bin/sh",
+    "# {§benchlet-container-exec} — inside the candidate repository the command runs in the task container",
+    "# at the same path; anywhere else it runs on the host.",
+    'case "${PWD}/" in',
+    '    "${PLURNK_BENCHLET_REPO}/"*) exec docker exec -i -u "${PLURNK_BENCHLET_EXEC_USER}" -w "${PWD}" -e HOME=/tmp "${PLURNK_BENCHLET_CONTAINER}" ' + name + ' "$@" ;;',
+    "esac",
+    'PATH="${PLURNK_BENCHLET_REAL_PATH}" exec ' + name + ' "$@"',
+    "",
+].join("\n");
+
+export const writeExecutorShims = (binDir: string): void => {
+    mkdirSync(binDir, { recursive: true });
+    for (const name of EXECUTOR_SHIMS) writeFileSync(resolve(binDir, name), executorShim(name), { mode: 0o755 });
+};
+
+export const containerExecEnvironment = (input: { container: string; repository: string; binDir: string; path: string; uid: number; gid: number }): Record<string, string> => ({
+    PATH: input.binDir + ":" + input.path,
+    PLURNK_BENCHLET_REAL_PATH: input.path,
+    PLURNK_BENCHLET_CONTAINER: input.container,
+    PLURNK_BENCHLET_REPO: input.repository,
+    PLURNK_BENCHLET_EXEC_USER: input.uid + ":" + input.gid,
+});
+
+let activeCandidateContainer: string | undefined;
+const startCandidateContainer = (manifest: DockerManifest, repository: string): string => {
+    const container = shell("docker", [
+        "create",
+        "--network", manifest.environment.network,
+        "--cpus", String(manifest.environment.cpus),
+        "--memory", manifest.environment.memoryMb + "m",
+        "-v", repository + ":" + repository,
+        "-v", repository + ":/app",
+        "-w", repository,
+        manifest.environment.image,
+        "sleep", "infinity",
+    ]).trim();
+    shell("docker", ["start", container]);
+    activeCandidateContainer = container;
+    return container;
+};
+const stopCandidateContainer = (): void => {
+    if (activeCandidateContainer === undefined) return;
+    removeContainer(activeCandidateContainer);
+    activeCandidateContainer = undefined;
+};
+
 const prepareCandidateRepository = (
     manifest: Manifest,
     repositoryCache: string,
@@ -1586,7 +1647,21 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         ...(clientTimeout === -1 ? [] : ["--timeout", String(clientTimeout)]),
         instruction,
     ];
+    // {§benchlet-container-exec}
+    const containerExec = isDockerManifest(manifest)
+        ? (() => {
+            const container = startCandidateContainer(manifest, repository);
+            const binDir = resolve(runDir, "bin");
+            writeExecutorShims(binDir);
+            return {
+                env: containerExecEnvironment({ container, repository, binDir, path: process.env.PATH ?? "", uid: process.getuid!(), gid: process.getgid!() }),
+                record: { kind: "task-container", image: manifest.environment.image, network: manifest.environment.network, container, mounts: [repository, "/app"], executors: [...EXECUTOR_SHIMS] },
+            };
+        })()
+        : { env: {}, record: { kind: "host" } };
+    writeJson(resolve(runDir, "candidate-execution.json"), containerExec.record);
     const candidateEnvironmentOverrides = {
+        ...containerExec.env,
         PLURNK_CANDIDATE_DIR: runDir,
         PLURNK_MODEL: model,
         PLURNK_CLIENT_CHECKOUT: clientRoot,
@@ -1617,6 +1692,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         signal,
     });
 
+    stopCandidateContainer();
     activeStage = "capture";
     const patchState = isTreeManifest(manifest)
         ? captureTree(repository, runDir)
@@ -1827,6 +1903,7 @@ if (import.meta.main) {
     process.once("SIGINT", onSigint);
     process.once("SIGTERM", onSigterm);
     void main(interruption.signal).catch((error) => {
+        stopCandidateContainer();
         const rendered = error instanceof Error ? error.stack ?? error.message : String(error);
         process.stderr.write(`${rendered}\n`);
         if (activeRunDir !== undefined) {

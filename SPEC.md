@@ -252,6 +252,22 @@ complete evidence while changing one experimental variable at a time.
   exclude. Origin: eicrud's own login rate limiter answered 425 to a test
   expecting 401 because this host ran two attempts inside the framework's
   minimum interval — three runs, the same test, no model involved.
+- §benchlet-container-exec The candidate's commands run inside the task image. For a
+  Docker manifest the run starts one long-lived container of the pinned image with
+  the manifest's network, CPU, and memory limits, the candidate repository
+  bind-mounted at its own host path and at `/app`, working directory that path,
+  and writes a shim directory in front of the candidate daemon's PATH for every
+  executor name the daemon spawns (`sh`, `bash`, `node`, `python3`, `npm`, `cargo`,
+  `go`, …). A shim whose working directory lies inside the repository forwards the
+  command into the container at the same path, as the host user with `HOME=/tmp`,
+  stdin and exit status intact; any other working directory runs the real binary
+  through the saved host PATH, so the client build and the daemon's own tooling stay
+  host-side. The container is removed when the candidate finishes or the run fails.
+  `candidate-execution.json` records the image, network, container, mounts, and shim
+  set (`kind: "task-container"`; host manifests record `kind: "host"`). Origin: on
+  2026-09-08 the host lacked the images' optional test dependencies, toolchain
+  versions, and services; candidates met phantom test-collection errors and
+  repaired the machine instead of the task.
 - §benchlet-tree A Terminal-Bench 2.1 task is a tree manifest (`kind:
   "terminal-bench"`, pinned by `pin-task.mjs --terminal-bench`): no repository,
   the image's `/app` copied out as the candidate tree, the task's own `[agent]
@@ -306,7 +322,7 @@ complete evidence while changing one experimental variable at a time.
   the positive cap, or `-1` — the plurnk no-limit idiom — which removes the
   candidate timer entirely; the overhead still applies to the run's records.
 
-Covered: `benchlet.test.ts [§benchlet-oracle]`, `[§benchlet-oracle-exclusion]`,
+Covered: `benchlet.test.ts [§benchlet-oracle]`, `[§benchlet-oracle-exclusion]`, `[§benchlet-container-exec]`,
 `[§benchlet-evidence]`, `[§benchlet-failure]`, `[§benchlet-location]`,
 `[§benchlet-requiem-witness]`, `[§benchlet-candidate-timeout]`, and
 `client-checkout.test.ts [§benchlet-client-checkout]`. The real `--preflight`
