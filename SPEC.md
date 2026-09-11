@@ -467,9 +467,11 @@ to the host LAN IP. Child contracts:
   `PLURNK_BENCH_HARNESS`, `PLURNK_BENCH_REQUIEM`, …)
   (TIMEOUT_SEC, CPUS, FORCE_BUILD, NO_GBNF) and are orchestration, never daemon config —
   excluded from forwarding.
-- §config-gbnf-optout `PLURNK_BENCH_NO_GBNF=1` forwards `PLURNK_PROVIDERS_GBNF=0` — an
-  explicit override, because the container's shipped .env floor defaults GBNF ON and mere
-  omission cannot turn it off.
+- §config-gbnf-optout `PLURNK_BENCH_NO_GBNF=1` forwards `PLURNK_PROVIDERS_GBNF=0` and drops the
+  operator's grammar setting from the carried manifest — an explicit override for a route that
+  cannot carry a grammar. The service ships no grammar of its own (plurnk-service #588); the knob
+  is the path of an operator's file, so a manifest that carries one must also make that file
+  reachable inside the container, which the harness does not do today.
 - §config-budget The client timeout tracks the BENCHMARK's own budget: the task's
   `[agent] timeout_sec` minus headroom — never an arbitrary cap that would starve the model
   and understate results.

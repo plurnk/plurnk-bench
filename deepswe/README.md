@@ -121,8 +121,8 @@ budget deadline, lets the run play on to `PLURNK_BENCHLET_TIMELESS_CAP` × budge
 Recap footer for this run only: validated in preflight, snapshotted to
 `candidate-recap.md`, forwarded as `PLURNK_SERVICE_RECAP`, and recorded with its
 sha256 in provenance. Model-facing text is tuned per run this way, never by editing a
-tracked source file. The weak-model line for GBNF runs ({§gbnf-forced-march}) belongs
-here rather than in `plurnk-meta/recap.md`.
+tracked source file. A weak-model line for a run under an operator's own GBNF
+belongs here rather than in `plurnk-meta/recap.md`.
 
 The outside client checkout is an explicit precondition. The harness never
 guesses a sibling under the shared parent directory.

@@ -178,8 +178,8 @@ else
       # The MCP fleet is structurally dead under the egress wall: its traffic cannot pass,
       # so booting the servers only distorts the run with connect noise. Never forward.
       PLURNK_MCP_*) continue;;
-      # A non-llama backend (xai/openrouter) can't enforce GBNF; 0.70.0's daemon refuses to
-      # boot with GBNF requested-but-unenforceable. PLURNK_BENCH_NO_GBNF=1 runs unconstrained.
+      # A non-llama backend (xai/openrouter) cannot carry a grammar and the daemon refuses the
+      # misconfiguration; PLURNK_BENCH_NO_GBNF=1 runs unconstrained.
       PLURNK_PROVIDERS_GBNF) [ -n "${PLURNK_BENCH_NO_GBNF:-}" ] && continue;;
     esac
     v="${!k:-}"; [ -n "$v" ] || continue
@@ -191,8 +191,7 @@ else
     esac
     flags+=(--agent-env "$k=$v")
   done
-  # SPEC §config-gbnf-optout: the container's shipped .env floor DEFAULTS PLURNK_PROVIDERS_GBNF=plurnk.gbnf, so merely
-  # not forwarding it isn't enough — forward =0 to explicitly override the default OFF.
+  # SPEC §config-gbnf-optout: forward =0 so no operator grammar setting reaches the container's daemon.
   [ -n "${PLURNK_BENCH_NO_GBNF:-}" ] && flags+=(--agent-env "PLURNK_PROVIDERS_GBNF=0")
 fi
 

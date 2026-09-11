@@ -153,7 +153,7 @@ done
 while IFS= read -r line; do
   [ -n "$line" ] && flags+=(--agent-env "$line")
 done <<< "$MANIFEST"
-# SPEC §config-gbnf-optout: forward =0 to override the container's shipped default.
+# SPEC §config-gbnf-optout: forward =0 so no operator grammar setting reaches the container's daemon.
 [ -n "${PLURNK_BENCH_NO_GBNF:-}" ] && flags+=(--agent-env "PLURNK_PROVIDERS_GBNF=0")
 
 # Resolve immutable versions before Harbor constructs the agent image (SPEC §config-package-version).
