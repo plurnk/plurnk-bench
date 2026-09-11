@@ -26,6 +26,7 @@ import {
     selectedModel,
 } from "../src/host-paths.ts";
 import { requiredClientCheckout } from "../src/client-checkout.ts";
+import CandidateContainer from "./candidate-container.ts";
 import { webMaterializationProvenance } from "../src/web-materialization.ts";
 import {
     addSettledUsd,
@@ -733,28 +734,9 @@ export const writeExecutorShims = (binDir: string, exec: ContainerExec): void =>
     for (const name of EXECUTOR_SHIMS) writeFileSync(resolve(binDir, name), executorShim(name, exec), { mode: 0o755 });
 };
 
-let activeCandidateContainer: string | undefined;
-const startCandidateContainer = (manifest: DockerManifest, repository: string): string => {
-    const container = shell("docker", [
-        "create",
-        "--network", manifest.environment.network,
-        "--cpus", String(manifest.environment.cpus),
-        "--memory", manifest.environment.memoryMb + "m",
-        "-v", repository + ":" + repository,
-        "-v", repository + ":/app",
-        "-w", repository,
-        manifest.environment.image,
-        "sleep", "infinity",
-    ]).trim();
-    shell("docker", ["start", container]);
-    activeCandidateContainer = container;
-    return container;
-};
-const stopCandidateContainer = (): void => {
-    if (activeCandidateContainer === undefined) return;
-    removeContainer(activeCandidateContainer);
-    activeCandidateContainer = undefined;
-};
+// One lifecycle per process; the docker calls ride the same `shell` every other stage uses.
+const candidateContainer = new CandidateContainer((command, args, options) => shell(command, args, options));
+const stopCandidateContainer = (): void => candidateContainer.stop();
 
 const prepareCandidateRepository = (
     manifest: Manifest,
@@ -1652,13 +1634,13 @@ const main = async (signal?: AbortSignal): Promise<void> => {
     // {§benchlet-container-exec}
     const containerExec = isDockerManifest(manifest)
         ? (() => {
-            const container = startCandidateContainer(manifest, repository);
+            const container = candidateContainer.start(manifest.environment, repository);
             const binDir = resolve(runDir, "bin");
             const realPath = process.env.PATH ?? "";
             writeExecutorShims(binDir, { container, repository, user: process.getuid!() + ":" + process.getgid!(), realPath });
             return {
                 env: { PATH: binDir + ":" + realPath },
-                record: { kind: "task-container", image: manifest.environment.image, network: manifest.environment.network, container, mounts: [repository, "/app"], executors: [...EXECUTOR_SHIMS] },
+                record: candidateContainer.record(manifest.environment, repository, EXECUTOR_SHIMS),
             };
         })()
         : { env: {}, record: { kind: "host" } };

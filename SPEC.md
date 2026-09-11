@@ -264,7 +264,10 @@ complete evidence while changing one experimental variable at a time.
   through the saved host PATH, so the client build and the daemon's own tooling stay
   host-side. Each shim carries the container id, repository path, user, and host PATH
   as literals, because the daemon scrubs its own variables from subprocess
-  environments; only PATH reaches the command. The container is removed when the candidate finishes or the run fails.
+  environments; only PATH reaches the command. The container is removed when the candidate finishes or the run fails:
+  `CandidateContainer` (`deepswe/candidate-container.ts`) owns the lifecycle behind an injected
+  runner, so the exact docker invocations, the single removal on stop, the idempotent stop, and
+  a failed start that removes what it created are unit witnesses without a daemon or an image.
   `candidate-execution.json` records the image, network, container, mounts, and shim
   set (`kind: "task-container"`; host manifests record `kind: "host"`). Origin: on
   2026-09-08 the host lacked the images' optional test dependencies, toolchain
@@ -324,7 +327,8 @@ complete evidence while changing one experimental variable at a time.
   the positive cap, or `-1` — the plurnk no-limit idiom — which removes the
   candidate timer entirely; the overhead still applies to the run's records.
 
-Covered: `benchlet.test.ts [§benchlet-oracle]`, `[§benchlet-oracle-exclusion]`, `[§benchlet-container-exec]`,
+Covered: `benchlet.test.ts [§benchlet-oracle]`, `[§benchlet-oracle-exclusion]`, `[§benchlet-container-exec]`
+(shims; lifecycle in `candidate-container.test.ts`),
 `[§benchlet-evidence]`, `[§benchlet-failure]`, `[§benchlet-location]`,
 `[§benchlet-requiem-witness]`, `[§benchlet-candidate-timeout]`, and
 `client-checkout.test.ts [§benchlet-client-checkout]`. The real `--preflight`
