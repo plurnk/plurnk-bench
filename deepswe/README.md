@@ -76,6 +76,27 @@ anything a harness did not supply written as absent. The mini trial gets
 both sides are read the same way. `--skip-plurnk` / `--skip-mini` run one side;
 `--sheet <pair>` rewrites the sheet. See SPEC `§pair-sheet`.
 
+### from clone to one pair on disk
+
+```sh
+# 1. siblings: this checkout, ../plurnk-service, ../plurnk (the open client)
+git clone <plurnk-bench> && cd plurnk-bench && npm ci
+git clone https://github.com/datacurve-ai/deep-swe   # its tasks go under .cache/deep-swe/tasks
+                                                       # (or point PLURNK_BENCHLET_TASK_CACHE at them)
+uv tool install git+https://github.com/datacurve-ai/pier             # mini's harness
+# 2. freeze the trees under test at the published commits (SPEC §bench-relock)
+eval "$(deepswe/relock.sh <service-commit> <client-commit>)"
+# 3. aliases in ${XDG_CONFIG_HOME:-$HOME/.config}/plurnk/.env, provider keys in the shell;
+#    deepswe/pair.aliases.json maps the alias to mini's route
+# 4. pin the task, prove the baseline, then run the pair (a paid run; state the cost shape first)
+node deepswe/pin-task.mjs koota-entity-snapshot-rollback
+deepswe/pair.sh --task koota-entity-snapshot-rollback --preflight
+PLURNK_MODEL=dumbox deepswe/pair.sh --task koota-entity-snapshot-rollback
+# 5. read ~/benchmarks/jobs/pairs/<task>-dumbox-<stamp>/PAIR.md, then both digests
+```
+
+The confounds a reader should check before believing a pair are listed in SPEC `§bench-confounds`.
+
 ### frozen trees for parallel lanes (#9, #19)
 
 The benchlet runs the candidate daemon from source, so the tree under test must
@@ -84,12 +105,7 @@ Give each run a detached worktree of the exact commit and point the benchlet at
 it; run-directory allocation is mkdir-atomic, so lanes never collide:
 
 ```sh
-git -C ../plurnk-service worktree add --detach ../bench-lanes/plurnk-service <sha>
-git -C ../plurnk worktree add --detach ../bench-lanes/plurnk <sha>
-(cd ../bench-lanes/plurnk-service && npm ci --no-audit --no-fund)   # prepare builds
-(cd ../bench-lanes/plurnk && npm ci --no-audit --no-fund)
-export PLURNK_BENCHLET_SERVICE_ROOT=$PWD/../bench-lanes/plurnk-service
-export PLURNK_BENCHLET_CLIENT_ROOT=$PWD/../bench-lanes/plurnk
+eval "$(deepswe/relock.sh <service-sha> <client-sha>)"   # worktrees + npm ci + the two exports
 setsid -f deepswe/benchlet.sh --task <task>    # one lane; start more with other tasks
 ```
 

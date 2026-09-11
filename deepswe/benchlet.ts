@@ -244,6 +244,13 @@ let activeStage = "preflight";
 const expandHome = (value: string): string =>
     value === "~" ? homedir() : value.startsWith("~/") ? resolve(homedir(), value.slice(2)) : value;
 
+// The alias-scoped daemon knobs that shape a run's inference: route, reasoning, service tier,
+// sampling, and capacity. Names only from this list; an alias-scoped credential is never read.
+const ALIAS_KNOBS = ["PLURNK_MODEL", "PLURNK_PROVIDERS_REASONING", "PLURNK_PROVIDERS_SERVICE_TIER", "PLURNK_PROVIDERS_TEMPERATURE", "PLURNK_PROVIDERS_REPEAT_PENALTY", "PLURNK_PROVIDERS_CONTEXT_WINDOW", "PLURNK_PROVIDERS_OUTPUT_BUDGET", "PLURNK_PROVIDERS_REASONING_BUDGET"] as const;
+export const aliasConfiguration = (alias: string, env: NodeJS.ProcessEnv): Record<string, string> => Object.fromEntries(
+    ALIAS_KNOBS.map((knob) => [`${knob}_${alias}`, env[`${knob}_${alias}`]]).filter((entry): entry is [string, string] => entry[1] !== undefined),
+);
+
 const resolveFrom = (root: string, value: string): string => {
     const expanded = expandHome(value);
     return resolve(root, expanded);
@@ -1550,6 +1557,9 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             verifier: manifest.verifier,
         },
         modelAlias: model,
+        // {§bench-confounds} — the alias's route knobs as the daemon will read them, so a run
+        // records which model, reasoning level, and sampling it actually asked for.
+        aliasConfiguration: aliasConfiguration(model, process.env),
         sources,
         webMaterialization: webMaterializationProvenance(process.env),
         runtime: {

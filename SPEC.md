@@ -390,6 +390,33 @@ a call has no observation; missing usage is null, never zero.
 
 Covered: `pair.test.ts [§pair-sheet]`, `mini-trajectory.test.ts [§pair-mini-digest]`.
 
+## §bench-confounds The known confounds, each with its fix or its status
+
+Every one of these was found by reading a run after the fact. They are listed
+so the next reader checks them first instead of rediscovering them.
+
+| Confound | Status |
+|---|---|
+| Host toolchain versus task image: the candidate's commands ran on the host while the oracle graded inside the image (2026-09-08). | Fixed. `{§benchlet-container-exec}`: commands run inside the pinned task image through PATH shims into one long-lived container; `candidate-execution.json` records it. |
+| Oracle exclusions: p2p tests that fail on the pristine baseline. | Recorded. `{§benchlet-oracle-exclusion}` excludes them from the grade and lists them in `result.json.oracle.environmentExcludedP2p`. |
+| Reasoning level, service tier, and sampling per alias: two runs on "the same model" at different effort or temperature. | Recorded. `provenance.aliasConfiguration` keeps the alias's route knobs as the daemon reads them (`PLURNK_MODEL_<alias>`, `_REASONING_`, `_SERVICE_TIER_`, `_TEMPERATURE_`, `_REPEAT_PENALTY_`, capacity knobs; never a credential); the served model id is on every digest model call; a pair's mini effort is in `pair.json`. Matching the two sides is the alias map's job (`{§pair-route}`), not inferred. |
+| Mini's provider: upstream DeepSWE rows ran a model name through a different provider than ours. | Fixed by construction inside a pair (both sides on the endpoint the alias map names). A comparison against the upstream `trials.json` remains provider-confounded and is read as such. |
+| Budget: the plurnk candidate timeout versus Pier's task timeout. | Recorded on the pair sheet (`{§pair-budget}`); `.env.defaults` sets the candidate timeout to the task budget minus boot headroom. |
+| Language version: which service and client revision the candidate ran. | Recorded in `provenance.sources` from clean commits; the lanes are relocked as one command (`{§bench-relock}`). Nothing before the fences language (plurnk-service `d88b3543`) is comparable with anything after it; those run directories are gone and the ledger (#37) starts after it. |
+| Image drift: a task image tag resolving to different bytes on different days. | Recorded. The manifest pins the image and provenance keeps the resolved `imageId`. |
+| Wall clock: two candidates sharing one host's docker daemon and CPU. | A pair runs its sides one after the other (`{§pair-sheet}`); lanes that must run in parallel are #9's concern. |
+
+## §bench-relock Frozen lanes move with one command
+
+`deepswe/relock.sh <service-ref> <client-ref>` points the two detached
+worktrees beside the checkout (`../bench-lanes/plurnk-service`,
+`../bench-lanes/plurnk`) at exact commits, creating them on first use and
+moving them afterwards, runs `npm ci` in each, and prints the two exports a
+lane needs (`PLURNK_BENCHLET_SERVICE_ROOT`, `PLURNK_BENCHLET_CLIENT_ROOT`).
+The candidate always runs from a lane, never from a checkout being edited
+(`{§benchlet-provenance}`); after a publication the lanes are relocked to the
+published commits before any comparative run.
+
 ## §config-carry The runner carries authoritative config, re-declaring nothing
 
 `deepswe/smoke.sh` reads the daemon's config from its authoritative sources IN PLACE —

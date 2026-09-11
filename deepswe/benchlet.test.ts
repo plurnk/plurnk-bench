@@ -13,6 +13,7 @@ import test from "node:test";
 import { execFileSync } from "node:child_process";
 import { setTimeout as delay } from "node:timers/promises";
 import {
+    aliasConfiguration,
     allocateRun,
     captureTree,
     isTreeManifest,
@@ -728,4 +729,20 @@ test("[§benchlet-tree] the instruction's /app becomes the host tree; unrelated 
         "Write to /tmp/run/repo/recover.json; the db is /tmp/run/repo/trunc.db (in /tmp/run/repo).",
     );
     assert.equal(treeInstruction("the /application folder and /apps", "/x"), "the /application folder and /apps");
+});
+
+test("{§bench-confounds} provenance records the alias's route knobs by name, never a credential", () => {
+    const env = {
+        PLURNK_MODEL_dumbox: "fireworks-ai/accounts/fireworks/models/glm-5p3-flash",
+        PLURNK_PROVIDERS_REASONING_dumbox: "medium",
+        PLURNK_PROVIDERS_SERVICE_TIER_dumbox: "priority",
+        PLURNK_PROVIDERS_API_KEY_dumbox: "never",
+        PLURNK_MODEL_other: "elsewhere",
+    };
+    assert.deepEqual(aliasConfiguration("dumbox", env), {
+        PLURNK_MODEL_dumbox: "fireworks-ai/accounts/fireworks/models/glm-5p3-flash",
+        PLURNK_PROVIDERS_REASONING_dumbox: "medium",
+        PLURNK_PROVIDERS_SERVICE_TIER_dumbox: "priority",
+    });
+    assert.deepEqual(aliasConfiguration("unset", env), {});
 });
