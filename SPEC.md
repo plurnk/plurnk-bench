@@ -335,6 +335,61 @@ Covered: `benchlet.test.ts [§benchlet-oracle]`, `[§benchlet-oracle-exclusion]`
 path covers task hashes, repository fetch, official verifier preparation, and
 the pristine baseline.
 
+## §pair-sheet One specimen through both harnesses, one fact sheet
+
+`deepswe/pair.sh --task <task>` runs a pinned DeepSWE task once through the
+plurnk benchlet ({§benchlet-diagnostic}) and once through Pier's
+`mini-swe-agent` on the same model route, one side after the other, and writes
+`PAIR.md` from the two harnesses' own `result.json` files. It is the forensic
+comparative reader for one specimen: the plurnk side keeps the benchlet's
+digest, the mini side gets `<trial>/digest/steps.md` ({§pair-mini-digest}),
+and the sheet puts both oracle verdicts and both cost shapes side by side.
+
+- §pair-route The plurnk side runs the alias (`--alias`, default `PLURNK_MODEL`)
+  through the daemon's own route registry. The mini side runs the explicit
+  equivalent from `deepswe/pair.aliases.json`: Pier's `-m` model, the
+  OpenAI-compatible endpoint, the name of the host variable holding its key,
+  and the reasoning effort. Nothing is derived from the plurnk alias; an alias
+  without a mini route is refused by name. The key reaches Pier through the
+  spawned environment only; `pair.json` records the variable's name.
+- §pair-location A pair lives at `<benchmarks>/jobs/pairs/<task>-<alias>-<stamp>/`
+  ({§results-canon}): `plurnk/` is the benchlet's runs root for exactly one run,
+  `mini/` is Pier's job directory for exactly one trial, `pair.json` is the
+  launch record, `facts.json` and `PAIR.md` are the reading. A second run on
+  either side is an error, never a merge.
+- §pair-facts Both sides read into one fact shape: state (complete, failed,
+  skipped, absent), the model the harness reports, the submission grade
+  (reward, f2p, p2p, partial), steps, provider requests, tokens (input, cached,
+  output), the candidate model's own cost (plurnk's requiem excluded), the
+  agent's own wall time beside the harness's, and how the loop ended. A fact
+  the harness did not supply is written `absent`, never zero; a side that did
+  not finish is `failed` with the harness's own reason and no grade. The sheet
+  states facts and names no winner; a pair is one specimen, never a corpus.
+- §pair-budget The task's `[agent] timeout_sec` governs the mini side (Pier);
+  the plurnk side runs on `PLURNK_BENCHLET_CANDIDATE_TIMEOUT_SEC`
+  ({§benchlet-candidate-timeout}), the operator's parity setting. Both appear
+  on the sheet. The benchlet records the candidate stage's own start, end and
+  duration in `result.json` so agent wall time is read, not inferred.
+- §pair-preflight `--preflight` resolves the route, confirms the task cache
+  entry, the key variable and `pier` on PATH, runs the benchlet's own
+  preflight, and prints the mini command it would run. `--skip-plurnk` and
+  `--skip-mini` run one side; `--sheet <pair>` rewrites `PAIR.md` and
+  `facts.json` from what a pair directory holds.
+
+### §pair-mini-digest The mini trajectory read as steps
+
+`deepswe/mini-trajectory.ts` reads a trial's
+`agent/mini-swe-agent.trajectory.json` (OpenAI Responses objects interleaved
+with `function_call_output` observations) into one record per response: the
+assistant's words, the provider's reasoning summary when one was returned, the
+bash command it called, the observation's return code, line count and head,
+and that response's usage; totals across responses; the exit status and
+submission. It is rendered as `steps.md` (one section per step, in the plurnk
+digest's register) and `steps.json` under `<trial>/digest/`. A response without
+a call has no observation; missing usage is null, never zero.
+
+Covered: `pair.test.ts [§pair-sheet]`, `mini-trajectory.test.ts [§pair-mini-digest]`.
+
 ## §config-carry The runner carries authoritative config, re-declaring nothing
 
 `deepswe/smoke.sh` reads the daemon's config from its authoritative sources IN PLACE —

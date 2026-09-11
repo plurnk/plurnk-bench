@@ -1664,6 +1664,9 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         environmentOverrides: candidateEnvironmentOverrides,
     });
     activeStage = "candidate";
+    // {§pair-sheet} — the candidate stage's own clock, beside the harness clock: a pair reads
+    // agent wall time against mini's agent_execution window, not the whole benchlet run.
+    const candidateStartedAt = new Date();
     const candidate = await runToFiles(process.execPath, candidateArgs, {
         cwd: serviceRoot,
         env: {
@@ -1677,6 +1680,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         signal,
     });
 
+    const candidateCompletedAt = new Date();
     stopCandidateContainer();
     activeStage = "capture";
     const patchState = isTreeManifest(manifest)
@@ -1851,6 +1855,9 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             signal: candidate.signal,
             timedOut: candidate.timedOut,
             error: candidate.error?.message ?? null,
+            startedAt: candidateStartedAt.toISOString(),
+            completedAt: candidateCompletedAt.toISOString(),
+            durationMs: candidateCompletedAt.getTime() - candidateStartedAt.getTime(),
         },
         summary,
         git: patchState,

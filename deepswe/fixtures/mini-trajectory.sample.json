@@ -1,0 +1,385 @@
+{
+ "info": {
+  "model_stats": {
+   "instance_cost": 0,
+   "api_calls": 96
+  },
+  "config": {
+   "agent": {
+    "model": null
+   }
+  }
+ },
+ "messages": [
+  {
+   "role": "system",
+   "content": "You are a helpful assistant that can interact with a computer."
+  },
+  {
+   "role": "user",
+   "content": "Please solve this issue: Add an entity snapshot and rollback system to the ECS framework. Export `createTraitRegistry`, `snapshotEntity`, `snapshotWorld`, `rollbackEntity`, `rollbackWorld`, `diffEntit …"
+  },
+  {
+   "id": "resp_bGl0ZWxsbTpjdXN0b21fbGxtX3Byb3ZpZGVyOm9wZW5haTttb2RlbF9pZDpOb25lO3Jlc3BvbnNlX2lkOnJlc3BfZGYzNGU1ZDRkZmE4NDc3ZGEzZmQyODViZTMyNTQ0YmE=",
+   "created_at": 1788880635,
+   "error": null,
+   "incomplete_details": null,
+   "instructions": null,
+   "metadata": {},
+   "model": "accounts/fireworks/models/glm-5p3-flash",
+   "object": "response",
+   "output": [
+    {
+     "id": "msg_41cf080519a540469898349f29894c39",
+     "content": [
+      {
+       "annotations": [],
+       "text": "I'll start by exploring the repository structure.",
+       "type": "output_text",
+       "logprobs": null
+      }
+     ],
+     "role": "assistant",
+     "status": "completed",
+     "type": "message",
+     "phase": null
+    },
+    {
+     "arguments": "{\"command\": \"pwd && ls -la && cat package.json 2>/dev/null\"}",
+     "call_id": "chatcmpl-tool-a532017bb364b387",
+     "name": "bash",
+     "type": "function_call",
+     "id": "fc_9af443499e4e4a21bf7219b6e8765a03",
+     "caller": null,
+     "namespace": null,
+     "status": "completed"
+    },
+    {
+     "arguments": "{\"command\": \"git log --oneline -5 && git status\"}",
+     "call_id": "chatcmpl-tool-83f44a60436e2a07",
+     "name": "bash",
+     "type": "function_call",
+     "id": "fc_1b7e5db2a08a416d97791563b59b74ee",
+     "caller": null,
+     "namespace": null,
+     "status": "completed"
+    }
+   ],
+   "parallel_tool_calls": true,
+   "temperature": 1,
+   "tool_choice": "auto",
+   "tools": [
+    {
+     "name": "bash",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "command": {
+        "type": "string",
+        "description": "The bash command to execute"
+       }
+      },
+      "required": [
+       "command"
+      ]
+     },
+     "strict": null,
+     "type": "function",
+     "allowed_callers": null,
+     "defer_loading": null,
+     "description": "Execute a bash command",
+     "output_schema": null
+    }
+   ],
+   "top_p": 0.95,
+   "max_output_tokens": null,
+   "previous_response_id": null,
+   "reasoning": {
+    "effort": "medium"
+   },
+   "status": "completed",
+   "text": {
+    "format": {
+     "type": "text"
+    }
+   },
+   "truncation": "disabled",
+   "usage": {
+    "input_tokens": 1383,
+    "input_tokens_details": {
+     "audio_tokens": null,
+     "cached_tokens": 0,
+     "text_tokens": null
+    },
+    "output_tokens": 51,
+    "output_tokens_details": null,
+    "total_tokens": 1434,
+    "cost": null
+   },
+   "user": null,
+   "store": true,
+   "max_tool_calls": null,
+   "top_logprobs": null,
+   "background": null,
+   "extra": {
+    "actions": [
+     {
+      "command": "pwd && ls -la && cat package.json 2>/dev/null",
+      "tool_call_id": "chatcmpl-tool-a532017bb364b387"
+     },
+     {
+      "command": "git log --oneline -5 && git status",
+      "tool_call_id": "chatcmpl-tool-83f44a60436e2a07"
+     }
+    ],
+    "cost": 0,
+    "timestamp": 1788880635.2037928
+   }
+  },
+  {
+   "extra": {
+    "raw_output": "/app\ntotal 236\ndrwxrwxrwx 1 root root   4096 Jun 11 07:20 .\ndrwxr-xr-x 1 root root   4096 Sep  8 15:17 ..\ndrwxr-xr-x 5 root root   4096 Jun 11 07:19 .config\ndrwxr-xr-x 1 root root   4096 Jun 11 19:40 .git\ndrwxr-xr-x 3 root root   4096 Jun 11 07:19 .github\n-rw-r--r-- 1 root root    427 Jun 11 07:19 ."
+   },
+   "type": "function_call_output",
+   "call_id": "chatcmpl-tool-a532017bb364b387",
+   "output": "{\"returncode\":0,\"output\":\"/app\\ntotal 236\\ndrwxrwxrwx 1 root root   4096 Jun 11 07:20 .\\ndrwxr-xr-x 1 root root   4096 Sep  8 15:17 ..\\ndrwxr-xr-x 5 root root   4096 Jun 11 07:19 .config\\ndrwxr-xr-x 1 root root   4096 Jun 11 19:40 .git\\ndrwxr-xr-x 3 root root   4096 Jun 11 07:19 .github\\n-rw-r--r-- 1 root root    427 Jun 11 07:19 .\"}"
+  },
+  {
+   "extra": {
+    "raw_output": "72ebef4 📝 core: another small update\nb272d3c 📝 core: small updates\n4e65693 📝 core: add arch docs for query resolution and trait add\n1898c1c ✅ core: add test for onChange events with adding traits\n21fa7af 🔨 bench can run multiple suites with one call\nOn branch main\nnothing to commit, working tree"
+   },
+   "type": "function_call_output",
+   "call_id": "chatcmpl-tool-83f44a60436e2a07",
+   "output": "{\"returncode\":0,\"output\":\"72ebef4 📝 core: another small update\\nb272d3c 📝 core: small updates\\n4e65693 📝 core: add arch docs for query resolution and trait add\\n1898c1c ✅ core: add test for onChange events with adding traits\\n21fa7af 🔨 bench can run multiple suites with one call\\nOn branch main\\nnothing to commit, working tree\"}"
+  },
+  {
+   "id": "resp_bGl0ZWxsbTpjdXN0b21fbGxtX3Byb3ZpZGVyOm9wZW5haTttb2RlbF9pZDpOb25lO3Jlc3BvbnNlX2lkOnJlc3BfNzhkM2ZlOGIxZDUzNGRiMzliNTRhNTg4MmUwZGE5MzQ=",
+   "created_at": 1788880636,
+   "error": null,
+   "incomplete_details": null,
+   "instructions": null,
+   "metadata": {},
+   "model": "accounts/fireworks/models/glm-5p3-flash",
+   "object": "response",
+   "output": [
+    {
+     "arguments": "{\"command\": \"ls -R /app/packages | head -100 && cat /app/AGENTS.md\"}",
+     "call_id": "chatcmpl-tool-b00b830982e4bd96",
+     "name": "bash",
+     "type": "function_call",
+     "id": "fc_401ecc16fc2444199c05bb6885bcc096",
+     "caller": null,
+     "namespace": null,
+     "status": "completed"
+    },
+    {
+     "arguments": "{\"command\": \"ls -R /app/packages/core/src /app/packages/core/tests 2>/dev/null\"}",
+     "call_id": "chatcmpl-tool-a947489d8bb1fd5e",
+     "name": "bash",
+     "type": "function_call",
+     "id": "fc_7babbfcf3e2342e9bb7120ae0a537378",
+     "caller": null,
+     "namespace": null,
+     "status": "completed"
+    }
+   ],
+   "parallel_tool_calls": true,
+   "temperature": 1,
+   "tool_choice": "auto",
+   "tools": [
+    {
+     "name": "bash",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "command": {
+        "type": "string",
+        "description": "The bash command to execute"
+       }
+      },
+      "required": [
+       "command"
+      ]
+     },
+     "strict": null,
+     "type": "function",
+     "allowed_callers": null,
+     "defer_loading": null,
+     "description": "Execute a bash command",
+     "output_schema": null
+    }
+   ],
+   "top_p": 0.95,
+   "max_output_tokens": null,
+   "previous_response_id": null,
+   "reasoning": {
+    "effort": "medium"
+   },
+   "status": "completed",
+   "text": {
+    "format": {
+     "type": "text"
+    }
+   },
+   "truncation": "disabled",
+   "usage": {
+    "input_tokens": 2490,
+    "input_tokens_details": {
+     "audio_tokens": null,
+     "cached_tokens": 0,
+     "text_tokens": null
+    },
+    "output_tokens": 54,
+    "output_tokens_details": null,
+    "total_tokens": 2544,
+    "cost": null
+   },
+   "user": null,
+   "store": true,
+   "max_tool_calls": null,
+   "top_logprobs": null,
+   "background": null,
+   "extra": {
+    "actions": [
+     {
+      "command": "ls -R /app/packages | head -100 && cat /app/AGENTS.md",
+      "tool_call_id": "chatcmpl-tool-b00b830982e4bd96"
+     },
+     {
+      "command": "ls -R /app/packages/core/src /app/packages/core/tests 2>/dev/null",
+      "tool_call_id": "chatcmpl-tool-a947489d8bb1fd5e"
+     }
+    ],
+    "cost": 0,
+    "timestamp": 1788880636.850233
+   }
+  },
+  {
+   "extra": {
+    "raw_output": "/app/packages:\ncore\npublish\nreact\n\n/app/packages/core:\nnode_modules\npackage.json\nspec\nsrc\ntests\ntsconfig.json\n\n/app/packages/core/node_modules:\n@config\nvitest\n\n/app/packages/core/node_modules/@config:\noxlint\ntypescript\n\n/app/packages/core/spec:\narchitecture.md\nquery.md\nstructural.md\n\n/app/packages/c"
+   },
+   "type": "function_call_output",
+   "call_id": "chatcmpl-tool-b00b830982e4bd96",
+   "output": "{\"returncode\":0,\"output\":\"/app/packages:\\ncore\\npublish\\nreact\\n\\n/app/packages/core:\\nnode_modules\\npackage.json\\nspec\\nsrc\\ntests\\ntsconfig.json\\n\\n/app/packages/core/node_modules:\\n@config\\nvitest\\n\\n/app/packages/core/node_modules/@config:\\noxlint\\ntypescript\\n\\n/app/packages/core/spec:\\narchitecture.md\\nquery.md\\nstructural.md\\n\\n/app/packages/c\"}"
+  },
+  {
+   "extra": {
+    "raw_output": "/app/packages/core/src:\nactions\ncommon.ts\nentity\nindex.ts\nquery\nrelation\nstorage\ntrait\nuniverse\nutils\nworld\n\n/app/packages/core/src/actions:\ncreate-actions.ts\ntypes.ts\n\n/app/packages/core/src/entity:\nentity-methods-patch.ts\nentity.ts\ntypes.ts\nutils\n\n/app/packages/core/src/entity/utils:\nentity-index."
+   },
+   "type": "function_call_output",
+   "call_id": "chatcmpl-tool-a947489d8bb1fd5e",
+   "output": "{\"returncode\":0,\"output\":\"/app/packages/core/src:\\nactions\\ncommon.ts\\nentity\\nindex.ts\\nquery\\nrelation\\nstorage\\ntrait\\nuniverse\\nutils\\nworld\\n\\n/app/packages/core/src/actions:\\ncreate-actions.ts\\ntypes.ts\\n\\n/app/packages/core/src/entity:\\nentity-methods-patch.ts\\nentity.ts\\ntypes.ts\\nutils\\n\\n/app/packages/core/src/entity/utils:\\nentity-index.\"}"
+  },
+  {
+   "id": "resp_bGl0ZWxsbTpjdXN0b21fbGxtX3Byb3ZpZGVyOm9wZW5haTttb2RlbF9pZDpOb25lO3Jlc3BvbnNlX2lkOnJlc3BfY2ViZDU0MzQ5YjQ2NDY3YjllOTE3YTFmY2ExMjc1YTY=",
+   "created_at": 1788880638,
+   "error": null,
+   "incomplete_details": null,
+   "instructions": null,
+   "metadata": {},
+   "model": "accounts/fireworks/models/glm-5p3-flash",
+   "object": "response",
+   "output": [
+    {
+     "arguments": "{\"command\": \"cat /app/packages/core/src/index.ts /app/packages/core/src/common.ts && cat /app/packages/core/src/utils/shallow-equal.ts\"}",
+     "call_id": "chatcmpl-tool-9bfd69e8afe43474",
+     "name": "bash",
+     "type": "function_call",
+     "id": "fc_465cd3c829564f0d9fc6ce049ba78158",
+     "caller": null,
+     "namespace": null,
+     "status": "completed"
+    },
+    {
+     "arguments": "{\"command\": \"cat /app/packages/core/src/world/world.ts /app/packages/core/src/world/types.ts\"}",
+     "call_id": "chatcmpl-tool-abc78173b3cebb1c",
+     "name": "bash",
+     "type": "function_call",
+     "id": "fc_59f81ee70dcb4b288d8de4c3ce98e298",
+     "caller": null,
+     "namespace": null,
+     "status": "completed"
+    }
+   ],
+   "parallel_tool_calls": true,
+   "temperature": 1,
+   "tool_choice": "auto",
+   "tools": [
+    {
+     "name": "bash",
+     "parameters": {
+      "type": "object",
+      "properties": {
+       "command": {
+        "type": "string",
+        "description": "The bash command to execute"
+       }
+      },
+      "required": [
+       "command"
+      ]
+     },
+     "strict": null,
+     "type": "function",
+     "allowed_callers": null,
+     "defer_loading": null,
+     "description": "Execute a bash command",
+     "output_schema": null
+    }
+   ],
+   "top_p": 0.95,
+   "max_output_tokens": null,
+   "previous_response_id": null,
+   "reasoning": {
+    "effort": "medium"
+   },
+   "status": "completed",
+   "text": {
+    "format": {
+     "type": "text"
+    }
+   },
+   "truncation": "disabled",
+   "usage": {
+    "input_tokens": 3558,
+    "input_tokens_details": {
+     "audio_tokens": null,
+     "cached_tokens": 2048,
+     "text_tokens": null
+    },
+    "output_tokens": 63,
+    "output_tokens_details": null,
+    "total_tokens": 3621,
+    "cost": null
+   },
+   "user": null,
+   "store": true,
+   "max_tool_calls": null,
+   "top_logprobs": null,
+   "background": null,
+   "extra": {
+    "actions": [
+     {
+      "command": "cat /app/packages/core/src/index.ts /app/packages/core/src/common.ts && cat /app/packages/core/src/utils/shallow-equal.ts",
+      "tool_call_id": "chatcmpl-tool-9bfd69e8afe43474"
+     },
+     {
+      "command": "cat /app/packages/core/src/world/world.ts /app/packages/core/src/world/types.ts",
+      "tool_call_id": "chatcmpl-tool-abc78173b3cebb1c"
+     }
+    ],
+    "cost": 0,
+    "timestamp": 1788880638.3989346
+   }
+  },
+  {
+   "role": "exit",
+   "content": "",
+   "extra": {
+    "exit_status": "Submitted",
+    "submission": ""
+   }
+  }
+ ],
+ "trajectory_format": "mini-swe-agent-1.1"
+}

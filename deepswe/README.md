@@ -24,6 +24,8 @@ an incomplete database.
 ```
 driver.py    the `plurnk` Pier agent (BaseInstalledAgent subclass)
 smoke.sh     carry-manifest runner: forwards an env file to the daemon via --agent-env
+benchlet.sh  pinned host-side diagnostic for one task (SPEC §benchlet-diagnostic)
+pair.sh      one task through the benchlet and through mini-swe-agent, one sheet (SPEC §pair-sheet)
 ```
 
 ## reproduce
@@ -56,6 +58,23 @@ PLURNK_MODEL=kimi PLURNK_BENCHLET_TIMELESS=1 deepswe/benchlet.sh --task fastapi-
 # any other pinned task
 PLURNK_MODEL=glm deepswe/benchlet.sh --task happy-dom-abort-pending-body-reads
 ```
+
+### one specimen beside mini-swe-agent (#36)
+
+```sh
+deepswe/pair.sh --task koota-entity-snapshot-rollback --preflight
+PLURNK_MODEL=dumbox deepswe/pair.sh --task koota-entity-snapshot-rollback
+```
+
+The pair runner puts the same pinned task through the benchlet and through Pier's
+`mini-swe-agent` on the same model route (`deepswe/pair.aliases.json` maps each plurnk
+alias to its mini equivalent), one side after the other, under
+`~/benchmarks/jobs/pairs/<task>-<alias>-<stamp>/`. `PAIR.md` is a fact sheet read from both
+harnesses' `result.json`: both oracle verdicts, tokens, cost, steps and wall time, with
+anything a harness did not supply written as absent. The mini trial gets
+`<trial>/digest/steps.md`, the trajectory read into per-step actions and observations, so
+both sides are read the same way. `--skip-plurnk` / `--skip-mini` run one side;
+`--sheet <pair>` rewrites the sheet. See SPEC `§pair-sheet`.
 
 ### frozen trees for parallel lanes (#9, #19)
 
