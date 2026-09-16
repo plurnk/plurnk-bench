@@ -158,7 +158,7 @@ if [ "$TASK" = all ]; then
       case "$v" in
         *127.0.0.1*|*localhost*)
           [ -n "${PLURNK_BENCH_MODEL_BASE_URL:-}" ] || {
-            echo "smoke: $k is loopback; set PLURNK_BENCH_MODEL_BASE_URL (e.g. https://jennifer.plurnk.ai/v1)" >&2; exit 1
+            echo "smoke: $k is loopback, which a task container cannot reach; set PLURNK_BENCH_MODEL_BASE_URL to a host-reachable base URL" >&2; exit 1
           }
           v="$PLURNK_BENCH_MODEL_BASE_URL";;
       esac
