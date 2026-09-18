@@ -26,7 +26,7 @@ import {
     selectedModel,
 } from "../src/host-paths.ts";
 import { requiredClientCheckout } from "../src/client-checkout.ts";
-import CandidateContainer from "./candidate-container.ts";
+import CandidateContainer from "../src/candidate-container.ts";
 import { webMaterializationProvenance } from "../src/web-materialization.ts";
 import {
     addSettledUsd,

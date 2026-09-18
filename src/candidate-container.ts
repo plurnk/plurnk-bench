@@ -48,7 +48,7 @@ export default class CandidateContainer {
     // `docker create`, `docker start`, then the image's home handed to `user`; a failure at any
     // step leaves nothing running and nothing to stop later, because the created container is
     // removed before the error propagates.
-    start(environment: ContainerEnvironment, repository: string, user: string): string {
+    start(environment: ContainerEnvironment, repository: string, user: string, containerRoot = "/app"): string {
         if (this.#active !== undefined) throw new Error("candidate container already active: " + this.#active);
         const container = this.#run("docker", [
             "create",
@@ -56,7 +56,7 @@ export default class CandidateContainer {
             "--cpus", String(environment.cpus),
             "--memory", environment.memoryMb + "m",
             "-v", repository + ":" + repository,
-            "-v", repository + ":/app",
+            "-v", repository + ":" + containerRoot,
             "-w", repository,
             environment.image,
             "sleep", "infinity",
@@ -93,8 +93,8 @@ export default class CandidateContainer {
         this.#run("docker", ["rm", "--force", container], { allowFailure: true });
     }
 
-    record(environment: ContainerEnvironment, repository: string, executors: readonly string[]): CandidateExecutionRecord {
+    record(environment: ContainerEnvironment, repository: string, executors: readonly string[], containerRoot = "/app"): CandidateExecutionRecord {
         if (this.#active === undefined || this.#home === undefined) throw new Error("candidate container is not active");
-        return { kind: "task-container", image: environment.image, network: environment.network, container: this.#active, home: this.#home, mounts: [repository, "/app"], executors: [...executors] };
+        return { kind: "task-container", image: environment.image, network: environment.network, container: this.#active, home: this.#home, mounts: [repository, containerRoot], executors: [...executors] };
     }
 }

@@ -268,7 +268,7 @@ complete evidence while changing one experimental variable at a time.
   user's `$HOME`, never empty or `/`) is handed to the host user with `chown -R`, because the
   images install toolchains and dependency caches there (`/root/.cargo`, `/root/go/pkg/mod`)
   and the verifier, running as the image's user, sees them. The container is removed when the candidate finishes or the run fails:
-  `CandidateContainer` (`deepswe/candidate-container.ts`) owns the lifecycle behind an injected
+  `CandidateContainer` (`src/candidate-container.ts`) owns the lifecycle behind an injected
   runner, so the exact docker invocations, the single removal on stop, the idempotent stop, and
   a failed start that removes what it created are unit witnesses without a daemon or an image.
   `candidate-execution.json` records the image, network, container, home, mounts, and shim
@@ -616,3 +616,40 @@ Preserve the exception type alongside the state. Only `verifier/reward.txt` dete
 - A completed installation records its actual exit status; pipeline logging must preserve a failed installer's status and stop subsequent steps. An interrupted log is not evidence of successful setup.
 - Installation compatibility probes use Harbor's `--install-only` path: the original task environment and installed-agent setup, without model inference or verification.
 - Official Debian/Ubuntu archive URLs use HTTPS with normal certificate verification. Repository hosts, suites, packages, and third-party source definitions remain unchanged; installation does not modify task instructions or verifiers.
+## §swebench SWE-bench Lite is a fourth point, never a re-measurement
+
+`swebench/` drives pinned SWE-bench Lite task ids through the ordinary plurnk
+client/service boundary and grades each attempt with the benchmark's OWN official
+evaluator, joining its per-instance report exactly as DeepSWE joins Pier's
+`reward.json` ({§verdicts}). It reproduces no agent loop and substitutes no host-only
+probe for the official evaluation image. Its purpose is to place plurnk as a fourth
+harness point in the HarnessTax study's cost/success frame (minimal like Pi, but one
+compositional op language rather than four tool schemas), never to re-measure the
+study's three harnesses.
+
+- §swebench-corpus The 30 task ids and the dataset revision are pinned together;
+  downloaded corpus state lives under `.cache/swebench`, never in source.
+  `swebench/pin-task.mjs` writes `swebench/manifests/<instance>.json` from the
+  official dataset (repo, base and environment commits, eval image, budgets, and the
+  instance's FAIL_TO_PASS / PASS_TO_PASS). Until the study's trace release names its
+  exact ids, a self-chosen 30 is a shape, not parity.
+- §swebench-evaluator The oracle is the official harness's per-instance report.
+  `swebench/evaluator.ts` translates that report into the shared `RewardJson`
+  ({§record-serial}) and the core join consumes it unchanged; the bench never
+  reimplements grading. An absent report and a recorded infrastructure failure are
+  the same honest `null` oracle, never a synthesized 0; a loop can end 200 and still
+  fail the oracle ({§verdicts-oracle-outranks}).
+- §swebench-network Task containers run `network:none`; web tools are removed by
+  executor/scheme switch and `PLURNK_EXECS_QUESTION=0` ({§config-unattended}).
+- §swebench-conditions The candidate uses the ordinary cascade
+  ({§config-model-default}); the study's "high effort" is
+  `PLURNK_PROVIDERS_REASONING_<alias>=high`. No positional or family-specific
+  candidate selector.
+- §swebench-profiles 3 attempts × 30 tasks under `PLURNK_BENCH_JOBS`;
+  `BenchRecord.turns` carries plurnk's own count and is declared harness-different
+  ({§turns-provenance}).
+- §swebench-cost The study's fixed direct-API price list is a declared confound
+  against `plurnk-models` catalog rates; spend evidence is the daemon's own
+  accounting ({§record-serial}, {§digest-boundary}).
+
+Covered: `swebench/evaluator.test.ts [§swebench-evaluator]`, `swebench/run.test.ts [§swebench]`.
