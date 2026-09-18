@@ -641,8 +641,11 @@ study's three harnesses.
   downloaded corpus state lives under `.cache/swebench`, never in source.
   `swebench/pin-task.mjs` writes `swebench/manifests/<instance>.json` from the
   official dataset (repo, base and environment commits, eval image, budgets, and the
-  instance's FAIL_TO_PASS / PASS_TO_PASS). Until the study's trace release names its
-  exact ids, a self-chosen 30 is a shape, not parity.
+  instance's FAIL_TO_PASS / PASS_TO_PASS). `swebench/sample.ts` draws the campaign's
+  ids reproducibly from the dataset — a seed plus a plain hash order (no RNG whose stream
+  can drift between library versions), `uniform` or `stratified` across repos — and writes
+  the draw as a corpus record under `swebench/corpora/<label>.json`. Until the study's
+  trace release names its exact ids, a self-chosen 30 is a shape, not parity.
 - §swebench-evaluator The oracle is the official harness's per-instance report.
   `swebench/evaluator.ts` translates that report into the shared `RewardJson`
   ({§record-serial}) and the core join consumes it unchanged; the bench never
@@ -665,4 +668,4 @@ study's three harnesses.
   against `plurnk-models` catalog rates; spend evidence is the daemon's own
   accounting ({§record-serial}, {§digest-boundary}).
 
-Covered: `swebench/evaluator.test.ts [§swebench-evaluator]`, `swebench/run.test.ts [§swebench]`, `src/candidate-isolation.test.ts [§benchlet-isolation]`.
+Covered: `swebench/evaluator.test.ts [§swebench-evaluator]`, `swebench/run.test.ts [§swebench]`, `swebench/sample.test.ts [§swebench-corpus]`, `src/candidate-isolation.test.ts [§benchlet-isolation]`.

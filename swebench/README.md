@@ -34,6 +34,17 @@ writes `swebench/manifests/<instance>.json` from the official dataset: the repos
 base and environment commits, the eval image, budgets and resource limits, and the
 instance's FAIL_TO_PASS / PASS_TO_PASS.
 
+## corpus
+
+```sh
+node swebench/sample.ts --label shape-30 --seed harnesstax-parity-1        # draw 30 ids
+node swebench/sample.ts --label shape-30 --mode stratified --pin            # spread across repos, pin manifests
+```
+
+The draw is a record (`swebench/corpora/<label>.json`): dataset, label, seed, mode, count,
+ids, repo mix. The same seed always yields the same 30 — a declared shape, not parity with
+the study until its own trace release names its ids.
+
 ## run
 
 ```sh
