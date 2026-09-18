@@ -706,8 +706,10 @@ const copyDockerTree = (image: string, destination: string): void => {
 // candidate's PATH forwards each one into a long-lived container of the task image when the command's
 // cwd is inside the candidate repository, mounted there at its own host path so cwd and every path in
 // output line up; commands from anywhere else (the client build, the daemon's own tooling) run on the
-// host through the saved real PATH. The container runs as the host user with HOME in its tmpfs, so
-// files it writes stay writable by the daemon. Network follows the manifest, as the verifier does.
+// host through the saved real PATH. The container runs as the host user, so files it writes stay
+// writable by the daemon, with the image's own home (handed to that user at start) as HOME, so the
+// toolchains and caches the image installed there are the candidate's as they are the verifier's.
+// Network follows the manifest, as the verifier does.
 // Origin (2026-09-08): the host lacked the images' optional test dependencies, toolchain versions, and
 // services; models saw phantom collection errors and repaired our machine instead of the task.
 export const EXECUTOR_SHIMS: readonly string[] = Object.freeze([
@@ -719,6 +721,7 @@ export interface ContainerExec {
     readonly container: string;
     readonly repository: string;
     readonly user: string;
+    readonly home: string;
     readonly realPath: string;
 }
 
@@ -730,7 +733,7 @@ export const executorShim = (name: string, exec: ContainerExec): string => [
     "# {§benchlet-container-exec} — inside the candidate repository the command runs in the task container",
     "# at the same path; anywhere else it runs on the host.",
     'case "${PWD}/" in',
-    "    " + shq(exec.repository + "/") + '*) exec docker exec -i -u ' + shq(exec.user) + ' -w "${PWD}" -e HOME=/tmp ' + shq(exec.container) + " " + name + ' "$@" ;;',
+    "    " + shq(exec.repository + "/") + '*) exec docker exec -i -u ' + shq(exec.user) + ' -w "${PWD}" -e HOME=' + shq(exec.home) + " " + shq(exec.container) + " " + name + ' "$@" ;;',
     "esac",
     "PATH=" + shq(exec.realPath) + " exec " + name + ' "$@"',
     "",
@@ -1644,10 +1647,11 @@ const main = async (signal?: AbortSignal): Promise<void> => {
     // {§benchlet-container-exec}
     const containerExec = isDockerManifest(manifest)
         ? (() => {
-            const container = candidateContainer.start(manifest.environment, repository);
+            const user = process.getuid!() + ":" + process.getgid!();
+            const container = candidateContainer.start(manifest.environment, repository, user);
             const binDir = resolve(runDir, "bin");
             const realPath = process.env.PATH ?? "";
-            writeExecutorShims(binDir, { container, repository, user: process.getuid!() + ":" + process.getgid!(), realPath });
+            writeExecutorShims(binDir, { container, repository, user, home: candidateContainer.home!, realPath });
             return {
                 env: { PATH: binDir + ":" + realPath },
                 record: candidateContainer.record(manifest.environment, repository, EXECUTOR_SHIMS),

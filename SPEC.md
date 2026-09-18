@@ -259,20 +259,26 @@ complete evidence while changing one experimental variable at a time.
   and writes a shim directory in front of the candidate daemon's PATH for every
   executor name the daemon spawns (`sh`, `bash`, `node`, `python3`, `npm`, `cargo`,
   `go`, …). A shim whose working directory lies inside the repository forwards the
-  command into the container at the same path, as the host user with `HOME=/tmp`,
-  stdin and exit status intact; any other working directory runs the real binary
+  command into the container at the same path, as the host user with the image's own
+  `HOME`, stdin and exit status intact; any other working directory runs the real binary
   through the saved host PATH, so the client build and the daemon's own tooling stay
   host-side. Each shim carries the container id, repository path, user, and host PATH
   as literals, because the daemon scrubs its own variables from subprocess
-  environments; only PATH reaches the command. The container is removed when the candidate finishes or the run fails:
+  environments; only PATH reaches the command. At start, the image's own home (its default
+  user's `$HOME`, never empty or `/`) is handed to the host user with `chown -R`, because the
+  images install toolchains and dependency caches there (`/root/.cargo`, `/root/go/pkg/mod`)
+  and the verifier, running as the image's user, sees them. The container is removed when the candidate finishes or the run fails:
   `CandidateContainer` (`deepswe/candidate-container.ts`) owns the lifecycle behind an injected
   runner, so the exact docker invocations, the single removal on stop, the idempotent stop, and
   a failed start that removes what it created are unit witnesses without a daemon or an image.
-  `candidate-execution.json` records the image, network, container, mounts, and shim
+  `candidate-execution.json` records the image, network, container, home, mounts, and shim
   set (`kind: "task-container"`; host manifests record `kind: "host"`). Origin: on
   2026-09-08 the host lacked the images' optional test dependencies, toolchain
   versions, and services; candidates met phantom test-collection errors and
-  repaired the machine instead of the task.
+  repaired the machine instead of the task. On 2026-09-17 the shims ran with `HOME=/tmp`:
+  wasmi's `cargo` was "Permission denied" (the image's only toolchain is in mode-700 `/root`) and
+  participle's Go module cache was empty under network none, so neither candidate could run the
+  task's tests while the verifier could.
 - §benchlet-tree A Terminal-Bench 2.1 task is a tree manifest (`kind:
   "terminal-bench"`, pinned by `pin-task.mjs --terminal-bench`): no repository,
   the image's `/app` copied out as the candidate tree, the task's own `[agent]

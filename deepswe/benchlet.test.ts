@@ -108,15 +108,15 @@ test("[§benchlet-oracle] benchlet preserves a test interrupted before its termi
     });
 });
 
-test("[§benchlet-container-exec] an executor shim carries its container, repository, user, and host PATH as literals and forwards only from inside the repository", () => {
+test("[§benchlet-container-exec] an executor shim carries its container, repository, user, image home, and host PATH as literals and forwards only from inside the repository", () => {
     assert.ok(["sh", "node", "python3", "npm", "cargo", "go"].every((name) => EXECUTOR_SHIMS.includes(name)));
-    const shim = executorShim("python3", { container: "c0ffee", repository: "/runs/run7/repo", user: "1000:1000", realPath: "/usr/bin:/bin" });
+    const shim = executorShim("python3", { container: "c0ffee", repository: "/runs/run7/repo", user: "1000:1000", home: "/root", realPath: "/usr/bin:/bin" });
     assert.equal(shim, [
         "#!/bin/sh",
         "# {§benchlet-container-exec} — inside the candidate repository the command runs in the task container",
         "# at the same path; anywhere else it runs on the host.",
         'case "${PWD}/" in',
-        "    '/runs/run7/repo/'*) exec docker exec -i -u '1000:1000' -w \"${PWD}\" -e HOME=/tmp 'c0ffee' python3 \"$@\" ;;",
+        "    '/runs/run7/repo/'*) exec docker exec -i -u '1000:1000' -w \"${PWD}\" -e HOME='/root' 'c0ffee' python3 \"$@\" ;;",
         "esac",
         "PATH='/usr/bin:/bin' exec python3 \"$@\"",
         "",
