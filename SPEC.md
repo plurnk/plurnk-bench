@@ -649,8 +649,11 @@ study's three harnesses.
   reimplements grading. An absent report and a recorded infrastructure failure are
   the same honest `null` oracle, never a synthesized 0; a loop can end 200 and still
   fail the oracle ({§verdicts-oracle-outranks}).
-- §swebench-network Task containers run `network:none`; web tools are removed by
-  executor/scheme switch and `PLURNK_EXECS_QUESTION=0` ({§config-unattended}).
+- §swebench-network Task containers run `network:none`; the candidate reaches no
+  network beyond its model — the operator's MCP/A2A definitions are masked, search
+  credentials blanked, and the daemon's web schemes admit no host through the shared
+  `{§benchlet-isolation}` seam (`src/candidate-isolation.ts`) — and web tools are
+  removed with `PLURNK_EXECS_QUESTION=0` ({§config-unattended}).
 - §swebench-conditions The candidate uses the ordinary cascade
   ({§config-model-default}); the study's "high effort" is
   `PLURNK_PROVIDERS_REASONING_<alias>=high`. No positional or family-specific
@@ -662,4 +665,4 @@ study's three harnesses.
   against `plurnk-models` catalog rates; spend evidence is the daemon's own
   accounting ({§record-serial}, {§digest-boundary}).
 
-Covered: `swebench/evaluator.test.ts [§swebench-evaluator]`, `swebench/run.test.ts [§swebench]`.
+Covered: `swebench/evaluator.test.ts [§swebench-evaluator]`, `swebench/run.test.ts [§swebench]`, `src/candidate-isolation.test.ts [§benchlet-isolation]`.

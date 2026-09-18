@@ -37,7 +37,7 @@ import {
     type RequiemAccountingInput,
     type RequiemAccountingSummary,
 } from "../src/accounting.ts";
-import { candidateIsolation } from "./candidate-isolation.ts";
+import { candidateIsolation } from "../src/candidate-isolation.ts";
 
 type TestStatus = "passed" | "skipped" | "failed";
 

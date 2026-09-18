@@ -31,6 +31,7 @@ import { requiredClientCheckout } from "../src/client-checkout.ts";
 import { benchmarksHome, jobsRoot, loadBenchmarkEnvironment, selectedModel } from "../src/host-paths.ts";
 import { publishTrial } from "../src/publish.ts";
 import { EXECUTOR_SHIMS, writeExecutorShims } from "./exec.ts";
+import { candidateIsolation } from "../src/candidate-isolation.ts";
 
 const DATASET = "SWE-bench/SWE-bench_Lite";
 const moduleDir = dirname(fileURLToPath(import.meta.url));
@@ -262,6 +263,11 @@ const main = async (signal?: AbortSignal): Promise<void> => {
 
         const agentDir = join(trialDir, "agent");
         mkdirSync(agentDir, { recursive: true });
+        // {§benchlet-isolation} — the candidate reaches no network beyond its model:
+        // the operator's MCP/A2A definitions are masked, search credentials blanked,
+        // and the daemon's web schemes admit no host.
+        const isolation = candidateIsolation(Object.keys(process.env));
+        writeJson(join(trialDir, "candidate-isolation.json"), { masked: isolation.masked, webHosts: [] });
         const candidateEnv: NodeJS.ProcessEnv = {
             ...process.env,
             PATH: binDir + ":" + (process.env.PATH ?? ""),
@@ -269,7 +275,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             PLURNK_MODEL: model,
             PLURNK_CLIENT_CHECKOUT: clientRoot,
             PLURNK_EXECS_QUESTION: "0",
-            PLURNK_SCHEMES_HTTP_HOSTS: "[]",
+            ...isolation.overrides,
         };
         const stdoutPath = join(agentDir, "plurnk.stdout.log");
         const startedAt = new Date();
