@@ -279,6 +279,16 @@ complete evidence while changing one experimental variable at a time.
   wasmi's `cargo` was "Permission denied" (the image's only toolchain is in mode-700 `/root`) and
   participle's Go module cache was empty under network none, so neither candidate could run the
   task's tests while the verifier could.
+- §benchlet-isolation A benchlet candidate reaches no network beyond its model.
+  The operator's MCP server and A2A agent definitions (the operator file's and the
+  shell's) are set empty in the candidate's environment, which outranks the
+  operator file and masks each definition through the configuration cascade;
+  controls such as `PLURNK_MCP_ENABLED` and companions are untouched.
+  `PLURNK_SCHEMES_HTTP_HOSTS=[]` makes the daemon's own web schemes admit no host,
+  and search credentials (`BRAVE_API_KEY`, `TAVILY_API_KEY`) are blanked.
+  `candidate-isolation.json` records the masked names. Origin: on 2026-09-17 four
+  of ten deepdumb candidates read the upstream solution from GitHub through the
+  daemon's `https` scheme, and two queried Brave.
 - §benchlet-tree A Terminal-Bench 2.1 task is a tree manifest (`kind:
   "terminal-bench"`, pinned by `pin-task.mjs --terminal-bench`): no repository,
   the image's `/app` copied out as the candidate tree, the task's own `[agent]

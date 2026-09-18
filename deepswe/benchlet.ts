@@ -37,6 +37,7 @@ import {
     type RequiemAccountingInput,
     type RequiemAccountingSummary,
 } from "../src/accounting.ts";
+import { candidateIsolation } from "./candidate-isolation.ts";
 
 type TestStatus = "passed" | "skipped" | "failed";
 
@@ -1659,7 +1660,11 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         })()
         : { env: {}, record: { kind: "host" } };
     writeJson(resolve(runDir, "candidate-execution.json"), containerExec.record);
+    // {§benchlet-isolation} — the candidate reaches no network beyond its model.
+    const isolation = candidateIsolation([...envFileKeyNames(operatorEnv), ...Object.keys(process.env)]);
+    writeJson(resolve(runDir, "candidate-isolation.json"), { masked: isolation.masked, webHosts: [] });
     const candidateEnvironmentOverrides = {
+        ...isolation.overrides,
         ...containerExec.env,
         PLURNK_CANDIDATE_DIR: runDir,
         PLURNK_MODEL: model,
