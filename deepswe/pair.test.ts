@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { EMPTY_SHA256 } from "./benchlet.ts";
 import {
     ROUTES_PATH,
     agentBudgetSeconds,
@@ -158,6 +159,31 @@ test("[§pair-sheet] a pair holds exactly one run per side", () => {
         writePlurnk(dir, plurnkResult, "run1-deepswe-x-dumbox");
         writePlurnk(dir, plurnkResult, "run2-deepswe-x-dumbox");
         assert.throws(() => readPlurnkSide(dir), { message: /a pair holds one benchlet run, found 2/ });
+    } finally {
+        rmSync(dir, { recursive: true, force: true });
+    }
+});
+
+// {§benchlet-candidate-exit} (#41) — the sheet must not present a killed, patchless run as an
+// ordinary near-miss. Three dumbox-20260918 runs read as clean 0/N failures when the provider had
+// cut them off at 600 s before the model issued a single edit.
+test("[§pair-sheet] a candidate the clock killed without a patch says both, beside its oracle", () => {
+    const dir = pairDir();
+    try {
+        writePlurnk(dir, {
+            ...plurnkResult,
+            harnessStatus: "candidate_failed",
+            candidate: { ...plurnkResult.candidate, outcome: "timeout", timedOut: true },
+            oracle: {
+                submission: { applyFailed: false, reward: 0, p2pPassed: 47, p2pTotal: 47, f2pPassed: 0, f2pTotal: 84, partial: 0, tests: [] },
+                submissionEvidence: { reusedWorking: false, patchSha256: EMPTY_SHA256, emptyPatch: true },
+            },
+        });
+        const plurnk = readPlurnkSide(dir);
+        assert.equal(plurnk.state, "complete", "the run happened and the oracle graded it; that is not in dispute");
+        assert.match(String(plurnk.note), /candidate timed out/);
+        assert.match(String(plurnk.note), /produced no patch/, "the loss names its own cause");
+        assert.match(String(plurnk.note), /harness status candidate_failed/);
     } finally {
         rmSync(dir, { recursive: true, force: true });
     }

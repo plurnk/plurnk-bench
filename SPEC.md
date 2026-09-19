@@ -238,6 +238,18 @@ complete evidence while changing one experimental variable at a time.
   canonical `tests/test.sh`, then require consistent `reward.json` and
   `ctrf.json` evidence. Malformed output is infrastructure failure; absent test
   evidence fails rather than passing by omission.
+- §benchlet-candidate-exit **A run the clock or the provider killed never got to
+  try, and the record says so.** `result.json`'s `candidate.outcome` is `finished`
+  only for a clean exit; a timeout, a spawn failure and a non-zero exit each name
+  themselves, and any of them makes `harnessStatus` `candidate_failed` whatever the
+  requiem did. Separately, a submission diff of zero bytes is `oracle.submissionEvidence.emptyPatch`:
+  the model produced nothing, which is a real result and a graded loss, never an
+  ordinary near-miss and never an absent oracle. The pair sheet carries both as notes
+  beside the grade. Origin: three `dumbox-20260918` runs were cut off at 600 s before
+  the model issued a single edit and were recorded as complete runs that simply failed
+  the oracle, which would have read as the rail getting worse at the task. This is the
+  DeepSWE half of what {§swebench-trial} and {§swebench-evaluator} state for SWE-bench.
+
 - §benchlet-oracle-exclusion A pass-to-pass test that fails on the pristine
   baseline in this environment cannot discriminate a candidate here, so it
   leaves the graded set for that run only: the pinned task files stay
@@ -343,7 +355,8 @@ complete evidence while changing one experimental variable at a time.
   the positive cap, or `-1` — the plurnk no-limit idiom — which removes the
   candidate timer entirely; the overhead still applies to the run's records.
 
-Covered: `benchlet.test.ts [§benchlet-oracle]`, `[§benchlet-oracle-exclusion]`, `[§benchlet-container-exec]`
+Covered: `benchlet.test.ts [§benchlet-oracle]`, `[§benchlet-oracle-exclusion]`, `[§benchlet-candidate-exit]`
+(with `pair.test.ts [§pair-sheet]`), `[§benchlet-container-exec]`
 (shims; lifecycle in `candidate-container.test.ts`),
 `[§benchlet-evidence]`, `[§benchlet-failure]`, `[§benchlet-location]`,
 `[§benchlet-requiem-witness]`, `[§benchlet-candidate-timeout]`, and

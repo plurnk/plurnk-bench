@@ -11,6 +11,7 @@ import { tmpdir } from "node:os";
 import { basename, resolve } from "node:path";
 import test from "node:test";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import {
     aliasConfiguration,
@@ -21,6 +22,9 @@ import {
     parseTreeVerifierArtifacts,
     sourceProvenance,
     candidateTimeoutMs,
+    candidateOutcome,
+    producedNoPatch,
+    EMPTY_SHA256,
     candidatePolicyPath,
     candidatePolicySnapshotPath,
     candidateRecapSnapshotPath,
@@ -745,4 +749,24 @@ test("{§bench-confounds} provenance records the alias's route knobs by name, ne
         PLURNK_PROVIDERS_SERVICE_TIER_dumbox: "priority",
     });
     assert.deepEqual(aliasConfiguration("unset", env), {});
+});
+
+// {§benchlet-candidate-exit} (#41) — the DeepSWE half of the two holes closed for SWE-bench in #40.
+test("[§benchlet-candidate-exit] only a candidate that exited cleanly finished; a kill is named", () => {
+    const clean = { status: 0, signal: null, timedOut: false };
+    assert.equal(candidateOutcome(clean), "finished");
+    assert.equal(candidateOutcome({ ...clean, timedOut: true }), "timeout");
+    assert.equal(candidateOutcome({ status: null, signal: null, timedOut: false, error: new Error("spawn ENOENT") }), "spawn_failed");
+    assert.equal(candidateOutcome({ status: 1, signal: null, timedOut: false }), "exited");
+    assert.equal(candidateOutcome({ status: null, signal: "SIGKILL", timedOut: false }), "exited");
+    // The three dumbox-20260918 runs the provider cut at 600 s reported `exception_info: null`
+    // and a complete harness status. A timeout is no longer indistinguishable from a clean finish.
+    assert.notEqual(candidateOutcome({ ...clean, timedOut: true }), candidateOutcome(clean));
+});
+
+test("[§benchlet-candidate-exit] a repository that never changed is recorded as producing no patch", () => {
+    // git wrote a diff and the diff was zero bytes — the model changed nothing.
+    assert.equal(EMPTY_SHA256, createHash("sha256").update("").digest("hex"));
+    assert.equal(producedNoPatch(EMPTY_SHA256), true);
+    assert.equal(producedNoPatch(createHash("sha256").update("diff --git a/x b/x\n").digest("hex")), false);
 });

@@ -116,7 +116,7 @@ const onlyDirectory = (root: string, accept: (name: string) => boolean, what: st
 interface PlurnkResult {
     harnessStatus: string;
     infrastructure?: { stage: string; message: string };
-    candidate?: { status: number | null; signal: string | null; timedOut: boolean; error: string | null; durationMs?: number };
+    candidate?: { outcome?: string; status: number | null; signal: string | null; timedOut: boolean; error: string | null; durationMs?: number };
     summary?: {
         modelTurns: number;
         providerRequests: number;
@@ -125,7 +125,10 @@ interface PlurnkResult {
         costUsd: string | null;
         loopOutcomes: Array<{ loop: number; status: number; terminalMessage: string | null; terminatedBy: string | null }>;
     };
-    oracle?: { submission: { applyFailed: boolean; reward: unknown; p2pPassed: number; p2pTotal: number; f2pPassed: number; f2pTotal: number; partial: number } };
+    oracle?: {
+        submission: { applyFailed: boolean; reward: unknown; p2pPassed: number; p2pTotal: number; f2pPassed: number; f2pTotal: number; partial: number };
+        submissionEvidence?: { emptyPatch?: boolean };
+    };
     durationMs: number | null;
 }
 
@@ -149,6 +152,8 @@ export const readPlurnkSide = (pairDir: string): SideFacts => {
     const notes = [
         candidate.timedOut ? "candidate timed out" : null,
         candidate.error,
+        // {§benchlet-candidate-exit} — a run that changed nothing is not a near-miss (#41).
+        oracle.submissionEvidence?.emptyPatch === true ? "the candidate produced no patch" : null,
         submission.applyFailed ? "submission patch did not apply" : null,
         result.harnessStatus === "complete" ? null : `harness status ${result.harnessStatus}`,
     ].filter((note): note is string => note !== null);

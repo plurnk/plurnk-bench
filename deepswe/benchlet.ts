@@ -1354,6 +1354,24 @@ export const candidateTimeoutMs = (
     ? undefined
     : (candidateTimeout + candidateOverhead) * 1_000;
 
+// {§benchlet-candidate-exit} — a candidate the provider or the clock killed never got to try, and
+// the record has to say so: `harnessStatus: "complete"` used to cover a run whose model was cut off
+// mid-turn, making it indistinguishable from one that finished and simply failed the oracle (#41).
+// This is the DeepSWE half of the same hole closed for SWE-bench in #40.
+export const candidateOutcome = (exit: CommandResult): "finished" | "timeout" | "spawn_failed" | "exited" => {
+    if (exit.timedOut) return "timeout";
+    if (exit.error !== undefined) return "spawn_failed";
+    if (exit.status !== 0) return "exited";
+    return "finished";
+};
+
+// The SHA-256 of zero bytes: git wrote a diff and the diff was empty, so the repository never
+// changed. An empty patch is a real result — the model produced nothing — and is graded as the
+// loss it is, never mistaken for an ordinary near-miss (#41).
+export const EMPTY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
+
+export const producedNoPatch = (submissionSha256: string): boolean => submissionSha256 === EMPTY_SHA256;
+
 export const recordInfrastructureFailure = (
     runDir: string,
     stage: string,
@@ -1856,7 +1874,11 @@ const main = async (signal?: AbortSignal): Promise<void> => {
 
     activeStage = "finalize";
     const completedAt = new Date();
-    const harnessStatus = requiemEnabled && requiem.complete !== true ? "incomplete" : "complete";
+    // {§benchlet-candidate-exit} — a killed candidate is never "complete", whatever the requiem did.
+    const candidateExit = candidateOutcome(candidate);
+    const harnessStatus = candidateExit !== "finished"
+        ? "candidate_failed"
+        : requiemEnabled && requiem.complete !== true ? "incomplete" : "complete";
     const requiemCostUsd = !requiemEnabled
         ? "0"
         : typeof requiem.summary === "object"
@@ -1870,6 +1892,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         harnessStatus,
         totalCostUsd: addSettledUsd(summary.costUsd, requiemCostUsd),
         candidate: {
+            outcome: candidateExit,
             status: candidate.status,
             signal: candidate.signal,
             timedOut: candidate.timedOut,
@@ -1889,6 +1912,8 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             submissionEvidence: {
                 reusedWorking: submissionReusedWorking,
                 patchSha256: patchState.submissionSha256,
+                // {§benchlet-candidate-exit} — "the model changed nothing" is its own result.
+                emptyPatch: producedNoPatch(patchState.submissionSha256),
             },
         },
         // bench#18: the official budget's photograph beside the played-through finish.
