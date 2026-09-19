@@ -3,6 +3,7 @@
 // reuses the core join and publication unchanged. The harness owns grading; the bench
 // owns only this translation.
 
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import type { RewardJson } from "../src/ingest.ts";
 
@@ -42,6 +43,17 @@ const tally = (status: SweTestsStatus | undefined): { total: number; passed: num
     total: (status?.success.length ?? 0) + (status?.failure.length ?? 0),
     passed: status?.success.length ?? 0,
 });
+
+// §swebench-evaluator. A candidate that changed nothing scores zero: the official harness filters
+// an empty prediction out of its dataset and writes no report for it, which is a real result — the
+// model produced no patch — not an infrastructure failure (#40).
+export const emptyPatchReward = (): RewardJson => ({ reward: 0, empty_patch: 1 });
+
+// §swebench-evaluator. The harness names its evaluation container `sweb.eval.<instance>.<run_id>`
+// and Docker refuses a duplicate name, so every attempt gets its own id: two attempts at one
+// instance under PLURNK_BENCH_JOBS used to collide and kill each other's container (#40).
+export const evaluationRunId = (instance: string): string =>
+    `swebench-${instance}-${randomUUID().slice(0, 8)}`.replaceAll(/[^A-Za-z0-9_.-]/g, "-");
 
 // §swebench-evaluator. Translate one instance's harness report into the core RewardJson.
 // `null` means NO oracle verdict — the report is absent, or the harness recorded an

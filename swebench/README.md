@@ -22,7 +22,10 @@ uv pip install --python "$B/.cache/swebench/venv/bin/python" swebench datasets
 
 `PLURNK_SWEBENCH_PYTHON` overrides the pinned interpreter (default
 `<bench>/.cache/swebench/venv/bin/python`). Docker is the harness's only other hard
-dependency.
+dependency, and an eval image is several GB: a run refuses to start unless Docker's own
+root has `PLURNK_SWEBENCH_MIN_FREE_GB` free (default 15; `0` disables the check), and
+`PLURNK_SWEBENCH_PRUNE_IMAGE=1` removes the instance image when the run finishes, trading
+a re-pull for the disk.
 
 ## pin
 
@@ -32,7 +35,8 @@ node swebench/pin-task.mjs mwaskom__seaborn-3010
 
 writes `swebench/manifests/<instance>.json` from the official dataset: the repository, the
 base and environment commits, the eval image, budgets and resource limits, and the
-instance's FAIL_TO_PASS / PASS_TO_PASS.
+instance's FAIL_TO_PASS / PASS_TO_PASS — plus `datasetRevision`, the dataset's own commit
+sha at pin time, so a manifest says which revision it came from.
 
 ## corpus
 
@@ -59,7 +63,11 @@ repository is mounted at its own host path and at `/testbed` — the path the im
 install points at, so the model's own tests import its edits. The runner captures the
 candidate's diff, writes the Pier-shaped trial directory (`result.json`,
 `agent/plurnk.json`, `agent/plurnk.db`, `artifacts/model.patch`), grades with the official
-evaluator, and publishes through the shared core.
+evaluator, and publishes through the shared core. `provenance.json` (instance, model,
+dataset and revision, image id, start head, timeout, candidate exit) is written before
+publication and rewritten afterwards with the published `runDir`, so an interrupted run
+still leaves a described trial. Each attempt takes its own evaluation run id, so two
+attempts at one instance under `PLURNK_BENCH_JOBS` never share a container name.
 
 `--preflight` proves the container, the image's login-shell toolchain, and the shim set with
 no model and no client. `--skip-grading` stops after capture. `--timeout <s>` (or

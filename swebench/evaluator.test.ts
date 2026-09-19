@@ -2,6 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
     aggregateReportPath,
+    emptyPatchReward,
+    evaluationRunId,
     instanceReportPath,
     predictionsJsonl,
     rewardFromInstanceReport,
@@ -104,4 +106,30 @@ test("[§swebench-evaluator] predictions serialize one JSON object per line", ()
         '{"instance_id":"i","model_name_or_path":"gold","model_patch":"diff"}\n',
     );
     assert.equal(predictionsJsonl([]), "");
+});
+
+test("[§swebench-evaluator] a candidate that produced no patch scores zero, not an infrastructure failure", () => {
+    // The official harness filters an empty prediction out of its dataset and writes no report,
+    // so the run would otherwise join as `error` — an absent oracle — instead of the loss it is (#40).
+    assert.deepEqual(emptyPatchReward(), { reward: 0, empty_patch: 1 });
+    const record = joinRecord({
+        harness: "swebench",
+        taskId: "mwaskom__seaborn-3010",
+        model: "luna",
+        doc: { schemaVersion: 6, finalStatus: 200, turnCount: 2 },
+        reward: emptyPatchReward(),
+        dbPath: "/tmp/plurnk.db",
+    });
+    assert.equal(record.outcome, "fail", "an empty patch is a graded loss, never an absent oracle");
+    assert.equal(record.reward, 0);
+});
+
+test("[§swebench-evaluator] each attempt at one instance gets its own container-safe run id", () => {
+    const instance = "mwaskom__seaborn-3010";
+    const ids = new Set(Array.from({ length: 16 }, () => evaluationRunId(instance)));
+    assert.equal(ids.size, 16, "two parallel attempts must not share sweb.eval.<instance>.<run_id>");
+    for (const id of ids) {
+        assert.ok(id.startsWith(`swebench-${instance}-`), id);
+        assert.match(id, /^[A-Za-z0-9_.-]+$/, "a run id becomes a Docker container name verbatim");
+    }
 });

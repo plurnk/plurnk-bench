@@ -84,6 +84,9 @@ export interface RewardJson {
     p2p?: number;
     partial?: number;
     apply_failed?: number;
+    // {§swebench-evaluator}: the candidate produced no patch at all — a scored zero, recorded as
+    // its own fact so a report can tell "changed nothing" from "changed the wrong thing" (#40).
+    empty_patch?: number;
 }
 
 // SPEC §verdicts-oracle-outranks / §verdicts-failure-class. The oracle is ground truth

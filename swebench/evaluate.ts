@@ -14,12 +14,15 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import {
+    emptyPatchReward,
+    evaluationRunId,
     instanceReportPath,
     predictionsJsonl,
     rewardFromInstanceReport,
     type Prediction,
     type SweInstanceReport,
 } from "./evaluator.ts";
+import type { RewardJson } from "../src/ingest.ts";
 
 const DATASET = "SWE-bench/SWE-bench_Lite";
 const moduleDir = dirname(fileURLToPath(import.meta.url));
@@ -58,7 +61,7 @@ const main = (): void => {
     const label = values.label ?? (gold ? "gold" : "plurnk");
     const timeout = values.timeout === undefined ? manifest.budgetSeconds : Number(values.timeout);
     if (!Number.isSafeInteger(timeout) || timeout <= 0) throw new Error("--timeout must be a positive integer");
-    const runId = `swebench-${instance}`.replaceAll(/[^A-Za-z0-9_.-]/g, "-");
+    const runId = evaluationRunId(instance);
 
     const trialDir = resolve(out);
     const oracleDir = join(trialDir, "oracle");
@@ -67,8 +70,20 @@ const main = (): void => {
     // A candidate patch becomes the harness's predictions file; `gold` grades the dataset's own
     // patch, the preflight that proves the oracle path without a model.
     let predictionsArg = "gold";
+    const rewardPath = join(trialDir, "verifier", "reward.json");
+    const writeReward = (reward: RewardJson): void => {
+        mkdirSync(dirname(rewardPath), { recursive: true });
+        writeFileSync(rewardPath, `${JSON.stringify(reward)}\n`);
+    };
     if (!gold) {
         const patch = readFileSync(resolve(values.patch!), "utf8");
+        // {§swebench-evaluator}: no patch is a scored zero, not a run of the harness.
+        if (patch.trim().length === 0) {
+            const reward = emptyPatchReward();
+            writeReward(reward);
+            console.log(JSON.stringify({ instance, label, reward, note: "the candidate produced no patch" }, null, 2));
+            return;
+        }
         const predictions: Prediction[] = [{ instance_id: instance, model_name_or_path: label, model_patch: patch }];
         predictionsArg = join(oracleDir, "predictions.jsonl");
         writeFileSync(predictionsArg, predictionsJsonl(predictions));
@@ -98,9 +113,7 @@ const main = (): void => {
     const reward = rewardFromInstanceReport(instanceReport);
     if (reward === null) throw new Error(`no oracle verdict in ${reportPath} (infrastructure failure)`);
 
-    const rewardPath = join(trialDir, "verifier", "reward.json");
-    mkdirSync(dirname(rewardPath), { recursive: true });
-    writeFileSync(rewardPath, `${JSON.stringify(reward)}\n`);
+    writeReward(reward);
     console.log(JSON.stringify({ instance, label, runId, reportPath, rewardPath, reward }, null, 2));
 };
 

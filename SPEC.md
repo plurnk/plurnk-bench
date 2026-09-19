@@ -641,7 +641,9 @@ study's three harnesses.
   downloaded corpus state lives under `.cache/swebench`, never in source.
   `swebench/pin-task.mjs` writes `swebench/manifests/<instance>.json` from the
   official dataset (repo, base and environment commits, eval image, budgets, and the
-  instance's FAIL_TO_PASS / PASS_TO_PASS). `swebench/sample.ts` draws the campaign's
+  instance's FAIL_TO_PASS / PASS_TO_PASS), including the dataset's own revision sha
+  (`datasetRevision`, from the Hub's dataset info) so a re-pin against a moved dataset
+  is visible in the record rather than silent. `swebench/sample.ts` draws the campaign's
   ids reproducibly from the dataset — a seed plus a plain hash order (no RNG whose stream
   can drift between library versions), `uniform` or `stratified` across repos — and writes
   the draw as a corpus record under `swebench/corpora/<label>.json`. Until the study's
@@ -651,7 +653,23 @@ study's three harnesses.
   ({§record-serial}) and the core join consumes it unchanged; the bench never
   reimplements grading. An absent report and a recorded infrastructure failure are
   the same honest `null` oracle, never a synthesized 0; a loop can end 200 and still
-  fail the oracle ({§verdicts-oracle-outranks}).
+  fail the oracle ({§verdicts-oracle-outranks}). A candidate that produced NO patch is
+  the one result the harness cannot report — it filters an empty prediction out of its
+  own dataset and writes no report — so the bench scores it `{reward: 0, empty_patch: 1}`
+  itself: a graded loss, never an absent oracle.
+- §swebench-trial One attempt is one trial directory, self-describing before it is
+  published. Each attempt takes its own evaluation run id (the harness names its
+  container `sweb.eval.<instance>.<run_id>`, so a shared id makes two attempts at one
+  instance kill each other under `PLURNK_BENCH_JOBS`). `provenance.json` — instance,
+  model, dataset and revision, image and resolved image id, start head, timeout, and
+  the candidate's exit — is written BEFORE publication and rewritten after with the
+  published `runDir`, so an interrupted publish leaves a described trial rather than an
+  anonymous one. `result.json`'s `exception_info` is `null` only for a clean exit: a
+  timeout, a spawn failure, and a non-zero exit each name themselves. Before pulling an
+  evaluation image the run requires free space on Docker's own root
+  (`PLURNK_SWEBENCH_MIN_FREE_GB`, default 15; `0` disables the check) and fails loudly
+  rather than half-way through a pull; `PLURNK_SWEBENCH_PRUNE_IMAGE=1` removes the
+  instance image afterwards for a small disk at the cost of re-pulling.
 - §swebench-network Task containers run `network:none`; the candidate reaches no
   network beyond its model — the operator's MCP/A2A definitions are masked, search
   credentials blanked, and the daemon's web schemes admit no host through the shared
@@ -668,4 +686,4 @@ study's three harnesses.
   against `plurnk-models` catalog rates; spend evidence is the daemon's own
   accounting ({§record-serial}, {§digest-boundary}).
 
-Covered: `swebench/evaluator.test.ts [§swebench-evaluator]`, `swebench/run.test.ts [§swebench]`, `swebench/sample.test.ts [§swebench-corpus]`, `src/candidate-isolation.test.ts [§benchlet-isolation]`.
+Covered: `swebench/evaluator.test.ts [§swebench-evaluator]`, `swebench/run.test.ts [§swebench] [§swebench-trial]`, `swebench/sample.test.ts [§swebench-corpus]`, `src/candidate-isolation.test.ts [§benchlet-isolation]`.

@@ -21,7 +21,7 @@
 // usage: swebench/run.sh --instance <id> [--model <alias>] [--timeout <s>] [--preflight] [--skip-grading]
 
 import { spawn, spawnSync } from "node:child_process";
-import { createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statfsSync, writeFileSync } from "node:fs";
 import { finished } from "node:stream/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -39,6 +39,7 @@ const benchRoot = resolve(moduleDir, "..");
 
 interface Manifest {
     readonly instance: string;
+    readonly datasetRevision?: string;
     readonly repo: string;
     readonly baseCommit: string;
     readonly environment: { readonly kind: string; readonly image: string; readonly network: string; readonly cpus: number; readonly memoryMb: number };
@@ -67,6 +68,28 @@ export const candidateArgv = (repository: string, timeout: number, instruction: 
 
 // The client writes its complete `--json` document as one line; the candidate wrapper's own
 // digest output follows it. Recover the last line that is a schema-carrying client document.
+export interface CandidateExit {
+    readonly status: number | null;
+    readonly signal: NodeJS.Signals | null;
+    readonly timedOut: boolean;
+    readonly error?: Error;
+}
+
+export interface ExceptionInfo {
+    readonly exception_type: string;
+    readonly exception_message: string;
+}
+
+// §swebench-trial. A trial's result.json says how the candidate ended. Only a clean exit is `null`:
+// a spawn failure and a non-zero exit used to read as success here, so a run that never started
+// looked the same as one that finished and simply wrote no patch (#40).
+export const exceptionInfo = (result: CandidateExit, timeoutSeconds: number): ExceptionInfo | null => {
+    if (result.timedOut) return { exception_type: "AgentTimeoutError", exception_message: `the client exceeded ${timeoutSeconds}s` };
+    if (result.error !== undefined) return { exception_type: "AgentSpawnError", exception_message: result.error.message };
+    if (result.status !== 0) return { exception_type: "AgentExitError", exception_message: `the client exited ${result.status ?? result.signal ?? "unknown"}` };
+    return null;
+};
+
 export const extractPlurnkDoc = (text: string): string | null => {
     const lines = text.split("\n");
     for (let index = lines.length - 1; index >= 0; index -= 1) {
@@ -100,6 +123,25 @@ const git = (repository: string, args: string[], options: { env?: NodeJS.Process
 
 const writeJson = (path: string, value: unknown): void => {
     writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
+};
+
+// The eval images are 2-4 GB each. Nothing is deleted behind the operator's back ({§swebench});
+// the run refuses loudly when the disk cannot hold another image, and prunes only when asked.
+const requireDiskRoom = (): void => {
+    const minimumGb = Number(process.env.PLURNK_SWEBENCH_MIN_FREE_GB ?? 15);
+    if (!Number.isFinite(minimumGb) || minimumGb < 0) throw new Error("PLURNK_SWEBENCH_MIN_FREE_GB must be a non-negative number");
+    if (minimumGb === 0) return;
+    const root = shell("docker", ["info", "--format={{.DockerRootDir}}"]).trim();
+    const free = statfsSync(root.length > 0 ? root : "/");
+    const freeGb = (free.bavail * free.bsize) / 1024 ** 3;
+    if (freeGb < minimumGb) {
+        throw new Error(`${root || "/"} has ${freeGb.toFixed(1)} GB free; a SWE-bench eval image needs several GB. Free space, point Docker elsewhere, or lower PLURNK_SWEBENCH_MIN_FREE_GB.`);
+    }
+};
+
+const pruneImage = (image: string): void => {
+    if (process.env.PLURNK_SWEBENCH_PRUNE_IMAGE !== "1") return;
+    shell("docker", ["image", "rm", image], { allowFailure: true });
 };
 
 const dockerImageId = (image: string): string => {
@@ -224,6 +266,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
     const trialDir = mkdtempSync(resolve(scratchRoot, `${instance.replaceAll(/[^A-Za-z0-9_.-]+/g, "-")}-`));
     const repository = join(trialDir, "repo");
 
+    requireDiskRoom();
     const imageId = dockerImageId(manifest.environment.image);
     const startHead = prepareRepository(manifest, repository);
 
@@ -236,10 +279,13 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         writeJson(join(trialDir, "candidate-execution.json"), candidateContainer.record(manifest.environment, repository, EXECUTOR_SHIMS, "/testbed"));
 
         if (values.preflight) {
+            // The image's own toolchain, not one instance's dependency: every SWE-bench image
+            // installs its repository into the testbed environment, so importing it proves the shim
+            // reaches the right interpreter for any instance (#40).
             const probe = spawnSync("docker", ["exec", "-u", user, "-w", repository, "-e", `HOME=${candidateContainer.home!}`, container, "bash", "-lc",
-                "python -c \"import sys, seaborn, matplotlib; print(sys.executable, seaborn.__file__)\""], { encoding: "utf8" });
+                "python -c \"import sys; print(sys.executable)\" && git -C \"$PWD\" rev-parse HEAD"], { encoding: "utf8" });
             writeJson(join(trialDir, "preflight.json"), {
-                status: "ready",
+                status: probe.status === 0 ? "ready" : "failed",
                 instance,
                 model,
                 dataset: DATASET,
@@ -304,10 +350,25 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             config: { agent: { model_name: model } },
             started_at: startedAt.toISOString(),
             finished_at: finishedAt.toISOString(),
-            exception_info: result.timedOut
-                ? { exception_type: "AgentTimeoutError", exception_message: `the client exceeded ${timeout}s` }
-                : null,
+            exception_info: exceptionInfo(result, timeout),
         });
+
+        const provenance = {
+            schemaVersion: 1,
+            instance: manifest.instance,
+            model,
+            dataset: DATASET,
+            datasetRevision: manifest.datasetRevision ?? null,
+            image: manifest.environment.image,
+            imageId,
+            startHead,
+            baseCommit: manifest.baseCommit,
+            timeoutSeconds: timeout,
+            repository,
+            candidate: { status: result.status, signal: result.signal, timedOut: result.timedOut },
+        };
+        // The published trial carries its provenance: written before publication, never after (#40).
+        writeJson(join(trialDir, "provenance.json"), provenance);
 
         let runDir: string | null = null;
         if (values["skip-grading"] !== true) {
@@ -317,24 +378,12 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             if (graded.status !== 0) throw new Error(`the official evaluator exited ${graded.status ?? graded.signal ?? "unknown"}`);
             runDir = await publishTrial(trialDir, "swebench", benchmarksHome());
         }
-        writeJson(join(trialDir, "provenance.json"), {
-            schemaVersion: 1,
-            instance: manifest.instance,
-            model,
-            dataset: DATASET,
-            image: manifest.environment.image,
-            imageId,
-            startHead,
-            baseCommit: manifest.baseCommit,
-            timeoutSeconds: timeout,
-            repository,
-            runDir,
-            candidate: { status: result.status, signal: result.signal, timedOut: result.timedOut },
-        });
+        writeJson(join(trialDir, "provenance.json"), { ...provenance, runDir });
         process.stdout.write(`artifact=${trialDir}\n`);
         if (runDir !== null) process.stdout.write(`published=${runDir}\n`);
     } finally {
         candidateContainer.stop();
+        pruneImage(manifest.environment.image);
     }
 };
 

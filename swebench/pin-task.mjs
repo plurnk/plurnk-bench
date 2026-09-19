@@ -19,21 +19,24 @@ if (!existsSync(python)) throw new Error(`swebench venv python is missing: ${pyt
 const DUMP = `
 import json, sys
 from datasets import load_dataset
+from huggingface_hub import HfApi
 want = set(sys.argv[1:])
+# {§swebench-corpus}: the ids and the dataset revision are pinned together.
+revision = HfApi().dataset_info(${JSON.stringify(DATASET)}).sha
 ds = load_dataset(${JSON.stringify(DATASET)}, split="test")
 fields = ("instance_id","repo","base_commit","environment_setup_commit","version","image","problem_statement","FAIL_TO_PASS","PASS_TO_PASS")
 found = {}
 for r in ds:
     if r["instance_id"] in want:
         found[r["instance_id"]] = {k: r[k] for k in fields}
-print(json.dumps({"found": found, "missing": sorted(want - set(found))}))
+print(json.dumps({"found": found, "missing": sorted(want - set(found)), "revision": revision}))
 `;
 
 const out = execFileSync(python, ["-c", DUMP, ...instances], {
     encoding: "utf8",
     env: { ...process.env, HF_HUB_DISABLE_PROGRESS_BARS: "1" },
 });
-const { found, missing } = JSON.parse(out);
+const { found, missing, revision } = JSON.parse(out);
 if (missing.length > 0) throw new Error(`not in ${DATASET}: ${missing.join(", ")}`);
 
 // The official dataset hands FAIL_TO_PASS/PASS_TO_PASS to `datasets` as Python
@@ -54,6 +57,7 @@ for (const instance of instances) {
         schemaVersion: 1,
         harness: "swebench",
         dataset: DATASET,
+        datasetRevision: revision,
         instance: r.instance_id,
         repo: r.repo,
         baseCommit: r.base_commit,
