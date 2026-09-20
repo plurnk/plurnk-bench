@@ -120,7 +120,8 @@ if [ "$TASK" = all ]; then
   # Official-corpus manifest: the selected model layer and unattended executor switch.
   # Alias-scoped knobs ride with their alias.
   flags=(--agent-env "PLURNK_MODEL=$MODEL"
-    --agent-env "PLURNK_EXECS_QUESTION=$PLURNK_EXECS_QUESTION")
+    --agent-env "PLURNK_EXECS_QUESTION=$PLURNK_EXECS_QUESTION"
+    --agent-env "PLURNK_SERVICE_UNATTENDED_PROPOSALS=$PLURNK_SERVICE_UNATTENDED_PROPOSALS")
   [ -n "${PLURNK_MODEL_CHILD:-}" ] && flags+=(--agent-env "PLURNK_MODEL_CHILD=$PLURNK_MODEL_CHILD")
   for alias in "$MODEL" "${PLURNK_MODEL_CHILD:-}"; do
     [ -n "$alias" ] || continue
