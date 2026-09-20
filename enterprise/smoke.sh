@@ -143,6 +143,10 @@ MANIFEST="$(MODEL="$MODEL" node -e '
   console.log(lines.join("\n"));
 ')"
 flags=(--agent-env "PLURNK_MODEL=$MODEL")
+# Unattended posture, not manifest: the driver runs the client with --auto, and the product ships
+# `reject` for a proposal nobody is present to settle. Without this the corpus refuses every host
+# effect and scores zero with nothing in the results to say why.
+flags+=(--agent-env "PLURNK_SERVICE_UNATTENDED_PROPOSALS=$PLURNK_SERVICE_UNATTENDED_PROPOSALS")
 [ -n "${PLURNK_MODEL_CHILD:-}" ] && flags+=(--agent-env "PLURNK_MODEL_CHILD=$PLURNK_MODEL_CHILD")
 for alias in "$MODEL" "${PLURNK_MODEL_CHILD:-}"; do
   [ -n "$alias" ] || continue
