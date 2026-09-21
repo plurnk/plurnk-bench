@@ -54,6 +54,38 @@ interface CommandResult {
     readonly error?: Error;
 }
 
+// SPEC §swebench-conditions. The official package ships prompt styles for the NON-agentic
+// setting only (`swebench/inference/make_datasets/create_instance.py`): they paste file contents
+// inline and ask for a patch as text. Their shape is the standard and is kept — premise, the
+// issue delimited by <issue>, then a closing instruction naming the deliverable. What changes is
+// the deliverable itself: the repository is live here, so the edit IS the patch. No agentic
+// prompt exists in the package; every harness writes its own, which is the variable HarnessTax
+// measures, so this text is recorded with the results rather than treated as neutral.
+//
+// Naming the deliverable is load-bearing, not decoration: handed the bare problem statement, the
+// candidate diagnosed django__django-11620 correctly across 23 FIND/READ operations and then
+// SENT the diagnosis, which concluded the loop with an empty patch.
+//
+// Two clauses were tried and removed, both additions the official prompt does not make:
+//   - "leave the tests unmodified" — the eval script resets the test files to the base commit
+//     BEFORE applying the test patch, so editing them is already inert; a warning would only
+//     spend tokens making tampering salient.
+//   - "make the smallest change" — that reads as a request for brevity and invites an
+//     incomplete fix. Scope is not size, and style-3 asks for neither.
+// What remains is style-3 exactly: premise, issue, deliverable.
+export const taskPrompt = (problemStatement: string): string => [
+    "You will be provided with an issue statement explaining a problem to resolve.",
+    "The repository is checked out at the project root: the code base is live, not a listing.",
+    "",
+    "<issue>",
+    problemStatement.trim(),
+    "</issue>",
+    "",
+    "Resolve the issue by changing the repository. The deliverable is the change itself — the",
+    "working tree's diff is what is collected and graded, so an explanation of the fix is not a",
+    "fix.",
+].join("\n");
+
 // SPEC §swebench-conditions: the candidate uses the ordinary `plurnk` client invocation —
 // the task prompt is one positional after `--`, with no family-specific candidate selector —
 // plus `--json` (keep the client's own document) and `--auto` (proposal authority in-loop).
@@ -325,7 +357,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         };
         const stdoutPath = join(agentDir, "plurnk.stdout.log");
         const startedAt = new Date();
-        const result = await runToFiles(process.execPath, candidateArgv(repository, timeout, manifest.problemStatement), {
+        const result = await runToFiles(process.execPath, candidateArgv(repository, timeout, taskPrompt(manifest.problemStatement)), {
             cwd: serviceRoot,
             env: candidateEnv,
             stdoutPath,
@@ -365,6 +397,10 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             baseCommit: manifest.baseCommit,
             timeoutSeconds: timeout,
             repository,
+            // The agentic framing is a harness choice, not a benchmark constant ({§swebench-conditions}):
+            // record it verbatim so a comparison declares it the way {§swebench-cost} declares the
+            // price schedule, instead of leaving a reader to infer it from a source revision.
+            taskPrompt: taskPrompt(manifest.problemStatement),
             candidate: { status: result.status, signal: result.signal, timedOut: result.timedOut },
         };
         // The published trial carries its provenance: written before publication, never after (#40).

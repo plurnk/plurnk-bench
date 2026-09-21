@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "harness": "swebench",
+  "dataset": "SWE-bench/SWE-bench_Lite",
+  "datasetRevision": "b0dde1093fe417d83b7184254edf8199c1f0dff5",
+  "instance": "sympy__sympy-23117",
+  "repo": "sympy/sympy",
+  "baseCommit": "c5cef2499d6eed024b0db5c792d6ec7c53baa470",
+  "environmentCommit": "9a6104eab0ea7ac191a09c24f3e2d79dcd66bda5",
+  "version": "1.11",
+  "environment": {
+    "kind": "docker",
+    "image": "swebench/sweb.eval.x86_64.sympy_1776_sympy-23117:latest",
+    "network": "none",
+    "cpus": 4,
+    "memoryMb": 8192
+  },
+  "budgetSeconds": 1800,
+  "failToPass": [
+    "test_issue_17851"
+  ],
+  "passToPass": [
+    "test_array_negative_indices",
+    "test_issue_18361",
+    "test_issue_20222"
+  ],
+  "problemStatement": "sympy.Array([]) fails, while sympy.Matrix([]) works\nSymPy 1.4 does not allow to construct empty Array (see code below). Is this the intended behavior?\r\n\r\n```\r\n>>> import sympy\r\nKeyboardInterrupt\r\n>>> import sympy\r\n>>> from sympy import Array\r\n>>> sympy.__version__\r\n'1.4'\r\n>>> a = Array([])\r\nTraceback (most recent call last):\r\n  File \"<stdin>\", line 1, in <module>\r\n  File \"/Users/hcui7/miniconda3/envs/a/lib/python3.7/site-packages/sympy/tensor/array/dense_ndim_array.py\", line 130, in __new__\r\n    return cls._new(iterable, shape, **kwargs)\r\n  File \"/Users/hcui7/miniconda3/envs/a/lib/python3.7/site-packages/sympy/tensor/array/dense_ndim_array.py\", line 136, in _new\r\n    shape, flat_list = cls._handle_ndarray_creation_inputs(iterable, shape, **kwargs)\r\n  File \"/Users/hcui7/miniconda3/envs/a/lib/python3.7/site-packages/sympy/tensor/array/ndim_array.py\", line 142, in _handle_ndarray_creation_inputs\r\n    iterable, shape = cls._scan_iterable_shape(iterable)\r\n  File \"/Users/hcui7/miniconda3/envs/a/lib/python3.7/site-packages/sympy/tensor/array/ndim_array.py\", line 127, in _scan_iterable_shape\r\n    return f(iterable)\r\n  File \"/Users/hcui7/miniconda3/envs/a/lib/python3.7/site-packages/sympy/tensor/array/ndim_array.py\", line 120, in f\r\n    elems, shapes = zip(*[f(i) for i in pointer])\r\nValueError: not enough values to unpack (expected 2, got 0)\r\n```\r\n\r\n@czgdp1807 \n"
+}

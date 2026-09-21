@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "harness": "swebench",
+  "dataset": "SWE-bench/SWE-bench_Lite",
+  "datasetRevision": "b0dde1093fe417d83b7184254edf8199c1f0dff5",
+  "instance": "sphinx-doc__sphinx-10325",
+  "repo": "sphinx-doc/sphinx",
+  "baseCommit": "7bdc11e87c7d86dcc2a087eccb7a7c129a473415",
+  "environmentCommit": "60775ec4c4ea08509eee4b564cbf90f316021aff",
+  "version": "5.0",
+  "environment": {
+    "kind": "docker",
+    "image": "swebench/sweb.eval.x86_64.sphinx-doc_1776_sphinx-10325:latest",
+    "network": "none",
+    "cpus": 4,
+    "memoryMb": 8192
+  },
+  "budgetSeconds": 1800,
+  "failToPass": [
+    "tests/test_ext_autodoc_automodule.py::test_automodule_inherited_members"
+  ],
+  "passToPass": [
+    "tests/test_ext_autodoc_automodule.py::test_empty_all",
+    "tests/test_ext_autodoc_automodule.py::test_automodule",
+    "tests/test_ext_autodoc_automodule.py::test_automodule_undoc_members",
+    "tests/test_ext_autodoc_automodule.py::test_automodule_special_members",
+    "tests/test_ext_autodoc_automodule.py::test_subclass_of_mocked_object"
+  ],
+  "problemStatement": "inherited-members should support more than one class\n**Is your feature request related to a problem? Please describe.**\r\nI have two situations:\r\n- A class inherits from multiple other classes. I want to document members from some of the base classes but ignore some of the base classes\r\n- A module contains several class definitions that inherit from different classes that should all be ignored (e.g., classes that inherit from list or set or tuple). I want to ignore members from list, set, and tuple while documenting all other inherited members in classes in the module.\r\n\r\n**Describe the solution you'd like**\r\nThe :inherited-members: option to automodule should accept a list of classes. If any of these classes are encountered as base classes when instantiating autoclass documentation, they should be ignored.\r\n\r\n**Describe alternatives you've considered**\r\nThe alternative is to not use automodule, but instead manually enumerate several autoclass blocks for a module. This only addresses the second bullet in the problem description and not the first. It is also tedious for modules containing many class definitions.\r\n\r\n\n"
+}

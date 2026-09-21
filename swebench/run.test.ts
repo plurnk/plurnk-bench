@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { candidateArgv, exceptionInfo, extractPlurnkDoc } from "./run.ts";
+import { candidateArgv, exceptionInfo, extractPlurnkDoc, taskPrompt } from "./run.ts";
 
 test("[§swebench] the candidate runs the ordinary client: --json, --auto, the task prompt after --", () => {
     assert.deepEqual(candidateArgv("/runs/run1/repo", 1680, "Fix the missing-data crash"), [
@@ -37,4 +37,25 @@ test("[§swebench-trial] only a clean exit is a clean trial: a timeout, a spawn 
     assert.equal(spawnFailed?.exception_message, "spawn ENOENT");
     assert.equal(exceptionInfo({ status: 1, signal: null, timedOut: false }, 1680)?.exception_message, "the client exited 1");
     assert.equal(exceptionInfo({ status: null, signal: "SIGKILL", timedOut: false }, 1680)?.exception_message, "the client exited SIGKILL");
+});
+
+test("[§swebench-conditions] the task prompt keeps the official shape and names the agentic deliverable", () => {
+    const statement = "  When DEBUG is True, raising Http404 in a path converter does not help.  ";
+    const prompt = taskPrompt(statement);
+    // The official style-3 shape: premise, the issue delimited, then the deliverable.
+    assert.match(prompt, /^You will be provided with an issue statement explaining a problem to resolve\./u);
+    assert.match(prompt, /<issue>\nWhen DEBUG is True[^\n]*help\.\n<\/issue>/u, "the statement is delimited and trimmed, never reflowed");
+    assert.ok(prompt.trimEnd().endsWith("fix."), "the deliverable is the closing instruction");
+    // Neither addition the official prompt declines to make: no brevity ask, no test warning.
+    assert.ok(!/smallest|minimal|brief|concise/iu.test(prompt), "no brevity ask — scope is not size");
+    // The eval script resets test files before applying the test patch, so tampering is already
+    // inert: naming it would only make it salient.
+    assert.ok(!/test/iu.test(prompt.split("</issue>")[1] ?? ""), "the instruction does not mention tests");
+    // The failure this exists to prevent: a diagnosis is not a patch.
+    assert.match(prompt, /an explanation of the fix is not a\nfix/u);
+    // It must not coach the op language — plurnk.md owns that, and coaching would not be the
+    // harness under test any more.
+    for (const op of ["EDIT", "FIND", "READ", "SEND", "NOTE", "backtick"]) {
+        assert.ok(!prompt.includes(op), `the task prompt must not teach ${op}`);
+    }
 });

@@ -1,16 +1,16 @@
 // SPEC §swebench-corpus. Draw the campaign's task sample from the official Lite dataset
 // reproducibly: a seed plus a plain hash order, never an RNG whose stream can drift between
 // library versions. The draw is a CORPUS record — ids, dataset identity, algorithm, seed — so a
-// later run is reproducible or restrictable to exactly the same tasks. Until the HarnessTax study
-// publishes its own 30 ids (it ships them with the profiling traces), this is OUR sample:
-// a declared shape, not parity.
+// later run is reproducible or restrictable to exactly the same tasks. A seeded draw is OUR
+// sample — a declared shape, not parity. Parity needs the study to name its own ids, which
+// --cited takes verbatim and verifies against the split.
 //
 // usage: node swebench/sample.ts --label <name> [--seed <s>] [--count 30]
-//          [--mode uniform|stratified] [--out swebench/corpora/<label>.json] [--pin]
+//          [--mode uniform|stratified] [--cited <file>] [--out swebench/corpora/<label>.json] [--pin]
 
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
@@ -20,7 +20,22 @@ const moduleDir = dirname(fileURLToPath(import.meta.url));
 const benchRoot = resolve(moduleDir, "..");
 const python = process.env.PLURNK_SWEBENCH_PYTHON ?? resolve(benchRoot, ".cache/swebench/venv/bin/python");
 
-export type SampleMode = "uniform" | "stratified";
+// "cited" is not a draw: a published study names its own ids, so the corpus records WHERE they
+// came from instead of how they were picked. Parity with such a study is impossible under any
+// seed — {§swebench-corpus}.
+export type SampleMode = "uniform" | "stratified" | "cited";
+
+export interface CorpusCitation {
+    readonly study: string;
+    readonly url: string;
+    readonly repository: string;
+    readonly commit: string;
+    readonly cohort: string;
+    readonly datasetRevision: string;
+    readonly attemptsPerTask: number;
+    readonly turnCap: number;
+    readonly brief: string;
+}
 
 export interface CorpusRecord {
     readonly schemaVersion: 1;
@@ -28,7 +43,8 @@ export interface CorpusRecord {
     readonly dataset: string;
     readonly label: string;
     readonly mode: SampleMode;
-    readonly seed: string;
+    readonly seed?: string;
+    readonly source?: CorpusCitation;
     readonly count: number;
     readonly instances: readonly string[];
     readonly repos: Readonly<Record<string, number>>;
@@ -80,6 +96,21 @@ export const stratifiedDraw = (
     return drawn.toSorted();
 };
 
+// A cited corpus is VERIFIED against the dataset, never drawn from it: an id the split does not
+// carry means the citation is stale, and parity is then a claim we cannot make. Refuse loudly
+// rather than quietly run a corpus that is 29 of the study's 30.
+export const citedInstances = (
+    tasks: ReadonlyArray<{ readonly instance_id: string }>,
+    known: ReadonlySet<string>,
+): string[] => {
+    const ids = tasks.map(({ instance_id }) => instance_id);
+    const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
+    if (duplicates.length > 0) throw new Error(`cited corpus repeats ${[...new Set(duplicates)].join(", ")}`);
+    const missing = ids.filter((id) => !known.has(id));
+    if (missing.length > 0) throw new Error(`cited instances absent from the dataset: ${missing.join(", ")}`);
+    return ids.toSorted();
+};
+
 export const repoCounts = (instances: readonly string[], repoOf: (instance: string) => string): Record<string, number> => {
     const counts: Record<string, number> = {};
     for (const instance of instances) {
@@ -114,6 +145,7 @@ const main = (): void => {
             count: { type: "string" },
             mode: { type: "string" },
             out: { type: "string" },
+            cited: { type: "string" },
             pin: { type: "boolean", default: false },
         },
         allowPositionals: false,
@@ -126,8 +158,11 @@ const main = (): void => {
     const seed = values.seed ?? label;
     const count = values.count === undefined ? 30 : Number(values.count);
     if (!Number.isSafeInteger(count) || count <= 0) throw new Error("--count must be a positive integer");
-    const mode = (values.mode ?? "uniform") as SampleMode;
-    if (mode !== "uniform" && mode !== "stratified") throw new Error("--mode must be uniform or stratified");
+    const mode = (values.cited !== undefined ? "cited" : values.mode ?? "uniform") as SampleMode;
+    if (mode !== "uniform" && mode !== "stratified" && mode !== "cited") {
+        throw new Error("--mode must be uniform, stratified or cited");
+    }
+    if (mode === "cited" && values.cited === undefined) throw new Error("--mode cited requires --cited <file>");
 
     const rows = loadCorpus();
     const ids = rows.map((row) => row.instance_id);
@@ -135,14 +170,24 @@ const main = (): void => {
     const repoOf = (instance: string): string => repo.get(instance) ?? "unknown";
     if (count > ids.length) throw new Error(`--count ${count} exceeds the ${ids.length} dataset instances`);
 
-    const instances = mode === "uniform" ? uniformDraw(ids, seed, count) : stratifiedDraw(ids, repoOf, seed, count);
+    // A cited corpus is verified against the dataset rather than drawn from it: every named id
+    // must exist in the split, or the citation is stale and parity is a claim we cannot make.
+    const cited = values.cited === undefined
+        ? null
+        : JSON.parse(readFileSync(resolve(benchRoot, values.cited), "utf8")) as {
+            cited: CorpusCitation;
+            tasks: ReadonlyArray<{ instance_id: string }>;
+        };
+    const instances = cited !== null
+        ? citedInstances(cited.tasks, new Set(ids))
+        : mode === "uniform" ? uniformDraw(ids, seed, count) : stratifiedDraw(ids, repoOf, seed, count);
     const record: CorpusRecord = {
         schemaVersion: 1,
         harness: "swebench",
         dataset: DATASET,
         label,
         mode,
-        seed,
+        ...(cited === null ? { seed } : { source: cited.cited }),
         count: instances.length,
         instances,
         repos: repoCounts(instances, repoOf),
@@ -150,7 +195,7 @@ const main = (): void => {
     const out = resolve(benchRoot, values.out ?? join("swebench", "corpora", `${label}.json`));
     mkdirSync(dirname(out), { recursive: true });
     writeFileSync(out, `${JSON.stringify(record, null, 2)}\n`);
-    console.log(`wrote ${out} (${instances.length} ${mode}, seed ${JSON.stringify(seed)})`);
+    console.log(`wrote ${out} (${instances.length} ${mode}, ${cited === null ? `seed ${JSON.stringify(seed)}` : `cited ${cited.cited.commit.slice(0, 12)}`})`);
     console.log(JSON.stringify(record.repos, null, 2));
 
     if (values.pin === true) {

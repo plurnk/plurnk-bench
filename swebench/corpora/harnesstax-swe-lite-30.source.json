@@ -1,0 +1,286 @@
+{
+  "cited": {
+    "study": "HarnessTax: How Much Does the Harness Matter for Coding Agents?",
+    "url": "https://harnesstax.github.io/",
+    "repository": "harnesstax/harnesstax.github.io",
+    "commit": "fe4512fe112d13da52dd26e6d0fe99a4debff332",
+    "cohort": "swe:all-arena-v14",
+    "datasetRevision": "6ec7bb89b9342f664a54a6e0a6ea6501d3437cc2",
+    "attemptsPerTask": 3,
+    "turnCap": 100,
+    "brief": "~/ptl/ht-k3-swe.md (hyzen_claude, 2026-09-20)",
+    "note": "The study identity, its task set, its protocol constants, and its K3 per-task baselines. attemptsPerTask and turnCap are the STUDY protocol a campaign must match to claim parity, not our choices. The route (model, effort, provider) is named per campaign."
+  },
+  "tasks": [
+    {
+      "instance_id": "astropy__astropy-7746",
+      "base_commit": "d5bd3f68bb6d5ce3a61bdce9883ee750d1afade5",
+      "k3": {
+        "cc": 0,
+        "codex": 0,
+        "pi": 0
+      }
+    },
+    {
+      "instance_id": "django__django-11019",
+      "base_commit": "93e892bb645b16ebaf287beb5fe7f3ffe8d10408",
+      "k3": {
+        "cc": 1,
+        "codex": 0,
+        "pi": 0
+      }
+    },
+    {
+      "instance_id": "django__django-11564",
+      "base_commit": "580e644f24f1c5ae5b94784fb73a9953a178fd26",
+      "k3": {
+        "cc": 0,
+        "codex": 0,
+        "pi": 1
+      }
+    },
+    {
+      "instance_id": "django__django-11620",
+      "base_commit": "514efa3129792ec2abb2444f3e7aeb3f21a38386",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    },
+    {
+      "instance_id": "django__django-11630",
+      "base_commit": "65e86948b80262574058a94ccaae3a9b59c3faea",
+      "k3": {
+        "cc": 0,
+        "codex": 0,
+        "pi": 0
+      }
+    },
+    {
+      "instance_id": "django__django-11815",
+      "base_commit": "e02f67ef2d03d48128e7a118bf75f0418e24e8ac",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    },
+    {
+      "instance_id": "django__django-12308",
+      "base_commit": "2e0f04507b17362239ba49830d26fec504d46978",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    },
+    {
+      "instance_id": "django__django-12497",
+      "base_commit": "a4881f5e5d7ee38b7e83301331a0b4962845ef8a",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    },
+    {
+      "instance_id": "django__django-12747",
+      "base_commit": "c86201b6ed4f8256b0a0520c08aa674f623d4127",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    },
+    {
+      "instance_id": "django__django-14608",
+      "base_commit": "7f33c1e22dbc34a7afae7967783725b10f1f13b1",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    },
+    {
+      "instance_id": "django__django-15400",
+      "base_commit": "4c76ffc2d6c77c850b4bef8d9acc197d11c47937",
+      "k3": {
+        "cc": 1,
+        "codex": 1,
+        "pi": 2
+      }
+    },
+    {
+      "instance_id": "django__django-15819",
+      "base_commit": "877c800f255ccaa7abde1fb944de45d1616f5cc9",
+      "k3": {
+        "cc": 2,
+        "codex": 1,
+        "pi": 0
+      }
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-24334",
+      "base_commit": "332937997d03e0c173be6d9fc1841e9186e857df",
+      "k3": {
+        "cc": 1,
+        "codex": 1,
+        "pi": 2
+      }
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-25433",
+      "base_commit": "7eafdd8af3c523c1c77b027d378fb337dd489f18",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    },
+    {
+      "instance_id": "psf__requests-1963",
+      "base_commit": "110048f9837f8441ea536804115e80b69f400277",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 2
+      }
+    },
+    {
+      "instance_id": "pylint-dev__pylint-5859",
+      "base_commit": "182cc539b8154c0710fcea7e522267e42eba8899",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    },
+    {
+      "instance_id": "pytest-dev__pytest-5103",
+      "base_commit": "10ca84ffc56c2dd2d9dc4bd71b7b898e083500cd",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    },
+    {
+      "instance_id": "pytest-dev__pytest-5495",
+      "base_commit": "1aefb24b37c30fba8fd79a744829ca16e252f340",
+      "k3": {
+        "cc": 1,
+        "codex": 3,
+        "pi": 0
+      }
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-13241",
+      "base_commit": "f8b108d0c6f2f82b2dc4e32a6793f9d9ac9cf2f4",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-14983",
+      "base_commit": "06632c0d185128a53c57ccc73b25b6408e90bb89",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-10325",
+      "base_commit": "7bdc11e87c7d86dcc2a087eccb7a7c129a473415",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8435",
+      "base_commit": "5d8d6275a54f2c5fb72b82383b5712c22d337634",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    },
+    {
+      "instance_id": "sympy__sympy-11400",
+      "base_commit": "8dcb12a6cf500e8738d6729ab954a261758f49ca",
+      "k3": {
+        "cc": 0,
+        "codex": 2,
+        "pi": 1
+      }
+    },
+    {
+      "instance_id": "sympy__sympy-14024",
+      "base_commit": "b17abcb09cbcee80a90f6750e0f9b53f0247656c",
+      "k3": {
+        "cc": 3,
+        "codex": 2,
+        "pi": 3
+      }
+    },
+    {
+      "instance_id": "sympy__sympy-14817",
+      "base_commit": "0dbdc0ea83d339936da175f8c3a97d0d6bafb9f8",
+      "k3": {
+        "cc": 3,
+        "codex": 0,
+        "pi": 0
+      }
+    },
+    {
+      "instance_id": "sympy__sympy-15345",
+      "base_commit": "9ef28fba5b4d6d0168237c9c005a550e6dc27d81",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    },
+    {
+      "instance_id": "sympy__sympy-16792",
+      "base_commit": "09786a173e7a0a488f46dd6000177c23e5d24eed",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    },
+    {
+      "instance_id": "sympy__sympy-20154",
+      "base_commit": "bdb49c4abfb35554a3c8ce761696ffff3bb837fe",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    },
+    {
+      "instance_id": "sympy__sympy-20590",
+      "base_commit": "cffd4e0f86fefd4802349a9f9b19ed70934ea354",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    },
+    {
+      "instance_id": "sympy__sympy-23117",
+      "base_commit": "c5cef2499d6eed024b0db5c792d6ec7c53baa470",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    }
+  ]
+}

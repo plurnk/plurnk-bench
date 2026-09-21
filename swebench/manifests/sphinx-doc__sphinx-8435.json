@@ -1,0 +1,41 @@
+{
+  "schemaVersion": 1,
+  "harness": "swebench",
+  "dataset": "SWE-bench/SWE-bench_Lite",
+  "datasetRevision": "b0dde1093fe417d83b7184254edf8199c1f0dff5",
+  "instance": "sphinx-doc__sphinx-8435",
+  "repo": "sphinx-doc/sphinx",
+  "baseCommit": "5d8d6275a54f2c5fb72b82383b5712c22d337634",
+  "environmentCommit": "3f560cd67239f75840cc7a439ab54d8509c855f6",
+  "version": "3.4",
+  "environment": {
+    "kind": "docker",
+    "image": "swebench/sweb.eval.x86_64.sphinx-doc_1776_sphinx-8435:latest",
+    "network": "none",
+    "cpus": 4,
+    "memoryMb": 8192
+  },
+  "budgetSeconds": 1800,
+  "failToPass": [
+    "tests/test_ext_autodoc_configs.py::test_autodoc_type_aliases"
+  ],
+  "passToPass": [
+    "tests/test_ext_autodoc_configs.py::test_autoclass_content_class",
+    "tests/test_ext_autodoc_configs.py::test_autoclass_content_init",
+    "tests/test_ext_autodoc_configs.py::test_autoclass_content_both",
+    "tests/test_ext_autodoc_configs.py::test_autodoc_inherit_docstrings",
+    "tests/test_ext_autodoc_configs.py::test_autodoc_docstring_signature",
+    "tests/test_ext_autodoc_configs.py::test_autoclass_content_and_docstring_signature_class",
+    "tests/test_ext_autodoc_configs.py::test_autoclass_content_and_docstring_signature_init",
+    "tests/test_ext_autodoc_configs.py::test_autoclass_content_and_docstring_signature_both",
+    "tests/test_ext_autodoc_configs.py::test_mocked_module_imports",
+    "tests/test_ext_autodoc_configs.py::test_autodoc_typehints_signature",
+    "tests/test_ext_autodoc_configs.py::test_autodoc_typehints_none",
+    "tests/test_ext_autodoc_configs.py::test_autodoc_typehints_none_for_overload",
+    "tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description",
+    "tests/test_ext_autodoc_configs.py::test_autodoc_typehints_description_for_invalid_node",
+    "tests/test_ext_autodoc_configs.py::test_autodoc_default_options",
+    "tests/test_ext_autodoc_configs.py::test_autodoc_default_options_with_values"
+  ],
+  "problemStatement": "autodoc_type_aliases does not effect to variables and attributes\n**Describe the bug**\r\nautodoc_type_aliases does not effect to variables and attributes\r\n\r\n**To Reproduce**\r\n\r\n```\r\n# example.py\r\nfrom __future__ import annotations\r\n\r\n\r\n#: blah blah blah\r\nvar: String\r\n\r\n\r\nclass MyString:\r\n    \"mystring\"\r\n\r\n    #: blah blah blah\r\n    var: String\r\n```\r\n```\r\n# index.rst\r\n.. automodule:: example\r\n   :members:\r\n   :undoc-members:\r\n```\r\n```\r\n# conf.py\r\nautodoc_type_aliases = {\r\n    'String': 'example.MyString'\r\n}\r\n```\r\n\r\n**Expected behavior**\r\n`autodoc_type_aliases` should be applied to `example.var` and `example.MyString.var`.\r\n\r\n**Your project**\r\nN/A\r\n\r\n**Screenshots**\r\nN/A\r\n\r\n**Environment info**\r\n- OS: Mac\r\n- Python version: 3.9.0\r\n- Sphinx version: HEAD of 3.x branch\r\n- Sphinx extensions: sphinx.ext.autodoc\r\n- Extra tools: Nothing\r\n\r\n**Additional context**\r\nN/A\n"
+}
