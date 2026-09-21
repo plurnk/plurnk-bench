@@ -15,7 +15,8 @@
     "cpus": 4,
     "memoryMb": 8192
   },
-  "budgetSeconds": 1800,
+  "budgetSeconds": 14400,
+  "turnCap": 100,
   "failToPass": [
     "test_serialize_class_based_validators (migrations.test_writer.WriterTests)",
     "test_serialize_enums (migrations.test_writer.WriterTests)"

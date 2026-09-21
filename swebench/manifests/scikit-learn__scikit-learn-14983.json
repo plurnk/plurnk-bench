@@ -15,7 +15,8 @@
     "cpus": 4,
     "memoryMb": 8192
   },
-  "budgetSeconds": 1800,
+  "budgetSeconds": 14400,
+  "turnCap": 100,
   "failToPass": [
     "sklearn/model_selection/tests/test_split.py::test_repeated_cv_repr[RepeatedKFold]",
     "sklearn/model_selection/tests/test_split.py::test_repeated_cv_repr[RepeatedStratifiedKFold]"

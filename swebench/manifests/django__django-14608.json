@@ -15,7 +15,8 @@
     "cpus": 4,
     "memoryMb": 8192
   },
-  "budgetSeconds": 1800,
+  "budgetSeconds": 14400,
+  "turnCap": 100,
   "failToPass": [
     "If validate_max is set and max_num is less than TOTAL_FORMS in the",
     "If validate_min is set and min_num is more than TOTAL_FORMS in the",

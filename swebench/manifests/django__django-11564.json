@@ -15,7 +15,8 @@
     "cpus": 4,
     "memoryMb": 8192
   },
-  "budgetSeconds": 1800,
+  "budgetSeconds": 14400,
+  "turnCap": 100,
   "failToPass": [
     "test_add_script_name_prefix (settings_tests.tests.MediaURLStaticURLPrefixTest)",
     "test_not_prefixed (settings_tests.tests.MediaURLStaticURLPrefixTest)"

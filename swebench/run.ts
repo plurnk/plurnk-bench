@@ -44,6 +44,7 @@ interface Manifest {
     readonly baseCommit: string;
     readonly environment: { readonly kind: string; readonly image: string; readonly network: string; readonly cpus: number; readonly memoryMb: number };
     readonly budgetSeconds: number;
+    readonly turnCap?: number;
     readonly problemStatement: string;
 }
 
@@ -88,11 +89,29 @@ export const taskPrompt = (problemStatement: string): string => [
 
 // SPEC §swebench-conditions: the candidate uses the ordinary `plurnk` client invocation —
 // the task prompt is one positional after `--`, with no family-specific candidate selector —
-// plus `--json` (keep the client's own document) and `--auto` (proposal authority in-loop).
-export const candidateArgv = (repository: string, timeout: number, instruction: string): string[] => [
+// plus `--json` (keep the client's own document) and the proposal disposition.
+//
+// `--auto` states ATTENDANCE only. An unattended loop that states no disposition falls to the
+// shipped `PLURNK_SERVICE_UNATTENDED_PROPOSALS=reject`, so every EDIT is proposed, finds no
+// reviewer, and is refused `no_review_channel` — the candidate cannot change a single file.
+// deepswe carries the same pair for the same reason (plurnk-bench#42); swebench never did, and
+// django__django-11620 spent four EDITs on rejected proposals before finishing with an empty patch.
+// The BOUND is the turn cap, which is the study's own ({§swebench-corpus} carries it as the
+// citation's `turnCap`): HarnessTax capped each attempt at 100 model turns and reported medians of
+// 28.5–35.5, so 100 is a runaway guard there too. The wall clock is NOT a budget — a rollout
+// truncated on seconds records a timeout where the study would have recorded a turn count, which
+// measures our impatience instead of the harness.
+export const candidateArgv = (
+    repository: string,
+    timeout: number,
+    instruction: string,
+    turnCap: number,
+): string[] => [
     "scripts/candidate.mjs",
     "--json",
     "--auto",
+    "--proposals", "accept",
+    "--max-turns", String(turnCap),
     "--project-root", repository,
     ...(timeout === -1 ? [] : ["--timeout", String(timeout)]),
     "--", instruction,
@@ -357,7 +376,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         };
         const stdoutPath = join(agentDir, "plurnk.stdout.log");
         const startedAt = new Date();
-        const result = await runToFiles(process.execPath, candidateArgv(repository, timeout, taskPrompt(manifest.problemStatement)), {
+        const result = await runToFiles(process.execPath, candidateArgv(repository, timeout, taskPrompt(manifest.problemStatement), manifest.turnCap ?? 100), {
             cwd: serviceRoot,
             env: candidateEnv,
             stdoutPath,

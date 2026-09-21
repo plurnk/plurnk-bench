@@ -43,8 +43,14 @@ if (missing.length > 0) throw new Error(`not in ${DATASET}: ${missing.join(", ")
 // lists (json.dumps emits arrays), while older revisions carry a JSON string.
 const asTestList = (value) => Array.isArray(value) ? value : JSON.parse(value);
 
-const BUDGET_SECONDS = Math.trunc(Number(process.env.PLURNK_SWEBENCH_BUDGET_SEC ?? 1800));
+// A RUNAWAY GUARD, not a budget. The bound on an attempt is the study's 100-turn cap; the wall
+// clock only catches a wedged container or a hung provider. 1800 s was invented here and bound
+// first — a 19-turn rtx5070 rollout hit it and recorded a timeout, which measured our impatience,
+// not the harness. Four hours is past any plausible 100-turn rollout on the slowest local route.
+const BUDGET_SECONDS = Math.trunc(Number(process.env.PLURNK_SWEBENCH_BUDGET_SEC ?? 14400));
 if (!(BUDGET_SECONDS > 0)) throw new Error("PLURNK_SWEBENCH_BUDGET_SEC must be a positive integer");
+const TURN_CAP = Math.trunc(Number(process.env.PLURNK_SWEBENCH_TURN_CAP ?? 100));
+if (!(TURN_CAP > 0)) throw new Error("PLURNK_SWEBENCH_TURN_CAP must be a positive integer");
 const CPUS = Math.trunc(Number(process.env.PLURNK_SWEBENCH_CPUS ?? 4));
 const MEMORY_MB = Math.trunc(Number(process.env.PLURNK_SWEBENCH_MEMORY_MB ?? 8192));
 if (!(CPUS > 0) || !(MEMORY_MB > 0)) throw new Error("PLURNK_SWEBENCH_CPUS/MEMORY_MB must be positive integers");
@@ -65,6 +71,7 @@ for (const instance of instances) {
         version: r.version,
         environment: { kind: "docker", image: r.image, network: "none", cpus: CPUS, memoryMb: MEMORY_MB },
         budgetSeconds: BUDGET_SECONDS,
+        turnCap: TURN_CAP,
         failToPass: asTestList(r.FAIL_TO_PASS),
         passToPass: asTestList(r.PASS_TO_PASS),
         problemStatement: r.problem_statement,

@@ -15,7 +15,8 @@
     "cpus": 4,
     "memoryMb": 8192
   },
-  "budgetSeconds": 1800,
+  "budgetSeconds": 14400,
+  "turnCap": 100,
   "failToPass": [
     "test_combine_media (forms_tests.tests.test_media.FormsMediaTestCase)",
     "test_construction (forms_tests.tests.test_media.FormsMediaTestCase)",
