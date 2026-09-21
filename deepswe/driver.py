@@ -183,9 +183,13 @@ class PlurnkAgent(BaseInstalledAgent):
             "NODE_USE_ENV_PROXY": "1",
         })
 
-        # DeepSWE posture: --auto keeps proposal authority in the loop. When the
-        # run has no Tavily route, the workspace capability ceiling removes web
-        # tools and their teaching from the model's environment.
+        # DeepSWE posture: nobody attends (--auto), and the disposition is stated
+        # (--proposals accept) because --auto states attendance only. An unattended
+        # loop that states nothing falls to PLURNK_SERVICE_UNATTENDED_PROPOSALS,
+        # which ships `reject` — every execution and EDIT is refused and the task
+        # cannot be solved. When the run has no Tavily route, the workspace
+        # capability ceiling removes web tools and their teaching from the model's
+        # environment.
         capability_args = ""
         if not self._tavily:
             capability_policy = {"deny": [{"traits": ["web"]}]}
@@ -214,7 +218,7 @@ for _ in $(seq 1 {DAEMON_READY_TIMEOUT_S}); do
   if plurnk models >/dev/null 2>&1; then break; fi
   sleep 1
 done
-plurnk --json --auto {capability_args}--project-root /app --timeout {self._client_timeout_sec} -- {escaped} \
+plurnk --json --auto --proposals accept {capability_args}--project-root /app --timeout {self._client_timeout_sec} -- {escaped} \
   > {shlex.quote(str(record))} 2> {shlex.quote(str(stderr))} || true
 cd /app
 git add -A

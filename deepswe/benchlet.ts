@@ -1657,7 +1657,11 @@ const main = async (signal?: AbortSignal): Promise<void> => {
     const instruction = isTreeManifest(manifest) ? treeInstruction(instructionSource, repository) : instructionSource;
     const candidateArgs = [
         "scripts/candidate.mjs",
+        // --auto states attendance only; an unattended loop that states no disposition
+        // falls to the shipped `reject` and cannot execute anything (plurnk-bench#42).
         "--auto",
+        "--proposals",
+        "accept",
         "--project-root",
         repository,
         ...(clientTimeout === -1 ? [] : ["--timeout", String(clientTimeout)]),

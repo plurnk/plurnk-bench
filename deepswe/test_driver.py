@@ -100,7 +100,7 @@ class DriverContractTest(unittest.TestCase):
 
         asyncio.run(agent.run("task", environment, object()))
 
-        self.assertIn("plurnk --json --auto ", environment.command)
+        self.assertIn("plurnk --json --auto --proposals accept ", environment.command)
         self.assertNotIn(" --yolo ", environment.command)
         self.assertIn("backup(source, process.argv[2])", environment.command)
         self.assertIn('${XDG_DATA_HOME:-$HOME/.local/share}/plurnk/plurnk.db', environment.command)
@@ -214,7 +214,12 @@ class DriverContractTest(unittest.TestCase):
 
         self.assertIn(" -- '- Update the display style property.' ", environment.command)
 
-    def test_default_run_denies_web_and_auto_accepts_proposals(self):
+    def test_default_run_denies_web_and_states_an_accepting_disposition(self):
+        # An unattended run must state its disposition. --auto states attendance only:
+        # a loop that states nothing falls to PLURNK_SERVICE_UNATTENDED_PROPOSALS, which
+        # ships `reject`, and every execution is refused. Asserting the flag alone is what
+        # let that change pass unnoticed on 2026-09-19 (plurnk-bench#42), so assert the
+        # disposition itself — the thing the daemon actually composes a policy from.
         agent = driver.PlurnkAgent()
         environment = types.SimpleNamespace()
 
@@ -223,6 +228,7 @@ class DriverContractTest(unittest.TestCase):
         self.assertIn(
             "--capabilities '{\"deny\": [{\"traits\": [\"web\"]}]}'", environment.command
         )
+        self.assertIn("--proposals accept", environment.command)
         self.assertIn("plurnk --json --auto ", environment.command)
         self.assertNotIn("--flags", environment.command)
 
