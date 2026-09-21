@@ -51,7 +51,7 @@ test("[§swebench-trial] only a clean exit is a clean trial: a timeout, a spawn 
     assert.equal(exceptionInfo({ status: null, signal: "SIGKILL", timedOut: false }, 1680)?.exception_message, "the client exited SIGKILL");
 });
 
-test("[§swebench-conditions] the task prompt keeps the official shape and names the agentic deliverable", () => {
+test("[§swebench-prompt] the task prompt keeps the official shape and names the agentic deliverable", () => {
     const statement = "  When DEBUG is True, raising Http404 in a path converter does not help.  ";
     const prompt = taskPrompt(statement);
     // The official style-3 shape: premise, the issue delimited, then the deliverable.

@@ -689,14 +689,30 @@ study's three harnesses.
   `{§benchlet-isolation}` seam (`src/candidate-isolation.ts`) — and web tools are
   removed with `PLURNK_EXECS_QUESTION=0` ({§config-unattended}).
 - §swebench-conditions The candidate uses the ordinary cascade
-  ({§config-model-default}); the study's "high effort" is
-  `PLURNK_PROVIDERS_REASONING_<alias>=high`. No positional or family-specific
-  candidate selector.
+  ({§config-model-default}); the study's effort setting is
+  `PLURNK_PROVIDERS_REASONING_<alias>`. No positional or family-specific
+  candidate selector. The invocation states a proposal **disposition**: `--auto` is
+  attendance only, so an unattended loop with none stated falls to the shipped
+  `PLURNK_SERVICE_UNATTENDED_PROPOSALS=reject` and every EDIT is refused
+  `no_review_channel` — the candidate cannot change one file (plurnk-bench#42).
+- §swebench-prompt The task prompt keeps the official style-3 shape
+  (`swebench/inference/make_datasets/create_instance.py`): premise, the statement
+  delimited by `<issue>`, then a closing instruction naming the deliverable. Only the
+  deliverable changes — the repository is live, so the edit IS the patch. The official
+  package ships no agentic prompt; every harness writes its own, which is the variable
+  the study measures, so the text is recorded per trial in `provenance.json` and
+  declared the way {§swebench-cost} declares the price schedule. It names no operation
+  and teaches no grammar (`plurnk.md` owns that), asks for no brevity (scope is not
+  size), and says nothing about the tests (the eval script resets them to the base
+  commit *before* applying the test patch, so tampering is already inert).
 - §swebench-profiles 3 attempts × 30 tasks under `PLURNK_BENCH_JOBS`;
   `BenchRecord.turns` carries plurnk's own count and is declared harness-different
-  ({§turns-provenance}).
+  ({§turns-provenance}). The bound on an attempt is the study's **turn cap**, carried
+  by the manifest and by the corpus citation; the wall clock is a runaway guard set
+  far above any plausible rollout. A rollout truncated on seconds records a timeout
+  where the study would have recorded a turn count.
 - §swebench-cost The study's fixed direct-API price list is a declared confound
   against `plurnk-models` catalog rates; spend evidence is the daemon's own
   accounting ({§record-serial}, {§digest-boundary}).
 
-Covered: `swebench/evaluator.test.ts [§swebench-evaluator]`, `swebench/run.test.ts [§swebench] [§swebench-trial]`, `swebench/sample.test.ts [§swebench-corpus]`, `src/candidate-isolation.test.ts [§benchlet-isolation]`.
+Covered: `swebench/evaluator.test.ts [§swebench-evaluator]`, `swebench/run.test.ts [§swebench] [§swebench-trial] [§swebench-conditions] [§swebench-prompt] [§swebench-profiles]`, `swebench/sample.test.ts [§swebench-corpus]`, `src/candidate-isolation.test.ts [§benchlet-isolation]`.

@@ -55,25 +55,7 @@ interface CommandResult {
     readonly error?: Error;
 }
 
-// SPEC §swebench-conditions. The official package ships prompt styles for the NON-agentic
-// setting only (`swebench/inference/make_datasets/create_instance.py`): they paste file contents
-// inline and ask for a patch as text. Their shape is the standard and is kept — premise, the
-// issue delimited by <issue>, then a closing instruction naming the deliverable. What changes is
-// the deliverable itself: the repository is live here, so the edit IS the patch. No agentic
-// prompt exists in the package; every harness writes its own, which is the variable HarnessTax
-// measures, so this text is recorded with the results rather than treated as neutral.
-//
-// Naming the deliverable is load-bearing, not decoration: handed the bare problem statement, the
-// candidate diagnosed django__django-11620 correctly across 23 FIND/READ operations and then
-// SENT the diagnosis, which concluded the loop with an empty patch.
-//
-// Two clauses were tried and removed, both additions the official prompt does not make:
-//   - "leave the tests unmodified" — the eval script resets the test files to the base commit
-//     BEFORE applying the test patch, so editing them is already inert; a warning would only
-//     spend tokens making tampering salient.
-//   - "make the smallest change" — that reads as a request for brevity and invites an
-//     incomplete fix. Scope is not size, and style-3 asks for neither.
-// What remains is style-3 exactly: premise, issue, deliverable.
+// {§swebench-prompt} — the official style-3 shape, with the agentic deliverable.
 export const taskPrompt = (problemStatement: string): string => [
     "You will be provided with an issue statement explaining a problem to resolve.",
     "The repository is checked out at the project root: the code base is live, not a listing.",
@@ -87,20 +69,8 @@ export const taskPrompt = (problemStatement: string): string => [
     "fix.",
 ].join("\n");
 
-// SPEC §swebench-conditions: the candidate uses the ordinary `plurnk` client invocation —
-// the task prompt is one positional after `--`, with no family-specific candidate selector —
-// plus `--json` (keep the client's own document) and the proposal disposition.
-//
-// `--auto` states ATTENDANCE only. An unattended loop that states no disposition falls to the
-// shipped `PLURNK_SERVICE_UNATTENDED_PROPOSALS=reject`, so every EDIT is proposed, finds no
-// reviewer, and is refused `no_review_channel` — the candidate cannot change a single file.
-// deepswe carries the same pair for the same reason (plurnk-bench#42); swebench never did, and
-// django__django-11620 spent four EDITs on rejected proposals before finishing with an empty patch.
-// The BOUND is the turn cap, which is the study's own ({§swebench-corpus} carries it as the
-// citation's `turnCap`): HarnessTax capped each attempt at 100 model turns and reported medians of
-// 28.5–35.5, so 100 is a runaway guard there too. The wall clock is NOT a budget — a rollout
-// truncated on seconds records a timeout where the study would have recorded a turn count, which
-// measures our impatience instead of the harness.
+// {§swebench-conditions} {§swebench-profiles} — ordinary client invocation, stated disposition,
+// and the study's turn cap as the bound.
 export const candidateArgv = (
     repository: string,
     timeout: number,
@@ -416,9 +386,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             baseCommit: manifest.baseCommit,
             timeoutSeconds: timeout,
             repository,
-            // The agentic framing is a harness choice, not a benchmark constant ({§swebench-conditions}):
-            // record it verbatim so a comparison declares it the way {§swebench-cost} declares the
-            // price schedule, instead of leaving a reader to infer it from a source revision.
+            // {§swebench-prompt}: the framing is a harness choice, so it is declared per trial.
             taskPrompt: taskPrompt(manifest.problemStatement),
             candidate: { status: result.status, signal: result.signal, timedOut: result.timedOut },
         };
