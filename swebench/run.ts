@@ -66,7 +66,8 @@ export const taskPrompt = (problemStatement: string): string => [
     "",
     "Resolve the issue by changing the repository. The deliverable is the change itself — the",
     "working tree's diff is what is collected and graded, so an explanation of the fix is not a",
-    "fix.",
+    "fix. Before concluding, confirm that the working tree carries your change, for example by",
+    "reading its diff.",
 ].join("\n");
 
 // {§swebench-conditions} {§swebench-profiles} — ordinary client invocation, stated disposition,

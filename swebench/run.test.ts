@@ -57,7 +57,9 @@ test("[§swebench-prompt] the task prompt keeps the official shape and names the
     // The official style-3 shape: premise, the issue delimited, then the deliverable.
     assert.match(prompt, /^You will be provided with an issue statement explaining a problem to resolve\./u);
     assert.match(prompt, /<issue>\nWhen DEBUG is True[^\n]*help\.\n<\/issue>/u, "the statement is delimited and trimmed, never reflowed");
-    assert.ok(prompt.trimEnd().endsWith("fix."), "the deliverable is the closing instruction");
+    assert.ok(prompt.trimEnd().endsWith("reading its diff."), "the deliverable, then the working-tree check, close the prompt");
+    // plurnk-bench#44 — two confabulated completions shipped no patch; the prompt asks for the check.
+    assert.match(prompt, /Before concluding, confirm that the working tree carries your change/u);
     // Neither addition the official prompt declines to make: no brevity ask, no test warning.
     assert.ok(!/smallest|minimal|brief|concise/iu.test(prompt), "no brevity ask — scope is not size");
     // The eval script resets test files before applying the test patch, so tampering is already
