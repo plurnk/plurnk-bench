@@ -115,7 +115,9 @@ main() {
     export -f run_one
     # Every lane shares one frozen checkout and candidate.mjs builds per trial: concurrent
     # `build:clean` steps wipe each other's dist. Build both lanes once here; the lanes skip it.
-    if [ "$preflight" = 0 ]; then
+    # An exported PLURNK_CANDIDATE_SKIP_BUILD says the lanes are built already (another campaign
+    # may be running from them): honor it, never rebuild beneath a live trial.
+    if [ "$preflight" = 0 ] && [ -z "${PLURNK_CANDIDATE_SKIP_BUILD:-}" ]; then
         echo "campaign: building $service_root and $client_root once" >&2
         (cd "$service_root" && npm run -s build > "$campaign/logs/build-service-$launch.log" 2>&1) || { echo "campaign: service build failed, see $campaign/logs/build-service-$launch.log" >&2; exit 1; }
         (cd "$client_root" && npm run -s build > "$campaign/logs/build-client-$launch.log" 2>&1) || { echo "campaign: client build failed, see $campaign/logs/build-client-$launch.log" >&2; exit 1; }
