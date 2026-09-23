@@ -724,5 +724,15 @@ study's three harnesses.
 - §swebench-cost The study's fixed direct-API price list is a declared confound
   against `plurnk-models` catalog rates; spend evidence is the daemon's own
   accounting ({§record-serial}, {§digest-boundary}).
+- §swebench-comparison The sheet's statistics section reads one campaign the study's way:
+  attempts averaged within each task, then across tasks; 95% intervals from 10,000
+  bootstrap resamples of tasks under a declared seed (`swebench/comparison.ts` over a
+  hash-seeded generator of our own in `src/statistics.ts`, so one seed reads the same
+  intervals anywhere); each K3 baseline the corpus source carries ({§swebench-corpus})
+  compared per task, paired, by a sign-flip permutation test with Holm correction, with
+  task wins, losses and ties; cost per solve as total spend over resolved rollouts; tokens,
+  model calls and loop turns as medians per rollout. The per-task matrix sets the campaign's
+  rate beside each baseline's successes of three. The section follows friction, verdicts
+  and spend; dollars stay approximate under {§swebench-cost}.
 
-Covered: `swebench/evaluator.test.ts [§swebench-evaluator]`, `swebench/run.test.ts [§swebench] [§swebench-trial] [§swebench-conditions] [§swebench-prompt] [§swebench-profiles]`, `swebench/sample.test.ts [§swebench-corpus]`, `swebench/plan.test.ts [§swebench-profiles]`, `swebench/report.test.ts [§swebench-profiles] [§swebench-trial] [§benchlet-isolation]`, `src/candidate-isolation.test.ts [§benchlet-isolation]`.
+Covered: `swebench/evaluator.test.ts [§swebench-evaluator]`, `swebench/run.test.ts [§swebench] [§swebench-trial] [§swebench-conditions] [§swebench-prompt] [§swebench-profiles]`, `swebench/sample.test.ts [§swebench-corpus]`, `swebench/plan.test.ts [§swebench-profiles]`, `swebench/report.test.ts [§swebench-profiles] [§swebench-trial] [§swebench-comparison] [§benchlet-isolation]`, `swebench/comparison.test.ts [§swebench-comparison] [§swebench-corpus]`, `src/statistics.test.ts [§swebench-comparison]`, `src/candidate-isolation.test.ts [§benchlet-isolation]`.

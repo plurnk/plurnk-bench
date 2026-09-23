@@ -11,6 +11,7 @@ import { readTrialDir } from "../src/ingest.ts";
 import { PUBLISHED_MARKER } from "../src/publish.ts";
 import { summarizeDigestAccounting, type DigestAccountingInput } from "../src/accounting.ts";
 import { median } from "../src/statistics.ts";
+import { baselinesFor, compareBaselines, renderComparison, type Comparison } from "./comparison.ts";
 
 export interface TrialRow {
     readonly instance: string;
@@ -195,7 +196,7 @@ const num = (value: number | null): string => value === null ? "—" : String(Ma
 const minutes = (ms: number | null): string => ms === null ? "—" : `${(ms / 60_000).toFixed(1)}m`;
 const pairs = (record: Readonly<Record<string, number>>): string => Object.entries(record).map(([key, n]) => `${key} ${n}`).join(", ") || "none";
 
-export const render = (campaign: { corpus?: string; model?: string | null; serviceHead?: string; clientHead?: string; ids?: string[] }, rows: readonly TrialRow[], summary: CampaignSummary): string => [
+export const render = (campaign: { corpus?: string; model?: string | null; serviceHead?: string; clientHead?: string; ids?: string[] }, rows: readonly TrialRow[], summary: CampaignSummary, comparison: Comparison | null = null): string => [
     `# swebench campaign — ${campaign.corpus ?? "?"} on ${campaign.model ?? "preflight"}`,
     "",
     `service ${(campaign.serviceHead ?? "?").slice(0, 12)} · client ${(campaign.clientHead ?? "?").slice(0, 12)} · ${summary.trials} trials of ${campaign.ids?.length ?? "?"} instances`,
@@ -218,6 +219,8 @@ export const render = (campaign: { corpus?: string; model?: string | null; servi
     "",
     `- total ${usd(summary.spend.totalUsd)} · median per rollout ${usd(summary.spend.medianCostUsd)} · median gross tokens ${num(summary.spend.medianGrossTokens)} · median turns ${num(summary.spend.medianTurns)} · median wall ${minutes(summary.spend.medianWallMs)}`,
     "",
+    // {§swebench-comparison} — the study's statistics, after friction, verdicts and spend, before the rows.
+    ...(comparison === null ? [] : renderComparison(comparison, `Plurnk · ${campaign.model ?? "?"}`)),
     "## Trials",
     "",
     "| instance | att | outcome | loop | reward | empty | turns | req | in | cached | out | reason | cost | wall | web | mcp | refused | exception |",
@@ -256,6 +259,8 @@ if (import.meta.main) {
         .map((line) => { const [instance, attempt, rc, trial] = line.split("\t"); return { instance: instance!, attempt: Number(attempt), rc: Number(rc), trial: trial ?? "" }; });
     const rows = latestLaunches(launched).flatMap(({ trial, attempt }) => { const row = trial === "" ? null : readTrialRow(trial, attempt); return row === null ? [] : [row]; });
     const summary = summarize(rows);
-    if (values.json) console.log(JSON.stringify({ campaign, launched, rows, summary }, null, 2));
-    else process.stdout.write(render(campaign, rows, summary));
+    const baselines = campaign.corpus === undefined ? null : baselinesFor(campaign.corpus);
+    const comparison = baselines === null ? null : compareBaselines(rows, baselines);
+    if (values.json) console.log(JSON.stringify({ campaign, launched, rows, summary, comparison }, null, 2));
+    else process.stdout.write(render(campaign, rows, summary, comparison));
 }

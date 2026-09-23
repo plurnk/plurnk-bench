@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { emptyTurnsOf, latestLaunches, render, summarize, verdictOf, webReferencesTaught, type TrialRow } from "./report.ts";
+import { compareBaselines } from "./comparison.ts";
 
 const row = (over: Partial<TrialRow>): TrialRow => ({
     instance: "django__django-11620", attempt: 1, model: "deepdumb", outcome: "fail", loopStatus: 200, reward: 0, emptyPatch: false, exception: null,
@@ -36,6 +37,10 @@ test("[§swebench-profiles] the campaign sheet counts friction before verdicts, 
     assert.match(sheet, /indecipherable turns \(no fence emitted\): 3/);
     assert.match(sheet, /2 web references taught, 5 model-issued web operations attempted, 3 served/);
     assert.match(sheet, /resolved 1 of 2 graded \(50\.0%\)/);
+    // {§swebench-comparison} — with baselines the statistics section sits after spend, before the rows.
+    const compared = render({ corpus: "harnesstax-swe-lite-30", model: "deepdumb", ids: ["a", "b", "c"] }, rows, summary, compareBaselines(rows, new Map([["django__django-11620", { cc: 3, codex: 3, pi: 3 }]]), { resamples: 100, seed: "t" }));
+    assert.match(compared, /## Spend[\s\S]*## Statistics[\s\S]*\| Plurnk · deepdumb \|[\s\S]*## Trials/, "friction, verdicts, spend, statistics, rows");
+    assert.ok(!sheet.includes("## Statistics"), "no baselines, no statistics section");
 });
 
 test("[§benchlet-isolation] the teaching check reads the first packet the model saw and counts only web scheme references", (t) => {
