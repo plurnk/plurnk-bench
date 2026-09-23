@@ -334,7 +334,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         // the operator's MCP/A2A definitions are masked, search credentials blanked,
         // and the daemon's web schemes admit no host.
         const isolation = candidateIsolation(Object.keys(process.env));
-        writeJson(join(trialDir, "candidate-isolation.json"), { masked: isolation.masked, webHosts: [] });
+        writeJson(join(trialDir, "candidate-isolation.json"), { masked: isolation.masked, webHosts: [], capabilities: isolation.capabilities });
         const candidateEnv: NodeJS.ProcessEnv = {
             ...process.env,
             PATH: binDir + ":" + (process.env.PATH ?? ""),

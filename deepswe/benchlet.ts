@@ -1684,7 +1684,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
     writeJson(resolve(runDir, "candidate-execution.json"), containerExec.record);
     // {§benchlet-isolation} — the candidate reaches no network beyond its model.
     const isolation = candidateIsolation([...envFileKeyNames(operatorEnv), ...Object.keys(process.env)]);
-    writeJson(resolve(runDir, "candidate-isolation.json"), { masked: isolation.masked, webHosts: [] });
+    writeJson(resolve(runDir, "candidate-isolation.json"), { masked: isolation.masked, webHosts: [], capabilities: isolation.capabilities });
     const candidateEnvironmentOverrides = {
         ...isolation.overrides,
         ...containerExec.env,

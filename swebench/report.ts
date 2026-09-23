@@ -1,8 +1,10 @@
 // {§swebench-profiles} — one campaign directory (swebench/campaign.sh) read into one sheet, friction
 // first: refused operations by family, empty patches, harness exceptions, the isolation witness
-// (model-issued web reads and MCP calls), then the oracle verdicts, then spend. Every number comes
-// from the trial's own record and the daemon's digest ({§digest-boundary}); nothing is re-derived.
-import { existsSync, readFileSync } from "node:fs";
+// (web references the first packet taught, model-issued web reads, MCP calls), then the oracle
+// verdicts, then spend. Every number comes from the trial's own record and the daemon's digest
+// ({§digest-boundary}); nothing is re-derived. `--verdict <trial>` is the loop's halt rule: only a
+// clean pass, oracle resolved and client exited 0, lets the campaign spend on the next trial.
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { readTrialDir } from "../src/ingest.ts";
@@ -25,6 +27,7 @@ export interface TrialRow {
     readonly tokens: { readonly input: number; readonly cached: number; readonly output: number; readonly reasoning: number } | null;
     readonly costUsd: number | null;
     readonly wallMs: number | null;
+    readonly webReferences: number; // web scheme references the first packet taught: doors the model was shown
     readonly webAttempts: number;   // model-issued http(s) operations, whatever the receipt said
     readonly webReads: number;      // the ones that were served (status < 400): a real leak
     readonly mcpCalls: number;
@@ -38,7 +41,7 @@ export interface CampaignSummary {
     readonly rejectedEmissions: number;
     readonly emptyPatches: number;
     readonly exceptions: Readonly<Record<string, number>>;
-    readonly isolation: { readonly webAttempts: number; readonly webReads: number; readonly mcpCalls: number; readonly trialsTouched: number };
+    readonly isolation: { readonly webReferences: number; readonly webAttempts: number; readonly webReads: number; readonly mcpCalls: number; readonly trialsTouched: number };
     readonly loopsEnded: Readonly<Record<string, number>>;   // loops the daemon ended (status ≥ 400), by status
     readonly graded: number;
     readonly resolved: number;
@@ -72,10 +75,23 @@ const maskedAliases = (trialDir: string): Set<string> => {
     }));
 };
 
-const digestOf = (trialDir: string): Digest | null => {
+const digestDir = (trialDir: string): string => {
     const marker = join(trialDir, PUBLISHED_MARKER);
     const published = existsSync(marker) ? readFileSync(marker, "utf8").trim() : "";
-    return json<Digest>(join(published === "" ? join(trialDir, "agent") : published, "digest", "digest.json"));
+    return join(published === "" ? join(trialDir, "agent") : published, "digest");
+};
+
+// The schemes whose manifests declare the `web` trait. The sheet reads the packet the model saw,
+// not the manifests: a reference row in the first packet is a door the model was shown.
+const WEB_SCHEMES: ReadonlySet<string> = new Set(["https", "wss"]);
+export const webReferencesTaught = (digest: string): number => {
+    const packets = (existsSync(digest) ? readdirSync(digest) : [])
+        .flatMap((name) => { const match = /^packet(\d+)\.user\.md$/u.exec(name); return match === null ? [] : [{ name, index: Number(match[1]) }]; })
+        .toSorted((a, b) => a.index - b.index);
+    if (packets.length === 0) return 0;
+    const first = readFileSync(join(digest, packets[0]!.name), "utf8");
+    const taught = new Set([...first.matchAll(/worker:\/\/\/_plurnk\/plurnk\/([a-z0-9-]+)\.md/gu)].map((match) => match[1]!));
+    return [...taught].filter((name) => WEB_SCHEMES.has(name)).length;
 };
 
 export const readTrialRow = (trialDir: string, attempt: number): TrialRow | null => {
@@ -83,7 +99,7 @@ export const readTrialRow = (trialDir: string, attempt: number): TrialRow | null
     if (record === null) return null;
     const result = json<{ exception_info?: { exception_type?: string; exception_message?: string } | null }>(join(trialDir, "result.json"));
     const reward = json<{ reward?: number; empty_patch?: number }>(join(trialDir, "verifier", "reward.json"));
-    const digest = digestOf(trialDir);
+    const digest = json<Digest>(join(digestDir(trialDir), "digest.json"));
     const accounting = digest === null ? null : summarizeDigestAccounting(digest);
     const usage = accounting?.usage ?? null;
     const aliases = maskedAliases(trialDir);
@@ -111,6 +127,7 @@ export const readTrialRow = (trialDir: string, attempt: number): TrialRow | null
         },
         costUsd: accounting?.costUsd === null || accounting?.costUsd === undefined ? null : Number(accounting.costUsd),
         wallMs: record.durationMs > 0 ? record.durationMs : null,
+        webReferences: webReferencesTaught(digestDir(trialDir)),
         webAttempts: entries.filter((entry) => typeof entry.target === "string" && /^https?:\/\//u.test(entry.target)).length,
         webReads: entries.filter((entry) => typeof entry.target === "string" && /^https?:\/\//u.test(entry.target) && typeof entry.status_rx === "number" && entry.status_rx < 400).length,
         mcpCalls: entries.filter((entry) => typeof entry.op === "string" && aliases.has(entry.op.toLowerCase())).length,
@@ -138,6 +155,7 @@ export const summarize = (rows: readonly TrialRow[]): CampaignSummary => {
         emptyPatches: rows.filter((row) => row.emptyPatch).length,
         exceptions,
         isolation: {
+            webReferences: sum(rows.map((row) => row.webReferences)),
             webAttempts: sum(rows.map((row) => row.webAttempts)),
             webReads: sum(rows.map((row) => row.webReads)),
             mcpCalls: sum(rows.map((row) => row.mcpCalls)),
@@ -173,7 +191,7 @@ export const render = (campaign: { corpus?: string; model?: string | null; servi
     `- rejected emissions: ${summary.rejectedEmissions}`,
     `- empty patches: ${summary.emptyPatches}`,
     `- harness exceptions: ${pairs(summary.exceptions)}`,
-    `- isolation witness: ${summary.isolation.webAttempts} model-issued web operations attempted, ${summary.isolation.webReads} served, ${summary.isolation.mcpCalls} MCP calls; ${summary.isolation.trialsTouched} trials leaked`,
+    `- isolation witness: ${summary.isolation.webReferences} web references taught, ${summary.isolation.webAttempts} model-issued web operations attempted, ${summary.isolation.webReads} served, ${summary.isolation.mcpCalls} MCP calls; ${summary.isolation.trialsTouched} trials leaked`,
     `- loops ended by the daemon (status ≥ 400): ${pairs(summary.loopsEnded)}`,
     "",
     "## Verdicts",
@@ -192,9 +210,30 @@ export const render = (campaign: { corpus?: string; model?: string | null; servi
     "",
 ].join("\n");
 
+// {§swebench-trial} — the loop's halt rule. `pass` is a clean pass; anything else names what to read:
+// `fail` the oracle refused a clean run, `agent` the candidate did not exit cleanly (struck out,
+// cancelled, out of time), `harness` the bench itself left no record or no verdict.
+export const verdictOf = (trialDir: string): string => {
+    const result = json<{ exception_info?: { exception_type?: string; exception_message?: string } | null }>(join(trialDir, "result.json"));
+    if (result === null) return "harness: no result.json";
+    const ex = result.exception_info;
+    if (ex !== null && ex !== undefined) {
+        const detail = `${ex.exception_type ?? "?"}${ex.exception_message ? `: ${ex.exception_message}` : ""}`;
+        return ex.exception_type === "AgentSpawnError" ? `harness: ${detail}` : `agent: ${detail}`;
+    }
+    const reward = json<{ reward?: number }>(join(trialDir, "verifier", "reward.json"));
+    if (reward === null || typeof reward.reward !== "number") return "harness: no verifier verdict";
+    return reward.reward === 1 ? "pass" : `fail: reward ${reward.reward}`;
+};
+
 if (import.meta.main) {
-    const { positionals, values } = parseArgs({ allowPositionals: true, options: { json: { type: "boolean" } } });
-    if (positionals.length !== 1) throw new Error("usage: swebench/report.ts <campaign-directory> [--json]");
+    const { positionals, values } = parseArgs({ allowPositionals: true, options: { json: { type: "boolean" }, verdict: { type: "string" } } });
+    if (values.verdict !== undefined) {
+        if (positionals.length !== 0) throw new Error("usage: swebench/report.ts --verdict <trial-directory>");
+        console.log(verdictOf(resolve(values.verdict)));
+        process.exit(0);
+    }
+    if (positionals.length !== 1) throw new Error("usage: swebench/report.ts <campaign-directory> [--json] | --verdict <trial-directory>");
     const dir = resolve(positionals[0]!);
     const campaign = json<{ corpus?: string; model?: string | null; serviceHead?: string; clientHead?: string; ids?: string[] }>(join(dir, "campaign.json")) ?? {};
     const launched = readFileSync(join(dir, "trials.tsv"), "utf8").split("\n").filter((line) => line.trim() !== "")

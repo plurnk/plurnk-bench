@@ -296,9 +296,13 @@ complete evidence while changing one experimental variable at a time.
   shell's) are set empty in the candidate's environment, which outranks the
   operator file and masks each definition through the configuration cascade;
   controls such as `PLURNK_MCP_ENABLED` and companions are untouched.
-  `PLURNK_SCHEMES_HTTP_HOSTS=[]` makes the daemon's own web schemes admit no host,
-  and search credentials (`BRAVE_API_KEY`, `TAVILY_API_KEY`) are blanked.
-  `candidate-isolation.json` records the masked names. Origin: on 2026-09-17 four
+  `PLURNK_SERVICE_CAPABILITIES` denies the `web` trait at the service ceiling, so the one
+  resolver that refuses a web operation also drops the `https` and `wss` references and
+  their survey rows ({§capability-admission}): the model is never taught a door it may not
+  open. `PLURNK_SCHEMES_HTTP_HOSTS=[]` is the daemon's own network boundary, a different
+  choice, and search credentials (`BRAVE_API_KEY`, `TAVILY_API_KEY`) are blanked.
+  `candidate-isolation.json` records the masked names and the ceiling; the campaign sheet
+  reports the web references the first packet taught beside the attempts it refused. Origin: on 2026-09-17 four
   of ten deepdumb candidates read the upstream solution from GitHub through the
   daemon's `https` scheme, and two queried Brave.
 - §benchlet-tree A Terminal-Bench 2.1 task is a tree manifest (`kind:
@@ -705,7 +709,11 @@ study's three harnesses.
   and teaches no grammar (`plurnk.md` owns that), asks for no brevity (scope is not
   size), and says nothing about the tests (the eval script resets them to the base
   commit *before* applying the test patch, so tampering is already inert).
-- §swebench-profiles 3 attempts × 30 tasks under `PLURNK_BENCH_JOBS`;
+- §swebench-profiles 3 attempts × 30 tasks, one trial at a time under `PLURNK_BENCH_JOBS`
+  (default 1): `swebench/campaign.sh` runs the order `swebench/plan.ts` draws and halts at the
+  first trial that is not a clean pass (oracle resolved, client exited 0), so a failure is read
+  before the next trial is paid for; `--resume` continues past clean passes and `--skip` ids,
+  and `swebench/report.ts` reads the campaign friction first;
   `BenchRecord.turns` carries plurnk's own count and is declared harness-different
   ({§turns-provenance}). The bound on an attempt is the study's **turn cap**, carried
   by the manifest and by the corpus citation; the wall clock is a runaway guard set
@@ -715,4 +723,4 @@ study's three harnesses.
   against `plurnk-models` catalog rates; spend evidence is the daemon's own
   accounting ({§record-serial}, {§digest-boundary}).
 
-Covered: `swebench/evaluator.test.ts [§swebench-evaluator]`, `swebench/run.test.ts [§swebench] [§swebench-trial] [§swebench-conditions] [§swebench-prompt] [§swebench-profiles]`, `swebench/sample.test.ts [§swebench-corpus]`, `src/candidate-isolation.test.ts [§benchlet-isolation]`.
+Covered: `swebench/evaluator.test.ts [§swebench-evaluator]`, `swebench/run.test.ts [§swebench] [§swebench-trial] [§swebench-conditions] [§swebench-prompt] [§swebench-profiles]`, `swebench/sample.test.ts [§swebench-corpus]`, `swebench/plan.test.ts [§swebench-profiles]`, `swebench/report.test.ts [§swebench-profiles] [§swebench-trial] [§benchlet-isolation]`, `src/candidate-isolation.test.ts [§benchlet-isolation]`.
