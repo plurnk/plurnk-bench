@@ -67,6 +67,14 @@ run_one() {
     echo "campaign: $id attempt $attempt rc=$rc ${trial:+trial=$trial}" >&2
 }
 export -f run_one
+# Every lane shares one frozen checkout and candidate.mjs builds per trial: concurrent
+# `build:clean` steps wipe each other's dist. Build both lanes once here; the lanes skip it.
+if [ "$preflight" = 0 ]; then
+    echo "campaign: building $service_root and $client_root once" >&2
+    (cd "$service_root" && npm run -s build > "$campaign/logs/build-service.log" 2>&1) || { echo "campaign: service build failed, see $campaign/logs/build-service.log" >&2; exit 1; }
+    (cd "$client_root" && npm run -s build > "$campaign/logs/build-client.log" 2>&1) || { echo "campaign: client build failed, see $campaign/logs/build-client.log" >&2; exit 1; }
+    export PLURNK_CANDIDATE_SKIP_BUILD=1
+fi
 echo "campaign: $campaign (${#ids[@]} instances × $attempts attempts, $jobs lanes, model=${model:-preflight}, service=$(git -C "$service_root" rev-parse --short HEAD), client=$(git -C "$client_root" rev-parse --short HEAD))" >&2
 for attempt in $(seq 1 "$attempts"); do for id in "${ids[@]}"; do printf '%s %s\n' "$id" "$attempt"; done; done \
     | xargs -P "$jobs" -n 2 bash -c 'run_one "$@"' _
