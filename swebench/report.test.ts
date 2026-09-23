@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { emptyTurnsOf, render, summarize, verdictOf, webReferencesTaught, type TrialRow } from "./report.ts";
+import { emptyTurnsOf, latestLaunches, render, summarize, verdictOf, webReferencesTaught, type TrialRow } from "./report.ts";
 
 const row = (over: Partial<TrialRow>): TrialRow => ({
     instance: "django__django-11620", attempt: 1, model: "deepdumb", outcome: "fail", loopStatus: 200, reward: 0, emptyPatch: false, exception: null,
@@ -72,4 +72,13 @@ test("[§swebench-trial] the halt rule passes only a clean pass and names what t
     assert.equal(verdictOf(trial("spawn", { exception_info: { exception_type: "AgentSpawnError", exception_message: "ENOENT" } })), "harness: AgentSpawnError: ENOENT");
     assert.equal(verdictOf(trial("ungraded", { exception_info: null })), "harness: no verifier verdict");
     assert.equal(verdictOf(join(dir, "missing")), "harness: no result.json");
+});
+
+test("[§swebench-profiles] a re-run of the same instance and attempt supersedes its earlier row", () => {
+    const launched = [
+        { instance: "psf__requests-1963", attempt: 1, trial: "/t/a" },
+        { instance: "django__django-12308", attempt: 1, trial: "/t/b" },
+        { instance: "psf__requests-1963", attempt: 1, trial: "/t/c" },
+    ];
+    assert.deepEqual(latestLaunches(launched).map(({ trial }) => trial), ["/t/c", "/t/b"], "the later verdict stands, in first-seen order");
 });

@@ -185,6 +185,11 @@ export const summarize = (rows: readonly TrialRow[]): CampaignSummary => {
     };
 };
 
+// A re-run of the same instance and attempt supersedes its earlier row: the campaign re-buys a
+// trial only when its verdict was not accepted, and the later verdict is the one that stands.
+export const latestLaunches = <T extends { instance: string; attempt: number }>(launched: readonly T[]): T[] =>
+    [...new Map(launched.map((entry) => [`${entry.instance}\t${entry.attempt}`, entry])).values()];
+
 const usd = (value: number | null): string => value === null ? "—" : `$${value.toFixed(3)}`;
 const num = (value: number | null): string => value === null ? "—" : String(Math.round(value));
 const minutes = (ms: number | null): string => ms === null ? "—" : `${(ms / 60_000).toFixed(1)}m`;
@@ -249,7 +254,7 @@ if (import.meta.main) {
     const campaign = json<{ corpus?: string; model?: string | null; serviceHead?: string; clientHead?: string; ids?: string[] }>(join(dir, "campaign.json")) ?? {};
     const launched = readFileSync(join(dir, "trials.tsv"), "utf8").split("\n").filter((line) => line.trim() !== "")
         .map((line) => { const [instance, attempt, rc, trial] = line.split("\t"); return { instance: instance!, attempt: Number(attempt), rc: Number(rc), trial: trial ?? "" }; });
-    const rows = launched.flatMap(({ trial, attempt }) => { const row = trial === "" ? null : readTrialRow(trial, attempt); return row === null ? [] : [row]; });
+    const rows = latestLaunches(launched).flatMap(({ trial, attempt }) => { const row = trial === "" ? null : readTrialRow(trial, attempt); return row === null ? [] : [row]; });
     const summary = summarize(rows);
     if (values.json) console.log(JSON.stringify({ campaign, launched, rows, summary }, null, 2));
     else process.stdout.write(render(campaign, rows, summary));
