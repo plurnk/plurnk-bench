@@ -18,5 +18,6 @@ test("[§swebench-profiles] a launch runs the corpus in order, drops --skip ids 
         "attempts are attempt-major, as the study's three rollouts per task",
     );
     assert.deepEqual(planTrials({ ids, attempts: 1, limit: 1, only: [], skip: [], passed: new Set() }), [{ id: "a", attempt: 1 }], "--limit 1 is the pilot");
+    assert.deepEqual(planTrials({ ids, attempts: 1, limit: 0, only: [], skip: ["c", "b"], passed }), [{ id: "d", attempt: 1 }], "an accepted failure is a skip on every later launch");
     assert.throws(() => corpusIds({ dataset: "x" }), /corpus carries no ids/);
 });

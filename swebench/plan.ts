@@ -1,7 +1,7 @@
 // {§swebench-profiles} — the (instance, attempt) pairs one campaign launch runs, in corpus order:
 // --only and --skip narrow the corpus, a resumed campaign drops every pair its trials.tsv already
-// records as a clean pass, and --limit bounds what this launch runs. Sequential by construction:
-// campaign.sh consumes the list one pair at a time.
+// records as a clean pass and every id its accepted file names (a failure read and accepted as the
+// model's, remembered so no later launch re-buys it), and --limit bounds what this launch runs.
 import { readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 
@@ -41,13 +41,14 @@ export const planTrials = (input: {
 if (import.meta.main) {
     const { values } = parseArgs({ options: {
         corpus: { type: "string" }, attempts: { type: "string", default: "1" }, limit: { type: "string", default: "0" },
-        only: { type: "string", default: "" }, skip: { type: "string", default: "" }, trials: { type: "string" },
+        only: { type: "string", default: "" }, skip: { type: "string", default: "" }, trials: { type: "string" }, accepted: { type: "string" },
     } });
-    if (values.corpus === undefined) throw new Error("usage: swebench/plan.ts --corpus <file> [--attempts N] [--limit N] [--only id,id] [--skip id,id] [--trials trials.tsv]");
+    if (values.corpus === undefined) throw new Error("usage: swebench/plan.ts --corpus <file> [--attempts N] [--limit N] [--only id,id] [--skip id,id] [--trials trials.tsv] [--accepted file]");
     const list = (value: string): string[] => value.split(",").map((item) => item.trim()).filter((item) => item !== "");
+    const accepted = values.accepted === undefined ? [] : list(readFileSync(values.accepted, "utf8").replace(/\n/g, ","));
     const pairs = planTrials({
         ids: corpusIds(JSON.parse(readFileSync(values.corpus, "utf8"))),
-        attempts: Number(values.attempts), limit: Number(values.limit), only: list(values.only), skip: list(values.skip),
+        attempts: Number(values.attempts), limit: Number(values.limit), only: list(values.only), skip: [...list(values.skip), ...accepted],
         passed: values.trials === undefined ? new Set() : passedPairs(readFileSync(values.trials, "utf8")),
     });
     for (const { id, attempt } of pairs) console.log(`${id} ${attempt}`);

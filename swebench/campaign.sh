@@ -4,8 +4,8 @@
 # evaluation run id, provenance, publish); this loop owns the order (swebench/plan.ts), the record
 # of what ran (trials.tsv) and the halt: the first trial that is not a clean pass — oracle resolved
 # and the client exited 0 — stops the loop, so it is read before the next trial is paid for.
-# --resume continues a halted campaign past its clean passes and any --skip ids; the sheet is
-# swebench/report.ts.
+# --resume continues a halted campaign past its clean passes and any --skip ids, which it remembers
+# in <campaign>/accepted so no later launch re-buys a read failure; the sheet is swebench/report.ts.
 # Usage: swebench/campaign.sh --corpus <label> [--model <alias>] [--attempts N] [--jobs N] [--limit N] [--only id,id] [--skip id,id] [--preflight]
 #        swebench/campaign.sh --resume <campaign-dir> [--limit N] [--only id,id] [--skip id,id]
 set -euo pipefail
@@ -44,7 +44,10 @@ fi
 corpus_file="$bench_root/swebench/corpora/$corpus.json"
 [ -f "$corpus_file" ] || { echo "campaign: no corpus at $corpus_file" >&2; exit 2; }
 if [ "$preflight" = 0 ] && [ -z "$model" ]; then echo "campaign: --model <alias> or PLURNK_MODEL is required for a model run" >&2; exit 2; fi
-mapfile -t pairs < <(node swebench/plan.ts --corpus "$corpus_file" --attempts "$attempts" --limit "$limit" --only "$only" --skip "$skip" "${trials_flag[@]}")
+# a --skip id is a failure read and accepted as the model's: the campaign remembers it
+if [ -n "$resume" ] && [ -n "$skip" ]; then printf '%s\n' ${skip//,/ } >> "$campaign/accepted"; fi
+accepted_flag=(); [ -n "$resume" ] && [ -f "$campaign/accepted" ] && accepted_flag=(--accepted "$campaign/accepted")
+mapfile -t pairs < <(node swebench/plan.ts --corpus "$corpus_file" --attempts "$attempts" --limit "$limit" --only "$only" --skip "$skip" "${trials_flag[@]}" "${accepted_flag[@]}")
 [ "${#pairs[@]}" -gt 0 ] || { echo "campaign: nothing left to run from $corpus_file" >&2; exit 2; }
 # the same resolution swebench/run.ts applies: absolute, or relative to the bench root
 resolve_root() { node -e 'console.log(require("node:path").resolve(process.argv[1], process.argv[2]))' "$bench_root" "$1"; }

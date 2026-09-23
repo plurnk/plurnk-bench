@@ -713,6 +713,7 @@ study's three harnesses.
   (default 1): `swebench/campaign.sh` runs the order `swebench/plan.ts` draws and halts at the
   first trial that is not a clean pass (oracle resolved, client exited 0), so a failure is read
   before the next trial is paid for; `--resume` continues past clean passes and `--skip` ids,
+  which the campaign remembers in its `accepted` file so a read failure is never re-bought,
   and `swebench/report.ts` reads the campaign friction first;
   `BenchRecord.turns` carries plurnk's own count and is declared harness-different
   ({§turns-provenance}). The bound on an attempt is the study's **turn cap**, carried
