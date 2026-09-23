@@ -712,7 +712,8 @@ study's three harnesses.
 - §swebench-profiles 3 attempts × 30 tasks, one trial at a time under `PLURNK_BENCH_JOBS`
   (default 1): `swebench/campaign.sh` runs the order `swebench/plan.ts` draws and halts at the
   first trial that is not a clean pass (oracle resolved, client exited 0), so a failure is read
-  before the next trial is paid for; `--resume` continues past clean passes and `--skip` ids,
+  before the next trial is paid for, or with `--halt-on clean` only at a trial that did not exit
+  cleanly, once the misses have been read as the model's; `--resume` continues past clean passes and `--skip` ids,
   which the campaign remembers in its `accepted` file so a read failure is never re-bought,
   and `swebench/report.ts` reads the campaign friction first;
   `BenchRecord.turns` carries plurnk's own count and is declared harness-different
