@@ -27,6 +27,7 @@ export interface TrialRow {
     readonly tokens: { readonly input: number; readonly cached: number; readonly output: number; readonly reasoning: number } | null;
     readonly costUsd: number | null;
     readonly wallMs: number | null;
+    readonly emptyTurns: number;    // emissions with no fence at all: prose, or a foreign tool-call grammar (plurnk-service#840)
     readonly webReferences: number; // web scheme references the first packet taught: doors the model was shown
     readonly webAttempts: number;   // model-issued http(s) operations, whatever the receipt said
     readonly webReads: number;      // the ones that were served (status < 400): a real leak
@@ -41,6 +42,7 @@ export interface CampaignSummary {
     readonly rejectedEmissions: number;
     readonly emptyPatches: number;
     readonly exceptions: Readonly<Record<string, number>>;
+    readonly emptyTurns: number;
     readonly isolation: { readonly webReferences: number; readonly webAttempts: number; readonly webReads: number; readonly mcpCalls: number; readonly trialsTouched: number };
     readonly loopsEnded: Readonly<Record<string, number>>;   // loops the daemon ended (status ≥ 400), by status
     readonly graded: number;
@@ -84,6 +86,12 @@ const digestDir = (trialDir: string): string => {
 // The schemes whose manifests declare the `web` trait. The sheet reads the packet the model saw,
 // not the manifests: a reference row in the first packet is a door the model was shown.
 const WEB_SCHEMES: ReadonlySet<string> = new Set(["https", "wss"]);
+// An emission the parser could admit nothing from: no line opens a fence. Counted from the raw
+// assistant packets, so a model's native tool-call markup and plain prose both show as friction.
+export const emptyTurnsOf = (digest: string): number => (existsSync(digest) ? readdirSync(digest) : [])
+    .filter((name) => /^packet\d+\.assistant\.md$/u.test(name))
+    .filter((name) => !/^````/mu.test(readFileSync(join(digest, name), "utf8"))).length;
+
 export const webReferencesTaught = (digest: string): number => {
     const packets = (existsSync(digest) ? readdirSync(digest) : [])
         .flatMap((name) => { const match = /^packet(\d+)\.user\.md$/u.exec(name); return match === null ? [] : [{ name, index: Number(match[1]) }]; })
@@ -127,6 +135,7 @@ export const readTrialRow = (trialDir: string, attempt: number): TrialRow | null
         },
         costUsd: accounting?.costUsd === null || accounting?.costUsd === undefined ? null : Number(accounting.costUsd),
         wallMs: record.durationMs > 0 ? record.durationMs : null,
+        emptyTurns: emptyTurnsOf(digestDir(trialDir)),
         webReferences: webReferencesTaught(digestDir(trialDir)),
         webAttempts: entries.filter((entry) => typeof entry.target === "string" && /^https?:\/\//u.test(entry.target)).length,
         webReads: entries.filter((entry) => typeof entry.target === "string" && /^https?:\/\//u.test(entry.target) && typeof entry.status_rx === "number" && entry.status_rx < 400).length,
@@ -154,6 +163,7 @@ export const summarize = (rows: readonly TrialRow[]): CampaignSummary => {
         rejectedEmissions: sum(rows.map((row) => row.rejectedEmissions ?? 0)),
         emptyPatches: rows.filter((row) => row.emptyPatch).length,
         exceptions,
+        emptyTurns: sum(rows.map((row) => row.emptyTurns)),
         isolation: {
             webReferences: sum(rows.map((row) => row.webReferences)),
             webAttempts: sum(rows.map((row) => row.webAttempts)),
@@ -191,6 +201,7 @@ export const render = (campaign: { corpus?: string; model?: string | null; servi
     `- rejected emissions: ${summary.rejectedEmissions}`,
     `- empty patches: ${summary.emptyPatches}`,
     `- harness exceptions: ${pairs(summary.exceptions)}`,
+    `- indecipherable turns (no fence emitted): ${summary.emptyTurns}`,
     `- isolation witness: ${summary.isolation.webReferences} web references taught, ${summary.isolation.webAttempts} model-issued web operations attempted, ${summary.isolation.webReads} served, ${summary.isolation.mcpCalls} MCP calls; ${summary.isolation.trialsTouched} trials leaked`,
     `- loops ended by the daemon (status ≥ 400): ${pairs(summary.loopsEnded)}`,
     "",
