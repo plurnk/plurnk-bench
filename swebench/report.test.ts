@@ -60,20 +60,25 @@ test("[§benchlet-isolation] the teaching check reads the first packet the model
 test("[§swebench-trial] the halt rule passes only a clean pass and names what to read otherwise", (t) => {
     const dir = mkdtempSync(join(tmpdir(), "swebench-verdict-"));
     t.after(() => rmSync(dir, { recursive: true, force: true }));
-    const trial = (name: string, result: unknown, reward?: unknown): string => {
+    const trial = (name: string, result: unknown, reward?: unknown, loopStatus?: number): string => {
         const path = join(dir, name);
         mkdirSync(join(path, "verifier"), { recursive: true });
         writeFileSync(join(path, "result.json"), JSON.stringify(result));
         if (reward !== undefined) writeFileSync(join(path, "verifier", "reward.json"), JSON.stringify(reward));
+        if (loopStatus !== undefined) {
+            mkdirSync(join(path, "agent", "digest"), { recursive: true });
+            writeFileSync(join(path, "agent", "digest", "digest.json"), JSON.stringify({ loops: [{ status: loopStatus }] }));
+        }
         return path;
     };
     assert.equal(verdictOf(trial("pass", { exception_info: null }, { reward: 1 })), "pass");
     assert.equal(verdictOf(trial("fail", { exception_info: null }, { reward: 0 })), "fail: reward 0");
-    assert.equal(
-        verdictOf(trial("struck", { exception_info: { exception_type: "AgentExitError", exception_message: "the client exited 4" } }, { reward: 1 })),
-        "agent: AgentExitError: the client exited 4",
-        "a passing patch from a struck-out loop is read, not banked",
-    );
+    const exited = (code: number) => ({ exception_info: { exception_type: "AgentExitError", exception_message: `the client exited ${code}` } });
+    assert.equal(verdictOf(trial("struck", exited(4), { reward: 1 }, 500)), "pass (strike threshold)",
+        "the oracle grades the patch; the engine's ending decorates it, so the strict halt reads it and the clean halt runs on");
+    assert.equal(verdictOf(trial("capped", exited(2), undefined, 429)), "fail: turn ceiling exhausted", "a capped loop with no verdict is the model's outcome, not the agent's (#46)");
+    assert.equal(verdictOf(trial("capped-miss", exited(2), { reward: 0 }, 429)), "fail: reward 0 (turn ceiling exhausted)");
+    assert.equal(verdictOf(trial("exited", exited(4))), "agent: AgentExitError: the client exited 4", "an exit with no loop terminal and no verdict is the agent's");
     assert.equal(verdictOf(trial("spawn", { exception_info: { exception_type: "AgentSpawnError", exception_message: "ENOENT" } })), "harness: AgentSpawnError: ENOENT");
     assert.equal(verdictOf(trial("ungraded", { exception_info: null })), "harness: no verifier verdict");
     assert.equal(verdictOf(join(dir, "missing")), "harness: no result.json");

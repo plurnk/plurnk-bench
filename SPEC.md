@@ -715,7 +715,11 @@ study's three harnesses.
   (default 1): `swebench/campaign.sh` runs the order `swebench/plan.ts` draws and halts at the
   first trial that is not a clean pass (oracle resolved, client exited 0), so a failure is read
   before the next trial is paid for, or with `--halt-on clean` only at a trial that did not exit
-  cleanly, once the misses have been read as the model's; `--resume` continues past clean passes and `--skip` ids,
+  cleanly, once the misses have been read as the model's. The oracle grades the patch whatever
+  ended the loop: a pass from a loop the engine ended is decorated, `pass (turn ceiling exhausted)`,
+  so the strict halt stops to read it and the clean halt runs on, and without a verdict an engine
+  terminal (turn ceiling, strike threshold, cycle, timeout) is `fail: <cause>`, the model's outcome,
+  never an agent verdict (#46); `--resume` continues past clean passes and `--skip` ids,
   which the campaign remembers in its `accepted` file so a read failure is never re-bought,
   and `swebench/report.ts` reads the campaign friction first;
   `BenchRecord.turns` carries plurnk's own count and is declared harness-different

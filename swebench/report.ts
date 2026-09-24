@@ -232,17 +232,33 @@ export const render = (campaign: { corpus?: string; model?: string | null; servi
 // {§swebench-trial} — the loop's halt rule. `pass` is a clean pass; anything else names what to read:
 // `fail` the oracle refused a clean run, `agent` the candidate did not exit cleanly (struck out,
 // cancelled, out of time), `harness` the bench itself left no record or no verdict.
+// {§swebench-trial} — the halt rule. The oracle grades the patch, whatever ended the loop
+// (plurnk-service#840): a reward is the verdict, and a loop the engine ended decorates it, so the strict
+// halt still stops to read it while the clean halt runs on. Without a reward, an engine terminal —
+// turn ceiling, strike threshold, cycle, timeout — is the model's outcome, never the agent's (#46).
+const ENGINE_TERMINALS: ReadonlyMap<number, string> = new Map([
+    [429, "turn ceiling exhausted"], [500, "strike threshold"], [508, "cycle detected"], [504, "loop timeout"],
+]);
+const engineTerminal = (trialDir: string): string | null => {
+    const digest = json<{ loops?: Array<{ status?: number }> }>(join(digestDir(trialDir), "digest.json"));
+    const loop = (digest?.loops ?? []).find(({ status }) => typeof status === "number" && ENGINE_TERMINALS.has(status));
+    return loop === undefined ? null : ENGINE_TERMINALS.get(loop.status!)!;
+};
 export const verdictOf = (trialDir: string): string => {
     const result = json<{ exception_info?: { exception_type?: string; exception_message?: string } | null }>(join(trialDir, "result.json"));
     if (result === null) return "harness: no result.json";
-    const ex = result.exception_info;
-    if (ex !== null && ex !== undefined) {
-        const detail = `${ex.exception_type ?? "?"}${ex.exception_message ? `: ${ex.exception_message}` : ""}`;
-        return ex.exception_type === "AgentSpawnError" ? `harness: ${detail}` : `agent: ${detail}`;
-    }
+    const ex = result.exception_info ?? null;
+    const detail = ex === null ? "" : `${ex.exception_type ?? "?"}${ex.exception_message ? `: ${ex.exception_message}` : ""}`;
+    if (ex?.exception_type === "AgentSpawnError") return `harness: ${detail}`;
     const reward = json<{ reward?: number }>(join(trialDir, "verifier", "reward.json"));
-    if (reward === null || typeof reward.reward !== "number") return "harness: no verifier verdict";
-    return reward.reward === 1 ? "pass" : `fail: reward ${reward.reward}`;
+    const terminal = engineTerminal(trialDir);
+    const decorated = terminal === null ? "" : ` (${terminal})`;
+    if (reward !== null && typeof reward.reward === "number") {
+        return reward.reward === 1 ? `pass${decorated}` : `fail: reward ${reward.reward}${decorated}`;
+    }
+    if (terminal !== null) return `fail: ${terminal}`;
+    if (ex !== null) return `agent: ${detail}`;
+    return "harness: no verifier verdict";
 };
 
 if (import.meta.main) {
