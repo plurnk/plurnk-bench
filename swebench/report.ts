@@ -91,7 +91,7 @@ const WEB_SCHEMES: ReadonlySet<string> = new Set(["https", "wss"]);
 // assistant packets, so a model's native tool-call markup and plain prose both show as friction.
 export const emptyTurnsOf = (digest: string): number => (existsSync(digest) ? readdirSync(digest) : [])
     .filter((name) => /^packet\d+\.assistant\.md$/u.test(name))
-    .filter((name) => !/^````/mu.test(readFileSync(join(digest, name), "utf8"))).length;
+    .filter((name) => !/^ {0,3}```/mu.test(readFileSync(join(digest, name), "utf8"))).length;
 
 export const webReferencesTaught = (digest: string): number => {
     const packets = (existsSync(digest) ? readdirSync(digest) : [])
