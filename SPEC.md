@@ -299,7 +299,9 @@ complete evidence while changing one experimental variable at a time.
   `PLURNK_SERVICE_CAPABILITIES` denies the `web` trait at the service ceiling, so the one
   resolver that refuses a web operation also drops the `https` and `wss` references and
   their survey rows ({§capability-admission}): the model is never taught a door it may not
-  open. `PLURNK_SCHEMES_HTTP_HOSTS=[]` is the daemon's own network boundary, a different
+  open. The same ceiling denies the `mcp` and `a2a` families by name, so a masked family's
+  page and verbs leave the survey with it instead of standing there empty
+  (plurnk-service#842). `PLURNK_SCHEMES_HTTP_HOSTS=[]` is the daemon's own network boundary, a different
   choice, and search credentials (`BRAVE_API_KEY`, `TAVILY_API_KEY`) are blanked.
   `candidate-isolation.json` records the masked names and the ceiling; the campaign sheet
   reports the web references the first packet taught beside the attempts it refused. Origin: on 2026-09-17 four
