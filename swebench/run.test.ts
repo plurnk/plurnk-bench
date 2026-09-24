@@ -51,27 +51,23 @@ test("[§swebench-trial] only a clean exit is a clean trial: a timeout, a spawn 
     assert.equal(exceptionInfo({ status: null, signal: "SIGKILL", timedOut: false }, 1680)?.exception_message, "the client exited SIGKILL");
 });
 
-test("[§swebench-prompt] the task prompt keeps the official shape and names the agentic deliverable", () => {
-    const statement = "  When DEBUG is True, raising Http404 in a path converter does not help.  ";
+test("[§swebench-prompt] the task prompt requests a repository fix and verification without grading or grammar coaching", () => {
+    const statement = "When DEBUG is True, raising Http404 in a path converter does not help.";
     const prompt = taskPrompt(statement);
-    // The official style-3 shape: premise, the issue delimited, then the deliverable.
-    assert.match(prompt, /^You will be provided with an issue statement explaining a problem to resolve\./u);
-    assert.match(prompt, /<issue>\nWhen DEBUG is True[^\n]*help\.\n<\/issue>/u, "the statement is delimited and trimmed, never reflowed");
-    assert.ok(prompt.trimEnd().endsWith("reading its diff."), "the deliverable, then the working-tree check, close the prompt");
-    // plurnk-bench#44 — two confabulated completions shipped no patch; the prompt asks for the check.
-    assert.match(prompt, /Before concluding, confirm that the working tree carries your change/u);
-    // Neither addition the official prompt declines to make: no brevity ask, no test warning.
-    assert.ok(!/smallest|minimal|brief|concise/iu.test(prompt), "no brevity ask — scope is not size");
-    // The eval script resets test files before applying the test patch, so tampering is already
-    // inert: naming it would only make it salient.
-    assert.ok(!/test/iu.test(prompt.split("</issue>")[1] ?? ""), "the instruction does not mention tests");
-    // The failure this exists to prevent: a diagnosis is not a patch.
-    assert.match(prompt, /an explanation of the fix is not a\nfix/u);
-    // It must not coach the op language — plurnk.md owns that, and coaching would not be the
-    // harness under test any more.
-    for (const op of ["EDIT", "FIND", "READ", "SEND", "NOTE", "backtick"]) {
-        assert.ok(!prompt.includes(op), `the task prompt must not teach ${op}`);
+    assert.match(prompt, /^Fix the following issue in the checked-out repository\./u);
+    assert.ok(prompt.endsWith("Implement the fix in the working tree and verify the affected behavior."));
+    const wrapper = prompt.replace(statement, "");
+    assert.doesNotMatch(wrapper, /grad(?:e|ed|ing)|hidden[- ]tests?|reference[- ]patch/iu);
+    assert.doesNotMatch(wrapper, /smallest|minimal|brief|concise/iu);
+    for (const op of ["EDIT", "FIND", "READ", "SEND", "NOTE", "KILL", "backtick"]) {
+        assert.ok(!wrapper.includes(op), `the task prompt must not teach ${op}`);
     }
+});
+
+test("[§swebench-prompt] the official issue retains its internal whitespace, examples, and terminology", () => {
+    const statement = "\n  A test of READ fails.\n\n```python\nassert compare(\"graded\", \"reference patch\")\n```\n\nKeep these  two spaces.\n";
+    const prompt = taskPrompt(statement);
+    assert.ok(prompt.includes(`<issue>\n${statement.trim()}\n</issue>`), "only outer whitespace may change");
 });
 
 test("[§swebench-profiles] the study's turn cap is the bound, not our wall clock", () => {

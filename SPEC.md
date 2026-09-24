@@ -701,16 +701,14 @@ study's three harnesses.
   attendance only, so an unattended loop with none stated falls to the shipped
   `PLURNK_SERVICE_UNATTENDED_PROPOSALS=reject` and every EDIT is refused
   `no_review_channel` — the candidate cannot change one file (plurnk-bench#42).
-- §swebench-prompt The task prompt keeps the official style-3 shape
-  (`swebench/inference/make_datasets/create_instance.py`): premise, the statement
-  delimited by `<issue>`, then a closing instruction naming the deliverable. Only the
-  deliverable changes — the repository is live, so the edit IS the patch. The official
-  package ships no agentic prompt; every harness writes its own, which is the variable
-  the study measures, so the text is recorded per trial in `provenance.json` and
-  declared the way {§swebench-cost} declares the price schedule. It names no operation
-  and teaches no grammar (`plurnk.md` owns that), asks for no brevity (scope is not
-  size), and says nothing about the tests (the eval script resets them to the base
-  commit *before* applying the test patch, so tampering is already inert).
+- §swebench-prompt The task prompt asks for an ordinary repository repair: the
+  official issue, unchanged except for outer whitespace and delimited by `<issue>`,
+  followed by an instruction to implement the fix in the working tree and verify
+  the affected behavior. The wrapper introduces no grading, hidden-test or
+  reference-patch framing, brevity constraint, or operation-language teaching
+  (`plurnk.md` owns that). The official package supplies no agentic prompt; this
+  harness-owned framing is recorded exactly per trial in `provenance.json`.
+  Prompt changes do not alter the specimen or its official evaluator.
 - §swebench-profiles 3 attempts × 30 tasks, one trial at a time under `PLURNK_BENCH_JOBS`
   (default 1): `swebench/campaign.sh` runs the order `swebench/plan.ts` draws and halts at the
   first trial that is not a clean pass (oracle resolved, client exited 0), so a failure is read

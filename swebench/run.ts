@@ -55,19 +55,15 @@ interface CommandResult {
     readonly error?: Error;
 }
 
-// {§swebench-prompt} — the official style-3 shape, with the agentic deliverable.
+// {§swebench-prompt}
 export const taskPrompt = (problemStatement: string): string => [
-    "You will be provided with an issue statement explaining a problem to resolve.",
-    "The repository is checked out at the project root: the code base is live, not a listing.",
+    "Fix the following issue in the checked-out repository.",
     "",
     "<issue>",
     problemStatement.trim(),
     "</issue>",
     "",
-    "Resolve the issue by changing the repository. The deliverable is the change itself — the",
-    "working tree's diff is what is collected and graded, so an explanation of the fix is not a",
-    "fix. Before concluding, confirm that the working tree carries your change, for example by",
-    "reading its diff.",
+    "Implement the fix in the working tree and verify the affected behavior.",
 ].join("\n");
 
 // {§swebench-conditions} {§swebench-profiles} — ordinary client invocation, stated disposition,
