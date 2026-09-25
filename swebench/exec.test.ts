@@ -12,10 +12,18 @@ test("[§swebench-container-exec] a shim forwards inside the repository through 
     assert.match(shim, /^#!\/bin\/sh\n/);
     assert.ok(shim.includes("    '/runs/run1/repo/'*"), "the repository prefix is the forward rule");
     assert.ok(
-        shim.includes("exec docker exec -i -u '1000:1000' -w \"${PWD}\" -e HOME='/root' 'c0ffee' bash -lc 'exec \"$0\" \"$@\"' 'python' \"$@\""),
+        shim.includes("exec docker exec -i -u '1000:1000' -w \"${PWD}\" -e HOME='/root' -e LANG=C.UTF-8 -e LC_ALL=C.UTF-8 'c0ffee' bash -lc 'exec \"$0\" \"$@\"' 'python' \"$@\""),
         "the container command runs in a login shell with the caller's arguments intact",
     );
     assert.ok(shim.includes("PATH='/usr/bin:/bin' exec 'python' \"$@\""), "outside the repository the real binary runs on the host");
+});
+
+test("{§swebench-executor-encoding} shims select UTF-8 without importing the host toolchain environment", () => {
+    for (const name of EXECUTOR_SHIMS) {
+        const shim = executorShim(name, exec);
+        assert.match(shim, /-e LANG=C\.UTF-8 -e LC_ALL=C\.UTF-8/);
+        assert.doesNotMatch(shim, /-e PATH|--env-file|\benv\b/);
+    }
 });
 
 test("[§swebench-container-exec] writing shims creates one executable per executor name", () => {

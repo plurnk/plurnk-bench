@@ -300,8 +300,9 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             // The image's own toolchain, not one instance's dependency: every SWE-bench image
             // installs its repository into the testbed environment, so importing it proves the shim
             // reaches the right interpreter for any instance (#40).
-            const probe = spawnSync("docker", ["exec", "-u", user, "-w", repository, "-e", `HOME=${candidateContainer.home!}`, container, "bash", "-lc",
-                "python -c \"import sys; print(sys.executable)\" && git -C \"$PWD\" rev-parse HEAD"], { encoding: "utf8" });
+            const probe = spawnSync(join(binDir, "python"), ["-c",
+                'import sys; assert sys.stdin.read() == "café ✓\\n"; print(sys.executable); print("Unicode ✓")'],
+            { cwd: repository, input: "café ✓\n", encoding: "utf8", timeout: 30_000 });
             writeJson(join(trialDir, "preflight.json"), {
                 status: probe.status === 0 ? "ready" : "failed",
                 instance,
@@ -317,6 +318,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
                 gitStatus: git(repository, ["status", "--porcelain"]),
                 probe: { status: probe.status, stdout: probe.stdout.trim(), stderr: probe.stderr.trim() },
             });
+            if (probe.status !== 0) throw new Error(`executor preflight failed: ${trialDir}`, { cause: probe.error ?? probe.stderr });
             process.stdout.write(`ready=${trialDir}\n`);
             return;
         }

@@ -69,8 +69,9 @@ publication and rewritten afterwards with the published `runDir`, so an interrup
 still leaves a described trial. Each attempt takes its own evaluation run id, so two
 attempts at one instance under `PLURNK_BENCH_JOBS` never share a container name.
 
-`--preflight` proves the container, the image's login-shell toolchain, and the shim set with
-no model and no client. `--skip-grading` stops after capture. `--timeout <s>` (or
+`--preflight` proves the container and the image's login-shell toolchain through
+the generated Python shim, including Unicode arguments and stdin, with no model
+and no client. `--skip-grading` stops after capture. `--timeout <s>` (or
 `PLURNK_SWEBENCH_TIMEOUT_SEC`) sets the client budget; the default is the manifest's
 `budgetSeconds` minus 120 s of boot/commit headroom.
 

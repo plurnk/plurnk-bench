@@ -697,6 +697,11 @@ study's three harnesses.
   credentials blanked, and the daemon's web schemes admit no host through the shared
   `{§benchlet-isolation}` seam (`src/candidate-isolation.ts`) — and web tools are
   removed with `PLURNK_EXECS_QUESTION=0` ({§config-unattended}).
+- §swebench-executor-encoding Executor shims run in the pinned image's login-shell
+  toolchain with `LANG=C.UTF-8` and `LC_ALL=C.UTF-8`. Unicode arguments and stdin
+  survive the host/container boundary; host PATH and locale settings are not
+  imported into the image. The model-free preflight exercises the generated
+  Python shim with Unicode in both channels and fails if that probe fails.
 - §swebench-conditions The candidate uses the ordinary cascade
   ({§config-model-default}); the study's effort setting is
   `PLURNK_PROVIDERS_REASONING_<alias>`. No positional or family-specific

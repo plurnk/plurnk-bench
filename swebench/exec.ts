@@ -38,7 +38,7 @@ export const executorShim = (name: string, exec: ContainerExec): string => [
     "# SPEC §swebench — inside the candidate repository the command runs in the task container",
     "# at the same path, in the image's login shell; anywhere else it runs on the host.",
     'case "${PWD}/" in',
-    "    " + shq(exec.repository + "/") + '*) exec docker exec -i -u ' + shq(exec.user) + ' -w "${PWD}" -e HOME=' + shq(exec.home) + " " + shq(exec.container) + " bash -lc 'exec \"$0\" \"$@\"' " + shq(name) + ' "$@" ;;',
+    "    " + shq(exec.repository + "/") + '*) exec docker exec -i -u ' + shq(exec.user) + ' -w "${PWD}" -e HOME=' + shq(exec.home) + " -e LANG=C.UTF-8 -e LC_ALL=C.UTF-8 " + shq(exec.container) + " bash -lc 'exec \"$0\" \"$@\"' " + shq(name) + ' "$@" ;;',
     "esac",
     "PATH=" + shq(exec.realPath) + " exec " + shq(name) + ' "$@"',
     "",
