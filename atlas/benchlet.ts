@@ -31,6 +31,7 @@ import {
     type ProviderAccountingProjection,
 } from "../src/accounting.ts";
 import { webMaterializationProvenance } from "../src/web-materialization.ts";
+import { readDigest } from "../src/digest.ts";
 
 interface ExactOracle {
     readonly kind: "exact";
@@ -874,7 +875,7 @@ const main = async (): Promise<void> => {
     if (!existsSync(digestPath) || !existsSync(digestMarkdownPath)) {
         throw new Error("Atlas candidate did not produce a complete digest.");
     }
-    const digest = JSON.parse(readFileSync(digestPath, "utf8")) as Digest;
+    const digest = readDigest<Digest>(digestPath);
     const loop = digest.loops.find((candidateLoop) => candidateLoop.prompt === task.prompt);
     if (loop === undefined) throw new Error("Atlas digest omitted the task loop.");
     const answer = loop.result?.content ?? "";

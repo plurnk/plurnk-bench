@@ -20,6 +20,7 @@ import { isTrialDir, readTrialDir } from "./ingest.ts";
 import { benchmarksHome, jobsRoot } from "./host-paths.ts";
 import { allocateRunDirectory } from "./run-directory.ts";
 import type { BenchRecord } from "./record.ts";
+import { readDigest } from "./digest.ts";
 
 export const PUBLISHED_MARKER = ".plurnk-bench-published";
 const WATCH_INTERVAL_MS = 15_000;
@@ -35,12 +36,10 @@ export const runLabels = (record: BenchRecord): string[] => [
 ];
 
 const digestTurns = (digestDir: string): Array<{ producer?: string }> => {
-    try {
-        const { turns } = JSON.parse(readFileSync(join(digestDir, "digest.json"), "utf8"));
-        return Array.isArray(turns) ? turns : [];
-    } catch {
-        return [];
-    }
+    const path = join(digestDir, "digest.json");
+    if (!existsSync(path)) return [];
+    const { turns } = readDigest<{ turns?: Array<{ producer?: string }> }>(path);
+    return Array.isArray(turns) ? turns : [];
 };
 
 // SPEC §publish-turnless-gate. A published run must hold a real loop. An infra failure (daemon never looped) copies a
@@ -95,7 +94,7 @@ export const publishRun = (record: BenchRecord, benchmarksDir: string): string |
     }
     // Persist the joined record (self-referential to the copied DB) so the run dir
     // answers pass/fail without the jobs/ tree.
-    const digest = JSON.parse(readFileSync(join(digestDir, "digest.json"), "utf8")) as DigestAccountingInput;
+    const digest = readDigest<DigestAccountingInput>(join(digestDir, "digest.json"));
     writeFileSync(join(runDir, "record.json"), JSON.stringify(publishedRecord(record, db, digest), null, 4) + "\n");
     return runDir;
 };

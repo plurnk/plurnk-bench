@@ -2,6 +2,7 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { addSettledUsd, summarizeDigestAccounting } from "../src/accounting.ts";
+import { readDigest } from "../src/digest.ts";
 import type { AccountingSummary, DigestAccountingInput } from "../src/accounting.ts";
 import { readTrialDir } from "../src/ingest.ts";
 import { PUBLISHED_MARKER } from "../src/publish.ts";
@@ -68,7 +69,7 @@ export const reportJob = (job: string) => {
         const marker = join(trial, PUBLISHED_MARKER);
         const published = existsSync(marker) ? readFileSync(marker, "utf8").trim() : "";
         const digestPath = published === "" ? null : join(published, "digest", "digest.json");
-        const digest = digestPath !== null && existsSync(digestPath) ? json(digestPath) as DigestAccountingInput : null;
+        const digest = digestPath !== null && existsSync(digestPath) ? readDigest<DigestAccountingInput>(digestPath) : null;
         const accounting = digest === null ? null : summarizeDigestAccounting(digest);
         const costEvidence: CostEvidence | null = digest === null ? null : { charged: 0, estimated: 0, unknown: 0 };
         if (costEvidence !== null) {

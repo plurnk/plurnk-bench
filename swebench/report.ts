@@ -11,6 +11,7 @@ import { readTrialDir } from "../src/ingest.ts";
 import { PUBLISHED_MARKER } from "../src/publish.ts";
 import { summarizeDigestAccounting, type DigestAccountingInput } from "../src/accounting.ts";
 import { median } from "../src/statistics.ts";
+import { readDigest } from "../src/digest.ts";
 import { baselinesFor, compareBaselines, renderComparison, type Comparison } from "./comparison.ts";
 
 export interface TrialRow {
@@ -108,7 +109,8 @@ export const readTrialRow = (trialDir: string, attempt: number): TrialRow | null
     if (record === null) return null;
     const result = json<{ exception_info?: { exception_type?: string; exception_message?: string } | null }>(join(trialDir, "result.json"));
     const reward = json<{ reward?: number; empty_patch?: number }>(join(trialDir, "verifier", "reward.json"));
-    const digest = json<Digest>(join(digestDir(trialDir), "digest.json"));
+    const evidence = join(digestDir(trialDir), "digest.json");
+    const digest = existsSync(evidence) ? readDigest<Digest>(evidence) : null;
     const accounting = digest === null ? null : summarizeDigestAccounting(digest);
     const usage = accounting?.usage ?? null;
     const aliases = maskedAliases(trialDir);

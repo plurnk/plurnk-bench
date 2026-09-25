@@ -97,7 +97,10 @@ DB→forensics belongs to the daemon's own digest (reused via
 (`RunRef.dbPath`), renders through `Digest.run`, and issues zero raw SQL. The handle rules:
 loop doc carried `workspace`+`workerId` -> scoped handle; crash/error doc but a DB was copied ->
 `dbPath`-only handle (digest renders the whole DB); no DB copied → no handle, honestly
-absent — the bench never fabricates one.
+absent — the bench never fabricates one. Reporting reads the complete `digest.json`
+incrementally, retaining accounting and outcome fields but not opaque provider response
+bodies. Full evidence stays in the daemon's artifacts. Invalid or unfinished JSON is an
+export failure, never a zero-cost or turnless result.
 Covered: `ingest.test.ts [§digest-boundary]` ×2, `digest.test.ts [§digest-boundary]` ×2,
 `record.test.ts [§digest-boundary]`.
 

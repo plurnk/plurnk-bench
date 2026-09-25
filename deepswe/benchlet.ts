@@ -38,6 +38,7 @@ import {
     type RequiemAccountingSummary,
 } from "../src/accounting.ts";
 import { candidateIsolation } from "../src/candidate-isolation.ts";
+import { readDigest } from "../src/digest.ts";
 
 type TestStatus = "passed" | "skipped" | "failed";
 
@@ -1730,7 +1731,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
     writeJson(resolve(runDir, "git-state.json"), patchState);
     const digestPath = resolve(runDir, "digest/digest.json");
     if (!existsSync(digestPath)) throw new Error("candidate did not produce a digest");
-    const digest = JSON.parse(readFileSync(digestPath, "utf8")) as DigestJson;
+    const digest = readDigest<DigestJson>(digestPath);
     const summary = digestSummary(digest);
     if (summary.providerRequests === 0) {
         throw new Error("candidate completed no provider exchange; the run is infrastructure, not an oracle attempt");
