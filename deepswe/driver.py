@@ -49,7 +49,7 @@ class PlurnkAgent(BaseInstalledAgent):
         client_timeout_sec: int = DEFAULT_CLIENT_TIMEOUT_S,
         client_version: str | None = None,   # npm version spec, e.g. "0.40.2"; None = latest
         service_version: str | None = None,
-        egress_domains: str = "",            # comma-separated model-endpoint hosts beyond PLURNK_BASE_URL
+        egress_domains: str = "",            # comma-separated model-endpoint hosts beyond the forwarded base URLs
         tavily_configured: str = "0",
         tavily_depth: str = "basic",
         recap_path: str | None = None,       # host file whose text becomes the daemon's Recap footer
@@ -142,18 +142,19 @@ class PlurnkAgent(BaseInstalledAgent):
     # ---- runtime egress: only the model endpoint(s) the daemon calls ----
     def network_allowlist(self) -> NetworkAllowlist:
         # Air-gap is kept (reproducibility-honest). The daemon's only outbound need
-        # is its model endpoint(s): the PLURNK_BASE_URL host when one is named, plus
-        # the provider-default hosts the runner resolved (a cloud provider like
-        # deepseek carries no *_BASE_URL — its base is implicit in the registry).
+        # is its model endpoint(s): the host of every base URL smoke.sh forwarded
+        # (PLURNK_BASEURL_<alias>, <PROVIDER>_BASE_URL), plus the provider-default hosts
+        # the runner resolved (a cloud provider like deepseek carries no base URL — its
+        # base is implicit in the registry).
         domains = list(self._egress_domains)
-        base_url = self._get_env("PLURNK_BASE_URL")
-        if base_url:
-            host = urlparse(base_url).hostname
-            if host:
-                domains.append(host)
+        for key, value in sorted(self._extra_env.items()):
+            if value and (key.startswith("PLURNK_BASEURL_") or key.endswith("_BASE_URL")):
+                host = urlparse(value).hostname
+                if host:
+                    domains.append(host)
         if not domains:
             raise ValueError(
-                "plurnk agent has no model egress: set PLURNK_BASE_URL or pass egress_domains"
+                "plurnk agent has no model egress: forward PLURNK_BASEURL_<alias> or pass egress_domains"
             )
         return NetworkAllowlist(domains=domains)
 
@@ -174,7 +175,6 @@ class PlurnkAgent(BaseInstalledAgent):
         # All PLURNK_* the operator set in the job config's env: flow through here
         # (build_process_env merges self._extra_env), configuring the daemon.
         env = self.build_process_env({
-            "PLURNK_PROJECT_ROOT": "/app",
             **self.recap_env(agent_dir),
             # Model egress rides Pier's squid sidecar via HTTP(S)_PROXY; Node's
             # fetch ignores proxy env unless told (NODE_USE_ENV_PROXY, Node >= 24).
@@ -201,7 +201,7 @@ class PlurnkAgent(BaseInstalledAgent):
         # outcome, so the client's exit is tolerated; snapshot failure is not.
         command = f"""
 set -uo pipefail
-DB="${{PLURNK_SERVICE_DB_PATH:-${{PLURNK_DB_PATH:-${{XDG_DATA_HOME:-$HOME/.local/share}}/plurnk/plurnk.db}}}}"
+DB="${{PLURNK_SERVICE_DB_PATH:-${{XDG_DATA_HOME:-$HOME/.local/share}}/plurnk/plurnk.db}}"
 snapshot_db() {{
   rm -f "$2" "$2-wal" "$2-shm"
   node -e '

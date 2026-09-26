@@ -191,7 +191,7 @@ class PlurnkAgent(BaseInstalledAgent):
             if value:
                 env[credential] = value
 
-        base_url = self._host_env(f"PLURNK_BASEURL_{model}") or self._host_env("PLURNK_BASE_URL")
+        base_url = self._host_env(f"PLURNK_BASEURL_{model}")
         if base_url:
             env[f"PLURNK_BASEURL_{model}"] = base_url
         return env

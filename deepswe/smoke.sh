@@ -106,7 +106,7 @@ MANIFEST="$(MODEL="$MODEL" node -e '
     const provider = providers[def.split("/")[0]];
     if (!provider) throw new Error("unknown provider in " + def);
     for (const key of provider.env ?? []) keys.add(key);
-    if (!provider.api) continue;   // SDK-native provider: driver fails loudly unless PLURNK_BASE_URL names the host
+    if (!provider.api) continue;   // SDK-native provider: driver fails loudly unless PLURNK_BASEURL_<alias> names the host
     const api = provider.api.replace(/\$\{(\w+)\}/g, (_, name) => process.env[name] ?? "");
     hosts.add(new URL(api).hostname);
   }

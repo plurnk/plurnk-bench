@@ -182,7 +182,7 @@ class DriverContractTest(unittest.TestCase):
 
     def test_network_allowlist_merges_runner_domains_and_base_url(self):
         agent = driver.PlurnkAgent(egress_domains="api.deepseek.com, api.tavily.com")
-        agent._extra_env = {"PLURNK_BASE_URL": "http://192.168.1.20:8080/v1"}
+        agent._extra_env = {"PLURNK_BASEURL_local": "http://192.168.1.20:8080/v1"}
 
         self.assertEqual(
             agent.network_allowlist().domains,
