@@ -67,6 +67,7 @@ test("[§swebench-trial] the halt rule passes only a clean pass and names what t
         if (reward !== undefined) writeFileSync(join(path, "verifier", "reward.json"), JSON.stringify(reward));
         if (loopStatus !== undefined) {
             mkdirSync(join(path, "agent", "digest"), { recursive: true });
+            writeFileSync(join(path, "agent", "plurnk.json"), JSON.stringify({ schemaVersion: 6, finalStatus: loopStatus }));
             writeFileSync(join(path, "agent", "digest", "digest.json"), JSON.stringify({ loops: [{ status: loopStatus }] }));
         }
         return path;
@@ -80,8 +81,26 @@ test("[§swebench-trial] the halt rule passes only a clean pass and names what t
     assert.equal(verdictOf(trial("capped-miss", exited(2), { reward: 0 }, 429)), "fail: reward 0 (turn ceiling exhausted)");
     assert.equal(verdictOf(trial("exited", exited(4))), "agent: AgentExitError: the client exited 4", "an exit with no loop terminal and no verdict is the agent's");
     assert.equal(verdictOf(trial("spawn", { exception_info: { exception_type: "AgentSpawnError", exception_message: "ENOENT" } })), "harness: AgentSpawnError: ENOENT");
+    const cancelled = { exception_info: { exception_type: "AgentCancelledError", exception_message: "operator stopped" } };
+    assert.equal(verdictOf(trial("cancelled", cancelled, { reward: 0 })), "fail: reward 0 (externally cancelled)");
+    assert.equal(verdictOf(trial("cancelled-pass", cancelled, { reward: 1 })), "pass (externally cancelled)");
+    assert.equal(verdictOf(trial("cancelled-ungraded", cancelled)), "agent: AgentCancelledError: operator stopped");
     assert.equal(verdictOf(trial("ungraded", { exception_info: null })), "harness: no verifier verdict");
     assert.equal(verdictOf(join(dir, "missing")), "harness: no result.json");
+});
+
+test("{§swebench-trial} a failed child cannot label the root as struck out", (t) => {
+    const dir = mkdtempSync(join(tmpdir(), "swebench-root-status-"));
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+    mkdirSync(join(dir, "agent", "digest"), { recursive: true });
+    mkdirSync(join(dir, "verifier"));
+    writeFileSync(join(dir, "result.json"), JSON.stringify({ exception_info: null }));
+    writeFileSync(join(dir, "verifier", "reward.json"), JSON.stringify({ reward: 1 }));
+    writeFileSync(join(dir, "agent", "digest", "digest.json"), JSON.stringify({ loops: [{ id: 1, status: 200 }, { id: 2, status: 500 }] }));
+    writeFileSync(join(dir, "agent", "plurnk.json"), JSON.stringify({ schemaVersion: 6, loopId: 1, finalStatus: 200 }));
+    assert.equal(verdictOf(dir), "pass");
+    rmSync(join(dir, "agent", "plurnk.json"));
+    assert.equal(verdictOf(dir), "pass", "without a root result the digest cannot supply a guessed root failure");
 });
 
 test("[§swebench-profiles] a re-run of the same instance and attempt supersedes its earlier row", () => {

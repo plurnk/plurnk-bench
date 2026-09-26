@@ -687,7 +687,11 @@ reimplementation of its agent loop or an assertion that the study was reproduced
   the candidate's exit — is written BEFORE publication and rewritten after with the
   published `runDir`, so an interrupted publish leaves a described trial rather than an
   anonymous one. `result.json`'s `exception_info` is `null` only for a clean exit: a
-  timeout, a spawn failure, and a non-zero exit each name themselves. Before pulling an
+  timeout, external cancellation, a spawn failure, and a non-zero exit each name
+  themselves. An aborted running process is cancellation, not a spawn failure;
+  retained oracle results still grade its available patch. Terminal labels use the
+  client's root result, never a failed child's status or a guessed digest row.
+  Before pulling an
   evaluation image the run requires free space on Docker's own root
   (`PLURNK_SWEBENCH_MIN_FREE_GB`, default 15; `0` disables the check) and fails loudly
   rather than half-way through a pull; `PLURNK_SWEBENCH_PRUNE_IMAGE=1` removes the

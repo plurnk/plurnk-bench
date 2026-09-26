@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { candidateArgv, exceptionInfo, extractPlurnkDoc, taskPrompt } from "./run.ts";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { watch } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { candidateArgv, exceptionInfo, extractPlurnkDoc, runToFiles, taskPrompt } from "./run.ts";
 
 test("[§swebench] the candidate runs the ordinary client: --json, --auto, the task prompt after --", () => {
     assert.deepEqual(candidateArgv("/runs/run1/repo", 1680, "Fix the missing-data crash", 100), [
@@ -49,6 +53,28 @@ test("[§swebench-trial] only a clean exit is a clean trial: a timeout, a spawn 
     assert.equal(spawnFailed?.exception_message, "spawn ENOENT");
     assert.equal(exceptionInfo({ status: 1, signal: null, timedOut: false }, 1680)?.exception_message, "the client exited 1");
     assert.equal(exceptionInfo({ status: null, signal: "SIGKILL", timedOut: false }, 1680)?.exception_message, "the client exited SIGKILL");
+});
+
+test("{§swebench-trial} aborting a started process is cancellation, not spawn failure", { timeout: 10000 }, async (t) => {
+    const directory = mkdtempSync(join(tmpdir(), "swebench-cancel-"));
+    t.after(() => rmSync(directory, { recursive: true, force: true }));
+    const cancel = new AbortController();
+    t.after(() => cancel.abort());
+    const ready = watch(directory);
+    const child = runToFiles(process.execPath, ["-e", 'require("node:fs").writeFileSync("ready", "started"); setInterval(() => {}, 1000);'], {
+        cwd: directory, env: process.env, signal: cancel.signal,
+        stdoutPath: join(directory, "out.log"), stderrPath: join(directory, "err.log"),
+    });
+    for await (const event of ready) {
+        if (event.filename === "ready" && event.eventType === "change") break;
+    }
+    assert.equal(readFileSync(join(directory, "ready"), "utf8"), "started");
+    cancel.abort(new Error("operator stopped this specimen"));
+    const result = await child;
+    assert.deepEqual(exceptionInfo(result, 10), {
+        exception_type: "AgentCancelledError", exception_message: "operator stopped this specimen",
+    });
+    assert.equal(result.timedOut, false);
 });
 
 test("[§swebench-prompt] the task prompt requests a repository fix and verification without grading or grammar coaching", () => {

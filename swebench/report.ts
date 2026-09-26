@@ -242,9 +242,8 @@ const ENGINE_TERMINALS: ReadonlyMap<number, string> = new Map([
     [429, "turn ceiling exhausted"], [500, "strike threshold"], [508, "cycle detected"], [504, "loop timeout"],
 ]);
 const engineTerminal = (trialDir: string): string | null => {
-    const digest = json<{ loops?: Array<{ status?: number }> }>(join(digestDir(trialDir), "digest.json"));
-    const loop = (digest?.loops ?? []).find(({ status }) => typeof status === "number" && ENGINE_TERMINALS.has(status));
-    return loop === undefined ? null : ENGINE_TERMINALS.get(loop.status!)!;
+    const root = json<{ finalStatus?: number }>(join(trialDir, "agent", "plurnk.json"));
+    return root?.finalStatus === undefined ? null : ENGINE_TERMINALS.get(root.finalStatus) ?? null;
 };
 export const verdictOf = (trialDir: string): string => {
     const result = json<{ exception_info?: { exception_type?: string; exception_message?: string } | null }>(join(trialDir, "result.json"));
@@ -254,7 +253,8 @@ export const verdictOf = (trialDir: string): string => {
     if (ex?.exception_type === "AgentSpawnError") return `harness: ${detail}`;
     const reward = json<{ reward?: number }>(join(trialDir, "verifier", "reward.json"));
     const terminal = engineTerminal(trialDir);
-    const decorated = terminal === null ? "" : ` (${terminal})`;
+    const decoration = ex?.exception_type === "AgentCancelledError" ? "externally cancelled" : terminal;
+    const decorated = decoration === null ? "" : ` (${decoration})`;
     if (reward !== null && typeof reward.reward === "number") {
         return reward.reward === 1 ? `pass${decorated}` : `fail: reward ${reward.reward}${decorated}`;
     }

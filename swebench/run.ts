@@ -48,13 +48,6 @@ export interface Manifest {
     readonly problemStatement: string;
 }
 
-interface CommandResult {
-    readonly status: number | null;
-    readonly signal: NodeJS.Signals | null;
-    readonly timedOut: boolean;
-    readonly error?: Error;
-}
-
 // {§swebench-prompt}
 export const taskPrompt = (problemStatement: string): string => [
     "Fix the following issue in the checked-out repository.",
@@ -90,6 +83,7 @@ export interface CandidateExit {
     readonly status: number | null;
     readonly signal: NodeJS.Signals | null;
     readonly timedOut: boolean;
+    readonly cancelled?: boolean;
     readonly error?: Error;
 }
 
@@ -103,6 +97,8 @@ export interface ExceptionInfo {
 // looked the same as one that finished and simply wrote no patch (#40).
 export const exceptionInfo = (result: CandidateExit, timeoutSeconds: number): ExceptionInfo | null => {
     if (result.timedOut) return { exception_type: "AgentTimeoutError", exception_message: `the client exceeded ${timeoutSeconds}s` };
+    if (result.cancelled) return { exception_type: "AgentCancelledError", exception_message:
+        result.error?.cause instanceof Error ? result.error.cause.message : result.error?.message ?? "the client was externally cancelled" };
     if (result.error !== undefined) return { exception_type: "AgentSpawnError", exception_message: result.error.message };
     if (result.status !== 0) return { exception_type: "AgentExitError", exception_message: `the client exited ${result.status ?? result.signal ?? "unknown"}` };
     return null;
@@ -180,7 +176,7 @@ export const runToFiles = async (
     command: string,
     args: string[],
     options: { cwd: string; env: NodeJS.ProcessEnv; stdoutPath: string; stderrPath: string; tee?: boolean; timeoutMs?: number; signal?: AbortSignal },
-): Promise<CommandResult> => {
+): Promise<CandidateExit> => {
     options.signal?.throwIfAborted();
     const stdout = createWriteStream(options.stdoutPath);
     const stderr = createWriteStream(options.stderrPath);
@@ -197,12 +193,16 @@ export const runToFiles = async (
         child.stderr!.on("data", (chunk: Buffer) => process.stderr.write(chunk));
     }
     let processError: Error | undefined;
+    let cancelled = false;
     let timedOut = false;
     const timer = options.timeoutMs === undefined ? undefined : setTimeout(() => {
         timedOut = true;
         child.kill("SIGTERM");
     }, options.timeoutMs);
-    child.once("error", (error) => { processError = error; });
+    child.once("error", (error) => {
+        processError = error;
+        cancelled = options.signal?.aborted === true && error.name === "AbortError";
+    });
     const result = await new Promise<{ status: number | null; signal: NodeJS.Signals | null }>((accept) => {
         child.once("close", (status, childSignal) => {
             if (timer !== undefined) clearTimeout(timer);
@@ -210,7 +210,7 @@ export const runToFiles = async (
         });
     });
     await Promise.all([finished(stdout), finished(stderr)]);
-    return { ...result, timedOut, ...(processError === undefined ? {} : { error: processError }) };
+    return { ...result, timedOut, cancelled, ...(processError === undefined ? {} : { error: processError }) };
 };
 
 // The image's /testbed is the instance checkout (SWE-bench's environment commit on top of the

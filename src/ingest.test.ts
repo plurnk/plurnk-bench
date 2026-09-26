@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { deriveOutcome, joinRecord, readJob, readTrial, type PlurnkDoc, type RewardJson } from "./ingest.ts";
+import { deriveOutcome, joinRecord, readJob, readTrial, readTrialDir, type PlurnkDoc, type RewardJson } from "./ingest.ts";
 
 const doc = (overrides: Partial<PlurnkDoc> = {}): PlurnkDoc => ({
     schemaVersion: 6,
@@ -57,6 +57,24 @@ test("[§verdicts-failure-class] non-pass is classified by the loop's failure mo
     assert.equal(deriveOutcome(doc(), null), "error");          // oracle never graded, no pass
     assert.equal(deriveOutcome(doc(), reward(0)), "fail");       // graded, not solved
 });
+
+for (const oracle of [null, 0, 1]) {
+    test(`{§provenance} external cancellation remains distinct with oracle ${oracle}`, (t) => {
+        const dir = mkdtempSync(join(tmpdir(), "bench-cancelled-"));
+        t.after(() => rmSync(dir, { recursive: true, force: true }));
+        mkdirSync(join(dir, "agent"));
+        mkdirSync(join(dir, "verifier"));
+        writeFileSync(join(dir, "agent", "plurnk.json"), JSON.stringify(doc()));
+        writeFileSync(join(dir, "result.json"), JSON.stringify({ trial_name: "cancelled", task_name: "fixture",
+            exception_info: { exception_type: "AgentCancelledError", exception_message: "operator stopped" } }));
+        if (oracle !== null) writeFileSync(join(dir, "verifier", "reward.json"), JSON.stringify({ reward: oracle }));
+        const record = readTrialDir(dir, { harness: "swebench" });
+        assert.equal(record?.status, 499);
+        assert.equal(record?.outcome, oracle === 1 ? "pass" : "cancelled");
+        assert.equal(record?.reward, oracle ?? undefined);
+        assert.equal(record?.problem?.upstreamType, "AgentCancelledError");
+    });
+}
 
 test("[§verdicts] joinRecord maps loop side from the plurnk doc, oracle side from reward", () => {
     const record = joinRecord({

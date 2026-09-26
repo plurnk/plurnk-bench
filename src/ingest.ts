@@ -315,7 +315,8 @@ export const readTrialDir = (trialDir: string, { harness }: { harness: string })
     // the external exception once and reclassify a timeout - but only when the join
     // didn't already land a verdict from a real loop doc (outcome still "error").
     const ex = result.exception_info;
-    if (ex?.exception_type !== undefined && record.outcome === "error") {
+    const cancelled = ex?.exception_type === "AgentCancelledError";
+    if (ex?.exception_type !== undefined && (record.outcome === "error" || cancelled)) {
         const detail = ex.exception_message
             ? `${ex.exception_type}: ${ex.exception_message}`
             : ex.exception_type;
@@ -323,7 +324,7 @@ export const readTrialDir = (trialDir: string, { harness }: { harness: string })
         record.problem = Problems.create(
             "bench:pier",
             problemCode(ex.exception_type),
-            timedOut ? 504 : 500,
+            cancelled ? 499 : timedOut ? 504 : 500,
             detail,
             {
                 stage: "trial",
@@ -333,6 +334,7 @@ export const readTrialDir = (trialDir: string, { harness }: { harness: string })
         );
         record.status = record.problem.status;
         if (timedOut) record.outcome = "timeout";
+        if (cancelled && record.outcome !== "pass") record.outcome = "cancelled";
     }
     return record;
 };
