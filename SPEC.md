@@ -717,7 +717,7 @@ reimplementation of its agent loop or an assertion that the study was reproduced
   Python shim with Unicode in both channels and fails if that probe fails.
 - §swebench-conditions The candidate uses the ordinary cascade
   ({§config-model-default}); the study's effort setting is
-  `PLURNK_PROVIDERS_REASONING_<alias>`. No positional or family-specific
+  `PLURNK_PROVIDERS_EFFORT_<alias>`. No positional or family-specific
   candidate selector. The invocation states a proposal **disposition**: `--auto` is
   attendance only, so an unattended loop with none stated falls to the shipped
   `PLURNK_SERVICE_UNATTENDED_PROPOSALS=reject` and every EDIT is refused

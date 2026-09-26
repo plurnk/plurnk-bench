@@ -249,7 +249,7 @@ const expandHome = (value: string): string =>
 
 // The alias-scoped daemon knobs that shape a run's inference: route, reasoning, service tier,
 // sampling, and capacity. Names only from this list; an alias-scoped credential is never read.
-const ALIAS_KNOBS = ["PLURNK_MODEL", "PLURNK_PROVIDERS_REASONING", "PLURNK_PROVIDERS_SERVICE_TIER", "PLURNK_PROVIDERS_TEMPERATURE", "PLURNK_PROVIDERS_REPEAT_PENALTY", "PLURNK_PROVIDERS_CONTEXT_WINDOW", "PLURNK_PROVIDERS_OUTPUT_BUDGET", "PLURNK_PROVIDERS_REASONING_BUDGET"] as const;
+const ALIAS_KNOBS = ["PLURNK_MODEL", "PLURNK_PROVIDERS_EFFORT", "PLURNK_PROVIDERS_SERVICE_TIER", "PLURNK_PROVIDERS_TEMPERATURE", "PLURNK_PROVIDERS_REPEAT_PENALTY", "PLURNK_PROVIDERS_CONTEXT_WINDOW", "PLURNK_PROVIDERS_OUTPUT_BUDGET", "PLURNK_PROVIDERS_REASONING_BUDGET"] as const;
 export const aliasConfiguration = (alias: string, env: NodeJS.ProcessEnv): Record<string, string> => Object.fromEntries(
     ALIAS_KNOBS.map((knob) => [`${knob}_${alias}`, env[`${knob}_${alias}`]]).filter((entry): entry is [string, string] => entry[1] !== undefined),
 );

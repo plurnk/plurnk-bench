@@ -75,7 +75,7 @@ and no client. `--skip-grading` stops after capture. `--timeout <s>` (or
 `PLURNK_SWEBENCH_TIMEOUT_SEC`) sets the client budget; the default is the manifest's
 `budgetSeconds` minus 120 s of boot/commit headroom.
 
-The condition (`PLURNK_PROVIDERS_REASONING_<alias>=high`) and the client switches
+The condition (`PLURNK_PROVIDERS_EFFORT_<alias>=high`) and the client switches
 (`PLURNK_EXECS_QUESTION=0`, `PLURNK_SCHEMES_HTTP_HOSTS=[]`) are ordinary daemon
 configuration, exactly as SPEC `§swebench-conditions` and `§swebench-network` state.
 

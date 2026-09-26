@@ -705,14 +705,14 @@ test("[§benchlet-tree] the instruction's /app becomes the host tree; unrelated 
 test("{§bench-confounds} provenance records the alias's route knobs by name, never a credential", () => {
     const env = {
         PLURNK_MODEL_dumbox: "fireworks-ai/accounts/fireworks/models/glm-5p3-flash",
-        PLURNK_PROVIDERS_REASONING_dumbox: "medium",
+        PLURNK_PROVIDERS_EFFORT_dumbox: "medium",
         PLURNK_PROVIDERS_SERVICE_TIER_dumbox: "priority",
         PLURNK_PROVIDERS_API_KEY_dumbox: "never",
         PLURNK_MODEL_other: "elsewhere",
     };
     assert.deepEqual(aliasConfiguration("dumbox", env), {
         PLURNK_MODEL_dumbox: "fireworks-ai/accounts/fireworks/models/glm-5p3-flash",
-        PLURNK_PROVIDERS_REASONING_dumbox: "medium",
+        PLURNK_PROVIDERS_EFFORT_dumbox: "medium",
         PLURNK_PROVIDERS_SERVICE_TIER_dumbox: "priority",
     });
     assert.deepEqual(aliasConfiguration("unset", env), {});
