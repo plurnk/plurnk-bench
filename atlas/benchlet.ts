@@ -32,6 +32,7 @@ import {
 } from "../src/accounting.ts";
 import { webMaterializationProvenance } from "../src/web-materialization.ts";
 import { readDigest } from "../src/digest.ts";
+import { assertCleanSources } from "../src/source-provenance.ts";
 
 interface ExactOracle {
     readonly kind: "exact";
@@ -171,26 +172,6 @@ const shell = (
         );
     }
     return result.stdout;
-};
-
-const sourceProvenance = (repository: string): {
-    readonly path: string;
-    readonly head: string;
-    readonly remote: string | null;
-    readonly clean: boolean;
-} => {
-    const status = shell("git", ["-C", repository, "status", "--porcelain"]);
-    const remote = shell(
-        "git",
-        ["-C", repository, "remote", "get-url", "origin"],
-        { allowFailure: true },
-    ).trim();
-    return {
-        path: repository,
-        head: shell("git", ["-C", repository, "rev-parse", "HEAD"]).trim(),
-        remote: remote === "" ? null : remote,
-        clean: status === "",
-    };
 };
 
 const ensureAtlasSource = (
@@ -697,19 +678,12 @@ const main = async (): Promise<void> => {
         ensureAtlasSource(sourceRepository, sourceRevision, sourceRoot);
     }
 
-    const sources = {
-        bench: sourceProvenance(benchRoot),
-        service: sourceProvenance(serviceRoot),
-        client: sourceProvenance(clientRoot),
-        ...(task.oracle.kind === "claims"
-            ? { atlas: sourceProvenance(sourceRoot) }
-            : {}),
-    };
-    for (const [name, source] of Object.entries(sources)) {
-        if (!source.clean) {
-            throw new Error(`${name} source is dirty; commit the exact source before an Atlas run.`);
-        }
-    }
+    const sources = assertCleanSources({
+        bench: benchRoot,
+        service: serviceRoot,
+        client: clientRoot,
+        ...(task.oracle.kind === "claims" ? { atlas: sourceRoot } : {}),
+    });
 
     const runDir = allocateRunDirectory(runsRoot, ["atlas", task.name, model]);
     activeRunDir = runDir;

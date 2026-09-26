@@ -32,6 +32,7 @@ import { benchmarksHome, jobsRoot, loadBenchmarkEnvironment, selectedModel } fro
 import { publishTrial } from "../src/publish.ts";
 import { EXECUTOR_SHIMS, writeExecutorShims } from "./exec.ts";
 import { candidateIsolation } from "../src/candidate-isolation.ts";
+import { assertCleanSources } from "../src/source-provenance.ts";
 
 const DATASET = "SWE-bench/SWE-bench_Lite";
 const moduleDir = dirname(fileURLToPath(import.meta.url));
@@ -326,6 +327,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         const clientRoot = requiredClientCheckout(benchRoot, process.env, "PLURNK_SWEBENCH_CLIENT_ROOT");
         const serviceRoot = resolve(benchRoot, process.env.PLURNK_SWEBENCH_SERVICE_ROOT ?? "../plurnk-service");
         if (!existsSync(join(serviceRoot, "scripts", "candidate.mjs"))) throw new Error(`service checkout has no scripts/candidate.mjs: ${serviceRoot}`);
+        const sources = assertCleanSources({ bench: benchRoot, service: serviceRoot, client: clientRoot });
 
         const agentDir = join(trialDir, "agent");
         mkdirSync(agentDir, { recursive: true });
@@ -382,6 +384,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             image: manifest.environment.image,
             imageId,
             startHead,
+            sources,
             baseCommit: manifest.baseCommit,
             timeoutSeconds: timeout,
             repository,

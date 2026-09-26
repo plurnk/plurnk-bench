@@ -683,8 +683,10 @@ reimplementation of its agent loop or an assertion that the study was reproduced
   published. Each attempt takes its own evaluation run id (the harness names its
   container `sweb.eval.<instance>.<run_id>`, so a shared id makes two attempts at one
   instance kill each other under `PLURNK_BENCH_JOBS`). `provenance.json` — instance,
-  model, dataset and revision, image and resolved image id, start head, timeout, and
-  the candidate's exit — is written BEFORE publication and rewritten after with the
+  model, dataset and revision, image and resolved image id, start head, the clean
+  bench, service and client revisions ({§benchlet-provenance}: a dirty source is
+  refused before the candidate runs), timeout, and the candidate's exit — is written
+  BEFORE publication and rewritten after with the
   published `runDir`, so an interrupted publish leaves a described trial rather than an
   anonymous one. `result.json`'s `exception_info` is `null` only for a clean exit: a
   timeout, external cancellation, a spawn failure, and a non-zero exit each name
