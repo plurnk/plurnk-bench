@@ -112,6 +112,54 @@ test("{§swebench-pi} a setup failure pauses new work without discarding the fai
     assert.equal(completed.pause, true);
 });
 
+for (const { name, limits, errors, failures = [], pause } of [
+    { name: "recorded turn-cap abort", limits: [{ event: "turn-cap", turnCap: 100 }],
+        errors: [{ stopReason: "error", error: "This operation was aborted" }], pause: false },
+    { name: "unexplained abort", limits: [],
+        errors: [{ stopReason: "error", error: "This operation was aborted" }], pause: true },
+    { name: "provider failure despite a cap", limits: [{ event: "turn-cap", turnCap: 100 }],
+        errors: [{ stopReason: "error", error: "HTTP 503: unavailable" }], pause: true },
+    { name: "earlier provider failure before a cap", limits: [{ event: "turn-cap", turnCap: 100 }],
+        errors: [{ stopReason: "error", error: "HTTP 503: unavailable" },
+            { stopReason: "error", error: "This operation was aborted" }], pause: true },
+    { name: "capture failure despite a cap", limits: [{ event: "turn-cap", turnCap: 100 }],
+        errors: [{ stopReason: "error", error: "This operation was aborted" }],
+        failures: [{ error: "Response capture interrupted" }], pause: true },
+]) {
+    test(`{§swebench-pi} campaign distinguishes ${name} without discarding evidence`, async () => {
+        const dir = mkdtempSync(join(root, "stops-"));
+        const corpus = join(dir, "corpus.json");
+        const profile = join(dir, "profile.json");
+        json(corpus, ["a", "b"]);
+        json(profile, { turnCap: 100 });
+        const options = { corpus, profile, out: join(dir, "campaign"), attempts: 1, jobs: 1 };
+        let calls = 0;
+        const execute = async (_command, _args, { stdoutPath }) => {
+            const artifact = join(dir, `trial-${++calls}`);
+            mkdirSync(join(artifact, "agent"), { recursive: true });
+            mkdirSync(join(artifact, "verifier"));
+            writeFileSync(stdoutPath, `artifact=${artifact}\n`);
+            json(join(artifact, "agent/summary.json"), { requests: 100, chargedUsd: 0.1, unpricedRequests: 0,
+                errors, failures, limits });
+            json(join(artifact, "verifier/reward.json"), { reward: 0 });
+            json(join(artifact, "result.json"), { exception_info: null });
+            return { status: 0 };
+        };
+        if (pause) await assert.rejects(runCampaign(options, execute), /paused for review/);
+        else await runCampaign(options, execute);
+        assert.equal(calls, pause ? 1 : 2);
+        const results = readFileSync(join(options.out, "results.jsonl"), "utf8").trim().split("\n").map(JSON.parse);
+        assert.equal(results[0].pause, pause);
+        assert.deepEqual(results[0].summary.errors, errors);
+        assert.deepEqual(results[0].summary.limits, limits);
+        assert.equal(results[0].reward.reward, 0);
+        if (!pause) {
+            await runCampaign(options, execute);
+            assert.equal(calls, 2);
+        }
+    });
+}
+
 for (const turnCap of [1, 100]) {
     test(`{§swebench-pi} installed native Pi: isolated context, tools, wire effort and ${turnCap}-turn bound`, {
         skip: !process.env.PLURNK_BENCH_PI, timeout: 60000,

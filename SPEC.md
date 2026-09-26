@@ -761,7 +761,7 @@ on resume, and a changed profile requires a new campaign directory.
 | Limits | A benchmark-only extension aborts before the next model turn beyond the declared cap. The common wall-clock guard still applies. Limits do not add model-facing instructions. |
 | Evidence | Observe, without changing, each native chat-completions request and response. Retain raw streams, Pi JSON events, session files, configuration, errors, patch and official oracle. No synthetic Plurnk database or digest. |
 | Cost | OpenRouter response usage owns charged cost: `cost`, plus explicit `cost_details.upstream_inference_cost` when `is_byok` is true. Missing billing or cache fields remain unknown; report coverage. Fixed-rate repricing is separate from native catalog estimates and actual charges. |
-| Failure | Grade available work regardless of agent outcome. Campaigns pause new trials for infrastructure/provider failures; other in-flight trials finish. Oracle failures and turn-cap exhaustion remain scored outcomes, not discarded trials. |
+| Failure | Grade available work regardless of agent outcome. Campaigns pause new trials for infrastructure/provider failures; other in-flight trials finish. Oracle failures and turn-cap exhaustion remain scored outcomes and permit the next trial. The recorded cap's terminal abort is expected; unrelated errors still pause. Preserve all error and limit evidence. |
 
 Coverage: `swebench/pi.test.mjs`; native installed-CLI checks require
 `PLURNK_BENCH_PI` and use a local fixture endpoint with no paid inference.
