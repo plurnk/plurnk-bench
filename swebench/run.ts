@@ -37,7 +37,7 @@ const DATASET = "SWE-bench/SWE-bench_Lite";
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const benchRoot = resolve(moduleDir, "..");
 
-interface Manifest {
+export interface Manifest {
     readonly instance: string;
     readonly datasetRevision?: string;
     readonly repo: string;
@@ -123,7 +123,7 @@ export const extractPlurnkDoc = (text: string): string | null => {
     return null;
 };
 
-const shell = (
+export const shell = (
     command: string,
     args: string[],
     options: { cwd?: string; env?: NodeJS.ProcessEnv; allowFailure?: boolean } = {},
@@ -145,7 +145,7 @@ const writeJson = (path: string, value: unknown): void => {
 
 // The eval images are 2-4 GB each. Nothing is deleted behind the operator's back ({§swebench});
 // the run refuses loudly when the disk cannot hold another image, and prunes only when asked.
-const requireDiskRoom = (): void => {
+export const requireDiskRoom = (): void => {
     const minimumGb = Number(process.env.PLURNK_SWEBENCH_MIN_FREE_GB ?? 15);
     if (!Number.isFinite(minimumGb) || minimumGb < 0) throw new Error("PLURNK_SWEBENCH_MIN_FREE_GB must be a non-negative number");
     if (minimumGb === 0) return;
@@ -157,12 +157,12 @@ const requireDiskRoom = (): void => {
     }
 };
 
-const pruneImage = (image: string): void => {
+export const pruneImage = (image: string): void => {
     if (process.env.PLURNK_SWEBENCH_PRUNE_IMAGE !== "1") return;
     shell("docker", ["image", "rm", image], { allowFailure: true });
 };
 
-const dockerImageId = (image: string): string => {
+export const dockerImageId = (image: string): string => {
     const inspect = spawnSync("docker", ["image", "inspect", "--format={{.Id}}", image], { encoding: "utf8" });
     if (inspect.error !== undefined) throw inspect.error;
     if (inspect.status !== 0) {
@@ -176,7 +176,7 @@ const removeContainer = (container: string): void => {
     shell("docker", ["rm", "--force", container], { allowFailure: true });
 };
 
-const runToFiles = async (
+export const runToFiles = async (
     command: string,
     args: string[],
     options: { cwd: string; env: NodeJS.ProcessEnv; stdoutPath: string; stderrPath: string; tee?: boolean; timeoutMs?: number; signal?: AbortSignal },
@@ -216,7 +216,7 @@ const runToFiles = async (
 // The image's /testbed is the instance checkout (SWE-bench's environment commit on top of the
 // dataset base). Copy it out, mark it as the candidate repository, and record its HEAD — the
 // reference the candidate patch is taken against, exactly the state the oracle resets to.
-const prepareRepository = (manifest: Manifest, destination: string): string => {
+export const prepareRepository = (manifest: Manifest, destination: string): string => {
     mkdirSync(destination, { recursive: true });
     const container = shell("docker", ["create", manifest.environment.image]).trim();
     try {
@@ -234,7 +234,7 @@ const prepareRepository = (manifest: Manifest, destination: string): string => {
 // The graded patch is the candidate's whole working state against its start HEAD (committed and
 // uncommitted alike), taken through an alternate index so the repository's own index is
 // untouched — exactly the diff the official evaluator applies inside its fresh container.
-const capturePatch = (repository: string, startCommit: string, trialDir: string): string => {
+export const capturePatch = (repository: string, startCommit: string, trialDir: string): string => {
     const artifacts = join(trialDir, "artifacts");
     mkdirSync(artifacts, { recursive: true });
     const patchPath = join(artifacts, "model.patch");

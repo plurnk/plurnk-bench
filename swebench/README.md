@@ -91,8 +91,32 @@ node swebench/evaluate.ts --instance mwaskom__seaborn-3010 --patch <file|gold> -
 
 `--patch gold` grades the dataset's own patch: the oracle path with no model.
 
-## status
+## Native Pi comparison
 
-Phase 0 (the official evaluator on the pinned gold patch) and the family's unit surface are
-proven on this host; a full candidate run is the next paid increment. SPEC `§swebench` is
-the contract the runner satisfies.
+`pi.mjs` runs the installed Pi CLI against the same specimen, prompt, test image
+and official evaluator. It retains Pi's own prompt, tools and defaults; only
+provider/model/effort, personal-context isolation and benchmark limits are selected.
+The observation extension never rewrites requests. See SPEC {§swebench-pi}.
+
+Refresh Pi's catalog with `PI_CODING_AGENT_DIR=<catalog-dir> pi update --models`.
+A profile JSON records `executable`, exact `version`, `provider` (`openrouter`),
+`model`, `effort`, `catalogPath` (that directory's `models-store.json`), `turnCap`,
+`timeoutSeconds`, and fixed reporting `rates` (`input`, `output`, `cacheRead`,
+`cacheWrite`, dollars per million tokens). Credentials remain in the calling
+environment; no credential goes in the profile. Rates affect reporting only.
+
+```sh
+node swebench/pi.mjs --instance django__django-11620 --profile <profile.json> --preflight
+node swebench/pi.mjs --instance django__django-11620 --profile <profile.json>
+node swebench/pi-campaign.mjs --corpus swebench/corpora/harnesstax-swe-lite-30.json \
+  --profile <profile.json> --out <campaign-dir> --attempts 3 --jobs 2
+```
+
+Trials live under `~/benchmarks/jobs/swebench-pi/`. Reusing a campaign directory
+resumes unattempted pairs with the unchanged profile. Review pauses before resuming;
+a failed trial is retained, never silently replaced. Raw wire responses retain
+authoritative OpenRouter/BYOK billing; `agent/summary.json` distinguishes charges,
+fixed-rate repricing and missing telemetry.
+
+`PLURNK_BENCH_PI=/absolute/path/to/pi node --test swebench/pi.test.mjs` additionally
+checks the installed CLI's real requests and tools against a local fixture server.

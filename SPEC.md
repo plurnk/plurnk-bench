@@ -648,16 +648,16 @@ Preserve the exception type alongside the state. Only `verifier/reward.txt` dete
 - A completed installation records its actual exit status; pipeline logging must preserve a failed installer's status and stop subsequent steps. An interrupted log is not evidence of successful setup.
 - Installation compatibility probes use Harbor's `--install-only` path: the original task environment and installed-agent setup, without model inference or verification.
 - Official Debian/Ubuntu archive URLs use HTTPS with normal certificate verification. Repository hosts, suites, packages, and third-party source definitions remain unchanged; installation does not modify task instructions or verifiers.
-## §swebench SWE-bench Lite is a fourth point, never a re-measurement
+## §swebench SWE-bench Lite and native-harness comparisons
 
 `swebench/` drives pinned SWE-bench Lite task ids through the ordinary plurnk
 client/service boundary and grades each attempt with the benchmark's OWN official
 evaluator, joining its per-instance report exactly as DeepSWE joins Pier's
 `reward.json` ({§verdicts}). It reproduces no agent loop and substitutes no host-only
 probe for the official evaluation image. Its purpose is to place plurnk as a fourth
-harness point in the HarnessTax study's cost/success frame (minimal like Pi, but one
-compositional op language rather than four tool schemas), never to re-measure the
-study's three harnesses.
+harness point in the HarnessTax study's cost/success frame. Explicit same-model
+comparisons use the other harness's native implementation ({§swebench-pi}), not a
+reimplementation of its agent loop or an assertion that the study was reproduced.
 
 - §swebench-corpus The 30 task ids and the dataset revision are pinned together;
   downloaded corpus state lives under `.cache/swebench`, never in source.
@@ -746,5 +746,24 @@ study's three harnesses.
   model calls and loop turns as medians per rollout. The per-task matrix sets the campaign's
   rate beside each baseline's successes of three. The section follows friction, verdicts
   and spend; dollars stay approximate under {§swebench-cost}.
+
+### §swebench-pi Native Pi comparison
+
+`swebench/pi.mjs` invokes the installed Pi CLI. `pi-campaign.mjs` schedules separate
+processes from the same corpus/attempt plan; an existing result is never repurchased
+on resume, and a changed profile requires a new campaign directory.
+
+| Boundary | Contract |
+|----------|----------|
+| Agent | Stock system prompt, default tools, compaction, sampling, output and retry behavior. Select only provider, model and effort; the version and Pi's refreshed catalog are frozen and retained. No request-payload rewriting. |
+| Personal context | Fresh Pi configuration per trial; no operator/project extensions, skills, prompt templates or AGENTS/CLAUDE files. No Plurnk teaching. |
+| Environment | Reuse {§swebench-trial}, {§swebench-network} and {§swebench-executor-encoding}. Pi's ordinary `shellPath` setting reaches the same isolated image; native file tools see the mounted checkout. |
+| Limits | A benchmark-only extension aborts before the next model turn beyond the declared cap. The common wall-clock guard still applies. Limits do not add model-facing instructions. |
+| Evidence | Observe, without changing, each native chat-completions request and response. Retain raw streams, Pi JSON events, session files, configuration, errors, patch and official oracle. No synthetic Plurnk database or digest. |
+| Cost | OpenRouter response usage owns charged cost: `cost`, plus explicit `cost_details.upstream_inference_cost` when `is_byok` is true. Missing billing or cache fields remain unknown; report coverage. Fixed-rate repricing is separate from native catalog estimates and actual charges. |
+| Failure | Grade available work regardless of agent outcome. Campaigns pause new trials for infrastructure/provider failures; other in-flight trials finish. Oracle failures and turn-cap exhaustion remain scored outcomes, not discarded trials. |
+
+Coverage: `swebench/pi.test.mjs`; native installed-CLI checks require
+`PLURNK_BENCH_PI` and use a local fixture endpoint with no paid inference.
 
 Covered: `swebench/evaluator.test.ts [§swebench-evaluator]`, `swebench/run.test.ts [§swebench] [§swebench-trial] [§swebench-conditions] [§swebench-prompt] [§swebench-profiles]`, `swebench/sample.test.ts [§swebench-corpus]`, `swebench/plan.test.ts [§swebench-profiles]`, `swebench/report.test.ts [§swebench-profiles] [§swebench-trial] [§swebench-comparison] [§benchlet-isolation]`, `swebench/comparison.test.ts [§swebench-comparison] [§swebench-corpus]`, `src/statistics.test.ts [§swebench-comparison]`, `src/candidate-isolation.test.ts [§benchlet-isolation]`.
