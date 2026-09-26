@@ -453,7 +453,9 @@ moving them afterwards, runs `npm ci` in each, and prints the two exports a
 lane needs (`PLURNK_BENCHLET_SERVICE_ROOT`, `PLURNK_BENCHLET_CLIENT_ROOT`).
 The candidate always runs from a lane, never from a checkout being edited
 (`{§benchlet-provenance}`); after a publication the lanes are relocked to the
-published commits before any comparative run.
+published commits before any comparative run. The requiem runs the lane's
+`plurnk-service requiem` subcommand, so a lane older than the service commit that
+introduced it (`24d9de148`) runs with `PLURNK_BENCHLET_REQUIEM=0`.
 
 ## §config-carry The runner carries authoritative config, re-declaring nothing
 
@@ -487,6 +489,11 @@ to the host LAN IP. Child contracts:
   environment setup or spends its build timeout downloading (2026-08-30: ~50 of 113 trials
   failed to resolve their ECR image at 38-wide). Covered: `[§config-image-prepull]` in
   `smoke.test.ts`.
+- §config-egress `smoke.sh` derives the candidate's egress allowlist from the run's aliases:
+  each provider's registry host (`providers.json`), the host of every forwarded
+  `PLURNK_BASEURL_<alias>` or `<PROVIDER>_BASE_URL`, and Tavily when routed. The driver fails
+  the trial when no model egress is named. Covered: `[§config-egress]` in `smoke.test.ts`,
+  `test_driver.py`.
 - §config-digest-preflight The bench's installed `@plurnk/plurnk-service` must equal the
   version the corpus installs: its digest reads the databases the in-container daemons write.
   A mismatch refuses the launch (2026-08-30: a 1.11.0 digest crashed on 1.12.0 databases mid-run).
@@ -532,7 +539,7 @@ to the host LAN IP. Child contracts:
 
 ## §snapshot-wal The daemon DB artifact includes committed WAL state
 
-The driver snapshots the live daemon database with SQLite `VACUUM INTO`. It never falls
+The driver snapshots the live daemon database with SQLite's online `backup()`. It never falls
 back to copying the main file without its WAL and fails the trial if a consolidated
 snapshot cannot be produced.
 Covered: `test_driver.py [§snapshot-wal]`.

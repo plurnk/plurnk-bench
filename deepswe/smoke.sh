@@ -260,9 +260,7 @@ if [ "$TASK" = all ]; then
 fi
 
 echo "smoke: model=$MODEL task=$TASK service=$SERVICE_VERSION client=$CLIENT_VERSION tavily=$TAVILY_ROUTE egress=$EGRESS_DOMAINS cpus=${PLURNK_BENCH_CPUS:-native} client_timeout=${CLIENT_TIMEOUT_SEC}s (budget ${AGENT_BUDGET:-?}s)${PLURNK_BENCH_FORCE_BUILD:+ [force-build]}" >&2
-# The default personality ships on: the daemon seeds PLURNK_PERSONALITY.md to
-# the XDG policy file and foists it headless (confirmed via digest, PLURNK_POLICY unset).
-# So we DON'T set PLURNK_POLICY — the benchmark gets the real product default as-is.
+# The benchmark runs the product's default policy as-is: PLURNK_SERVICE_POLICY stays unset.
 # SPEC §results-canon: Pier's job scratch and the published runs share ONE tree.
 JOBS_ROOT="$(node src/publish.ts --jobs deepswe)"
 mkdir -p "$JOBS_ROOT"

@@ -7,7 +7,7 @@ import { EXECUTOR_SHIMS, executorShim, writeExecutorShims } from "./exec.ts";
 
 const exec = { container: "c0ffee", repository: "/runs/run1/repo", user: "1000:1000", home: "/root", realPath: "/usr/bin:/bin" };
 
-test("[§swebench-container-exec] a shim forwards inside the repository through the image's login shell and runs the real binary anywhere else", () => {
+test("[§swebench-executor-encoding] a shim forwards inside the repository through the image's login shell and runs the real binary anywhere else", () => {
     const shim = executorShim("python", exec);
     assert.match(shim, /^#!\/bin\/sh\n/);
     assert.ok(shim.includes("    '/runs/run1/repo/'*"), "the repository prefix is the forward rule");
@@ -26,7 +26,7 @@ test("{§swebench-executor-encoding} shims select UTF-8 without importing the ho
     }
 });
 
-test("[§swebench-container-exec] writing shims creates one executable per executor name", () => {
+test("[§swebench-executor-encoding] writing shims creates one executable per executor name", () => {
     const dir = mkdtempSync(join(tmpdir(), "swebench-exec-"));
     writeExecutorShims(dir, exec);
     for (const name of EXECUTOR_SHIMS) {

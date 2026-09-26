@@ -18,7 +18,7 @@ To compare the same completed tasks against a saved upstream `trials.json`, add
 
 The runner resolves exact current service/client publications before constructing the
 agent image, making Docker cache reuse version-sensitive. The driver persists the live
-WAL database with `VACUUM INTO`; snapshot failure fails the trial rather than publishing
+WAL database with SQLite's online `backup()`; snapshot failure fails the trial rather than publishing
 an incomplete database.
 
 ```
