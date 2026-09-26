@@ -515,8 +515,8 @@ const runRequiem = async (
     const result = await runToFiles(process.execPath, [
         `--env-file=${operatorEnv}`,
         "--conditions=plurnk-dev",
-        "plurnk-core/bin/digest.ts",
-        "--requiem",
+        "plurnk-core/src/service.ts",
+        "requiem",
         resolve(runDir, "plurnk.db"),
         resolve(runDir, "digest"),
     ], {

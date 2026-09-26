@@ -1839,8 +1839,8 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         const requiemArgs = [
             `--env-file=${operatorEnv}`,
             "--conditions=plurnk-dev",
-            "plurnk-core/bin/digest.ts",
-            "--requiem",
+            "plurnk-core/src/service.ts",
+            "requiem",
             resolve(runDir, "plurnk.db"),
             resolve(runDir, "digest"),
         ];
