@@ -94,14 +94,14 @@ silently compared under different rate cards.
 
 DB→forensics belongs to the daemon's own digest (reused via
 `@plurnk/plurnk-service/digest`), backed by the SqlRite ORM — bench holds a **pointer**
-(`RunRef.dbPath`), renders through `Digest.run`, and issues zero raw SQL. The handle rules:
+(`RunRef.dbPath`), renders through `Digest.run` when it publishes a run, and issues zero raw SQL. The handle rules:
 loop doc carried `workspace`+`workerId` -> scoped handle; crash/error doc but a DB was copied ->
 `dbPath`-only handle (digest renders the whole DB); no DB copied → no handle, honestly
 absent — the bench never fabricates one. Reporting reads the complete `digest.json`
 incrementally, retaining accounting and outcome fields but not opaque provider response
 bodies. Full evidence stays in the daemon's artifacts. Invalid or unfinished JSON is an
 export failure, never a zero-cost or turnless result.
-Covered: `ingest.test.ts [§digest-boundary]` ×2, `digest.test.ts [§digest-boundary]` ×2,
+Covered: `ingest.test.ts [§digest-boundary]` ×2, `digest.test.ts [§digest-boundary]`,
 `record.test.ts [§digest-boundary]`.
 
 ## §platform-package-boundary Public platform dependencies follow their owners
