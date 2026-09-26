@@ -9,10 +9,11 @@
 // credentials are blanked for good measure. Origin: on 2026-09-17, four of ten deepdumb runs read
 // the upstream solution from GitHub.
 
-// Single-word keys that are controls, not definitions, per the services' own configuration.
+// Single-word keys that are controls, not definitions: the one-word CONTROL_KEYS of the service's
+// plurnk-mcp and plurnk-a2a config.ts (multi-word controls carry `_` and never match DEFINITION).
 const CONTROLS: Readonly<Record<"PLURNK_MCP_" | "PLURNK_A2A_", ReadonlySet<string>>> = Object.freeze({
     PLURNK_MCP_: new Set(["enabled", "expanded"]),
-    PLURNK_A2A_: new Set(["enabled", "expose", "host", "port"]),
+    PLURNK_A2A_: new Set(["enabled", "expose", "token", "workspace", "proposals", "name", "description", "version", "skills"]),
 });
 // A definition key is the prefix plus one server name; names never contain `_` (companions do).
 const DEFINITION = /^(PLURNK_MCP_|PLURNK_A2A_)([A-Za-z][A-Za-z0-9-]*)$/;
