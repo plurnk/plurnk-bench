@@ -6,7 +6,7 @@ import type { TrialRow } from "./report.ts";
 const row = (over: Partial<TrialRow>): TrialRow => ({
     instance: "django__django-11620", attempt: 1, model: "deepdumb", outcome: "pass", loopStatus: 200, reward: 1, emptyPatch: false, exception: null,
     turns: 12, requests: 14, rejectedEmissions: 0, tokens: { input: 400_000, cached: 100_000, output: 20_000, reasoning: 5_000 },
-    costUsd: 0.12, wallMs: 600_000, emptyTurns: 0, webReferences: 0, webAttempts: 0, webReads: 0, mcpCalls: 0, refused: {}, evidence: "/tmp/x", ...over,
+    costUsd: 0.12, wallMs: 600_000, emptyTurns: 0, webReferences: 0, webAttempts: 0, webReads: 0, mcpCalls: 0, refused: {}, edits: null, evidence: "/tmp/x", ...over,
 });
 
 const fixture = (): TrialRow[] => [
