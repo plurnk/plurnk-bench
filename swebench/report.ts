@@ -4,7 +4,7 @@
 // verdicts, then spend. Every number comes from the trial's own record and the daemon's digest
 // ({§digest-boundary}); nothing is re-derived. `--verdict <trial>` is the loop's halt rule: only a
 // clean pass, oracle resolved and client exited 0, lets the campaign spend on the next trial.
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { readTrialDir } from "../src/ingest.ts";
@@ -60,7 +60,10 @@ export interface CampaignSummary {
 }
 
 interface LogEntry { origin?: string; op?: string | null; target?: string | null; status_rx?: number | null }
-interface Digest extends DigestAccountingInput { log_entries?: LogEntry[] }
+// {§share-packet-names}: a turn's packet files share the stem digest.json records as `artifact`
+// (null when the turn wrote none); the array is the digest's own turn order.
+export interface DigestTurn { artifact?: string | null }
+interface Digest extends DigestAccountingInput { log_entries?: LogEntry[]; turns?: DigestTurn[] }
 
 const json = <T>(path: string): T | null => existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) as T : null;
 const sum = (values: number[]): number => values.reduce((total, value) => total + value, 0);
@@ -88,19 +91,21 @@ const digestDir = (trialDir: string): string => {
 // The schemes whose manifests declare the `web` trait. The sheet reads the packet the model saw,
 // not the manifests: a reference row in the first packet is a door the model was shown.
 const WEB_SCHEMES: ReadonlySet<string> = new Set(["https", "wss"]);
+// The packet files of the given kind, in the digest's turn order: the stems digest.json names,
+// kept when the turn wrote that file.
+const packetFiles = (digest: string, turns: readonly DigestTurn[], kind: "assistant" | "user"): string[] => turns
+    .flatMap(({ artifact }) => (typeof artifact === "string" ? [join(digest, `${artifact}.${kind}.md`)] : []))
+    .filter((path) => existsSync(path));
+
 // An emission the parser could admit nothing from: no line opens a fence. Counted from the raw
 // assistant packets, so a model's native tool-call markup and plain prose both show as friction.
-export const emptyTurnsOf = (digest: string): number => (existsSync(digest) ? readdirSync(digest) : [])
-    .filter((name) => /^packet\d+\.assistant\.md$/u.test(name))
-    .filter((name) => !/^ {0,3}```/mu.test(readFileSync(join(digest, name), "utf8"))).length;
+export const emptyTurnsOf = (digest: string, turns: readonly DigestTurn[]): number => packetFiles(digest, turns, "assistant")
+    .filter((path) => !/^ {0,3}```/mu.test(readFileSync(path, "utf8"))).length;
 
-export const webReferencesTaught = (digest: string): number => {
-    const packets = (existsSync(digest) ? readdirSync(digest) : [])
-        .flatMap((name) => { const match = /^packet(\d+)\.user\.md$/u.exec(name); return match === null ? [] : [{ name, index: Number(match[1]) }]; })
-        .toSorted((a, b) => a.index - b.index);
-    if (packets.length === 0) return 0;
-    const first = readFileSync(join(digest, packets[0]!.name), "utf8");
-    const taught = new Set([...first.matchAll(/worker:\/\/\/_plurnk\/plurnk\/([a-z0-9-]+)\.md/gu)].map((match) => match[1]!));
+export const webReferencesTaught = (digest: string, turns: readonly DigestTurn[]): number => {
+    const [first] = packetFiles(digest, turns, "user");
+    if (first === undefined) return 0;
+    const taught = new Set([...readFileSync(first, "utf8").matchAll(/worker:\/\/\/_plurnk\/plurnk\/([a-z0-9-]+)\.md/gu)].map((match) => match[1]!));
     return [...taught].filter((name) => WEB_SCHEMES.has(name)).length;
 };
 
@@ -138,8 +143,8 @@ export const readTrialRow = (trialDir: string, attempt: number): TrialRow | null
         },
         costUsd: accounting?.costUsd === null || accounting?.costUsd === undefined ? null : Number(accounting.costUsd),
         wallMs: record.durationMs > 0 ? record.durationMs : null,
-        emptyTurns: emptyTurnsOf(digestDir(trialDir)),
-        webReferences: webReferencesTaught(digestDir(trialDir)),
+        emptyTurns: emptyTurnsOf(digestDir(trialDir), digest?.turns ?? []),
+        webReferences: webReferencesTaught(digestDir(trialDir), digest?.turns ?? []),
         webAttempts: entries.filter((entry) => typeof entry.target === "string" && /^https?:\/\//u.test(entry.target)).length,
         webReads: entries.filter((entry) => typeof entry.target === "string" && /^https?:\/\//u.test(entry.target) && typeof entry.status_rx === "number" && entry.status_rx < 400).length,
         mcpCalls: entries.filter((entry) => typeof entry.op === "string" && aliases.has(entry.op.toLowerCase())).length,

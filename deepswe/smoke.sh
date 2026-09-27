@@ -130,7 +130,7 @@ if [ "$TASK" = all ]; then
     done
   done
   # Provider-scoped knobs ride with the providers the run's aliases resolve to —
-  # alias tuning (REASONING_<alias>=low) is meaningless without the provider's
+  # alias tuning (EFFORT_<alias>=low) is meaningless without the provider's
   # admitted-efforts/style lines (the 113×0 fleet refusal of 2026-08-31, #11).
   for prefix in $(for alias in "$MODEL" "${PLURNK_MODEL_CHILD:-}"; do
     [ -n "$alias" ] || continue

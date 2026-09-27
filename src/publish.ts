@@ -1,7 +1,9 @@
 // SPEC §publish / §results-canon. Publish a bench run to the one shared, human-referenceable
 // tree so anyone can inspect it by name: <home>/run<N>-<harness>-<task>-<model>/{plurnk.db,
-// digest/, record.json}. Copies the run's DB, renders its digest (reusing the daemon's Digest
-// — bench builds no forensics), and writes the joined BenchRecord (the oracle side:
+// digest/, record.json}. Copies the run's DB through the daemon's own Share.snapshot
+// ({§share-snapshot}: SQLite, never the filesystem, so committed WAL pages are kept), renders
+// its digest (reusing the daemon's Digest — bench builds no forensics), and writes the joined
+// BenchRecord (the oracle side:
 // reward/outcome, which the DB+digest do NOT carry) so the run dir is a COMPLETE,
 // self-sufficient results source — read it here, never the jobs/ scratch.
 //
@@ -9,11 +11,12 @@
 // while it is still going. A trial that already published is never republished: its
 // marker names the run dir.
 
-import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { parseArgs } from "node:util";
 import Digest from "@plurnk/plurnk-service/digest";
+import Share from "@plurnk/plurnk-service/share";
 import { summarizeDigestAccounting, summarizeRequiemAccounting } from "./accounting.ts";
 import type { DigestAccountingInput, RequiemAccountingInput } from "./accounting.ts";
 import { isTrialDir, readTrialDir } from "./ingest.ts";
@@ -71,7 +74,7 @@ export const publishedRecord = (record: BenchRecord, dbPath: string, digest: Dig
     };
 };
 
-// Copy the run's DB + render its digest into the allocated run dir. The digest reads the
+// Snapshot the run's DB + render its digest into the allocated run dir. The digest reads the
 // COPIED DB, so the run dir is self-contained. No run handle → nothing to publish (null).
 // A run without a model turn is rolled back rather than published.
 export const publishRun = (record: BenchRecord, benchmarksDir: string): string | null => {
@@ -79,7 +82,7 @@ export const publishRun = (record: BenchRecord, benchmarksDir: string): string |
     const runDir = allocateRunDirectory(benchmarksDir, runLabels(record));
     const digestDir = join(runDir, "digest");
     const db = join(runDir, "plurnk.db");
-    copyFileSync(record.run.dbPath, db);
+    Share.snapshot(record.run.dbPath, db);
     // SPEC §publish-workspace-scope (#450): the digest is the run's FULL workspace —
     // worker narrowing would exclude the vector pump's workspace-owned (turnless)
     // embedding derivations and any child worker's own evidence.

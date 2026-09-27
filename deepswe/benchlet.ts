@@ -1641,13 +1641,15 @@ const main = async (signal?: AbortSignal): Promise<void> => {
     const containerExec = isDockerManifest(manifest)
         ? (() => {
             const user = process.getuid!() + ":" + process.getgid!();
-            const container = candidateContainer.start(manifest.environment, repository, user);
+            // {§benchlet-container-scratch} — the daemon's executor scratch is per-run and mounted as-is.
+            const mounts = { repository, scratch: resolve(runDir, "exec-scratch") };
+            const container = candidateContainer.start(manifest.environment, mounts, user);
             const binDir = resolve(runDir, "bin");
             const realPath = process.env.PATH ?? "";
             writeExecutorShims(binDir, { container, repository, user, home: candidateContainer.home!, realPath });
             return {
-                env: { PATH: binDir + ":" + realPath },
-                record: candidateContainer.record(manifest.environment, repository, EXECUTOR_SHIMS),
+                env: { PATH: binDir + ":" + realPath, ...candidateContainer.daemonEnvironment() },
+                record: candidateContainer.record(manifest.environment, mounts, EXECUTOR_SHIMS),
             };
         })()
         : { env: {}, record: { kind: "host" } };

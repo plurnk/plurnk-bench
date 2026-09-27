@@ -291,11 +291,13 @@ const main = async (signal?: AbortSignal): Promise<void> => {
 
     const candidateContainer = new CandidateContainer((command, args, options) => shell(command, args, options));
     const user = process.getuid!() + ":" + process.getgid!();
-    const container = candidateContainer.start(manifest.environment, repository, user, "/testbed");
+    // {§benchlet-container-scratch} — the daemon's executor scratch is per-trial and mounted as-is.
+    const mounts = { repository, scratch: join(trialDir, "exec-scratch"), containerRoot: "/testbed" };
+    const container = candidateContainer.start(manifest.environment, mounts, user);
     try {
         const binDir = join(trialDir, "bin");
         writeExecutorShims(binDir, { container, repository, user, home: candidateContainer.home!, realPath: process.env.PATH ?? "" });
-        writeJson(join(trialDir, "candidate-execution.json"), candidateContainer.record(manifest.environment, repository, EXECUTOR_SHIMS, "/testbed"));
+        writeJson(join(trialDir, "candidate-execution.json"), candidateContainer.record(manifest.environment, mounts, EXECUTOR_SHIMS));
 
         if (values.preflight) {
             // The image's own toolchain, not one instance's dependency: every SWE-bench image
@@ -343,6 +345,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             PLURNK_MODEL: model,
             PLURNK_CLIENT_CHECKOUT: clientRoot,
             PLURNK_EXECS_QUESTION: "0",
+            ...candidateContainer.daemonEnvironment(),
             ...isolation.overrides,
         };
         const stdoutPath = join(agentDir, "plurnk.stdout.log");

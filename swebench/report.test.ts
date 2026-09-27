@@ -3,8 +3,9 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { emptyTurnsOf, latestLaunches, render, summarize, verdictOf, webReferencesTaught, type TrialRow } from "./report.ts";
+import { emptyTurnsOf, latestLaunches, render, summarize, verdictOf, webReferencesTaught, type DigestTurn, type TrialRow } from "./report.ts";
 import { compareBaselines } from "./comparison.ts";
+import { readDigest } from "../src/digest.ts";
 
 const row = (over: Partial<TrialRow>): TrialRow => ({
     instance: "django__django-11620", attempt: 1, model: "deepdumb", outcome: "fail", loopStatus: 200, reward: 0, emptyPatch: false, exception: null,
@@ -43,18 +44,26 @@ test("[§swebench-profiles] the campaign sheet counts friction before verdicts, 
     assert.ok(!sheet.includes("## Statistics"), "no baselines, no statistics section");
 });
 
-test("[§benchlet-isolation] the teaching check reads the first packet the model saw and counts only web scheme references", (t) => {
+test("[§benchlet-isolation] {§share-packet-names} the teaching check reads the first packet the model saw, by the digest's own turn order and artifact names, and counts only web scheme references", (t) => {
     const digest = mkdtempSync(join(tmpdir(), "swebench-digest-"));
     t.after(() => rmSync(digest, { recursive: true, force: true }));
     const survey = (names: string[]): string => names.map((name) => `[{"path":"worker:///_plurnk/plurnk/${name}.md","mimetype":"text/markdown"}]`).join("\n");
-    writeFileSync(join(digest, "packet010.user.md"), survey(["sh", "worker"]));
-    writeFileSync(join(digest, "packet007.user.md"), survey(["awk", "https", "https", "sh", "wss", "worker"]));
-    assert.equal(webReferencesTaught(digest), 2, "https and wss, each once, from packet007 and not packet010");
-    assert.equal(webReferencesTaught(join(digest, "missing")), 0);
-    writeFileSync(join(digest, "packet008.assistant.md"), "<｜｜DSML｜｜ calls>\n<｜｜DSML｜｜ invoke name=\"READ\">\n</｜｜DSML｜｜ calls>\n");
-    writeFileSync(join(digest, "packet009.assistant.md"), "````NOTE\nordinary\n````\n");
-    writeFileSync(join(digest, "packet010.assistant.md"), "I'll verify my implementation against a broader test run.\n");
-    assert.equal(emptyTurnsOf(digest), 2, "the DSML turn and the prose turn are indecipherable; the fenced NOTE is not");
+    // The initialization survey (turn 1) writes no packet; the model's first turn is <worker>-1-2.
+    // Directory listing order (worker-1-10 before worker-1-2) is not turn order; digest.json is.
+    writeFileSync(join(digest, "worker-1-10.user.md"), survey(["sh", "worker"]));
+    writeFileSync(join(digest, "worker-1-2.user.md"), survey(["awk", "https", "https", "sh", "wss", "worker"]));
+    writeFileSync(join(digest, "digest.json"), JSON.stringify({ turns: [
+        { artifact: null }, { artifact: "worker-1-2" }, { artifact: "worker-1-3" }, { artifact: "worker-1-4" }, { artifact: "worker-1-10" },
+    ] }));
+    const { turns } = readDigest<{ turns: DigestTurn[] }>(join(digest, "digest.json"));
+    assert.equal(webReferencesTaught(digest, turns), 2, "https and wss, each once, from worker-1-2 and not worker-1-10");
+    assert.equal(webReferencesTaught(digest, []), 0, "no turns, nothing taught");
+    assert.equal(webReferencesTaught(digest, [{ artifact: "worker-1-3" }]), 0, "a turn that stored no request has no user packet");
+    writeFileSync(join(digest, "worker-1-3.assistant.md"), "<｜｜DSML｜｜ calls>\n<｜｜DSML｜｜ invoke name=\"READ\">\n</｜｜DSML｜｜ calls>\n");
+    writeFileSync(join(digest, "worker-1-4.assistant.md"), "````NOTE\nordinary\n````\n");
+    writeFileSync(join(digest, "worker-1-10.assistant.md"), "I'll verify my implementation against a broader test run.\n");
+    writeFileSync(join(digest, "packet011.assistant.md"), "prose under a name the digest does not claim\n");
+    assert.equal(emptyTurnsOf(digest, turns), 2, "the DSML turn and the prose turn are indecipherable; the fenced NOTE is not; an unclaimed file is not a turn");
 });
 
 test("[§swebench-trial] the halt rule passes only a clean pass and names what to read otherwise", (t) => {

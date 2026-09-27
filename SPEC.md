@@ -153,9 +153,13 @@ Covered: `ingest.test.ts [§provenance]`.
 
 ## §publish The published run is the complete, canonical result
 
-`publishRun` writes `<plurnk>/benchmarks/run<N>/` containing **`plurnk.db`** (the copied
-daemon DB), **`digest/`** (rendered from the COPY — the dir is self-contained), and
-**`record.json`** (the joined landing: the oracle side the DB+digest cannot carry).
+`publishRun` writes `<plurnk>/benchmarks/run<N>/` containing **`plurnk.db`** (the daemon DB,
+copied through the service's `Share.snapshot` — SQLite's consistent copy, so committed pages
+still in the trial's `-wal` file arrive, {§share-snapshot}), **`digest/`** (rendered from the
+COPY — the dir is self-contained), and **`record.json`** (the joined landing: the oracle side
+the DB+digest cannot carry). The run dir is a plain folder, never an archive; the bench's own
+layout sits over the service's snapshot and digest, and adds no copy or zip of its own.
+Covered: `publish.test.ts [§publish] {§share-snapshot}`.
 
 - §publish-numbering `run<N>-<harness>-<task>-<model>`: N continues the tree (max existing + 1,
   else 1; non-run dirs ignored), the task is its last path segment, the model its alias — the
@@ -294,6 +298,19 @@ complete evidence while changing one experimental variable at a time.
   wasmi's `cargo` was "Permission denied" (the image's only toolchain is in mode-700 `/root`) and
   participle's Go module cache was empty under network none, so neither candidate could run the
   task's tests while the verifier could.
+- §benchlet-container-scratch The daemon's executor scratch is the run's own directory, seen at
+  one absolute path on both sides. The daemon writes the absolute host path of a realized
+  executor source into the command it hands the shim ({§exec-scratch-directory}); unset, that
+  path is `$XDG_RUNTIME_DIR/plurnk`, which the container does not mount. So every lane whose
+  daemon runs on the host and whose executors run in a task container (the Docker benchlet and
+  `swebench/run.ts`) names `<run>/exec-scratch` (`<trial>/exec-scratch` for a SWE-bench trial):
+  it is created `0700` on the host before the container is, bind-mounted beside the repository
+  mounts as `-v <dir>:<dir>`, exported to the candidate daemon as
+  `PLURNK_SERVICE_EXEC_SCRATCH=<dir>`, and recorded in `candidate-execution.json` as `scratch`
+  and among `mounts`. A relative directory is refused before docker is asked. Per-run, so it is
+  removed with the run. `CandidateContainer.daemonEnvironment()` is the one source of the knob,
+  so the mount and the export cannot name different directories. Covered:
+  `candidate-container.test.ts [§benchlet-container-scratch]`.
 - §benchlet-isolation A benchlet candidate reaches no network beyond its model.
   The operator's MCP server and A2A agent definitions (the operator file's and the
   shell's) are set empty in the candidate's environment, which outranks the
@@ -437,7 +454,7 @@ so the next reader checks them first instead of rediscovering them.
 |---|---|
 | Host toolchain versus task image: the candidate's commands ran on the host while the oracle graded inside the image (2026-09-08). | Fixed. `{§benchlet-container-exec}`: commands run inside the pinned task image through PATH shims into one long-lived container; `candidate-execution.json` records it. |
 | Oracle exclusions: p2p tests that fail on the pristine baseline. | Recorded. `{§benchlet-oracle-exclusion}` excludes them from the grade and lists them in `result.json.oracle.environmentExcludedP2p`. |
-| Reasoning level, service tier, and sampling per alias: two runs on "the same model" at different effort or temperature. | Recorded. `provenance.aliasConfiguration` keeps the alias's route knobs as the daemon reads them (`PLURNK_MODEL_<alias>`, `_REASONING_`, `_SERVICE_TIER_`, `_TEMPERATURE_`, `_REPEAT_PENALTY_`, capacity knobs; never a credential); the served model id is on every digest model call; a pair's mini effort is in `pair.json`. Matching the two sides is the alias map's job (`{§pair-route}`), not inferred. |
+| Effort, service tier, and sampling per alias: two runs on "the same model" at different effort or temperature. | Recorded. `provenance.aliasConfiguration` keeps the alias's route knobs as the daemon reads them (`PLURNK_MODEL_<alias>`, `_EFFORT_`, `_SERVICE_TIER_`, `_TEMPERATURE_`, `_REPEAT_PENALTY_`, capacity knobs; never a credential); the served model id is on every digest model call; a pair's mini effort is in `pair.json`. Matching the two sides is the alias map's job (`{§pair-route}`), not inferred. |
 | Mini's provider: upstream DeepSWE rows ran a model name through a different provider than ours. | Fixed by construction inside a pair (both sides on the endpoint the alias map names). A comparison against the upstream `trials.json` remains provider-confounded and is read as such. |
 | Budget: the plurnk candidate timeout versus Pier's task timeout. | Recorded on the pair sheet (`{§pair-budget}`); `.env.defaults` sets the candidate timeout to the task budget minus boot headroom. |
 | Language version: which service and client revision the candidate ran. | Recorded in `provenance.sources` from clean commits; the lanes are relocked as one command (`{§bench-relock}`). Nothing before the fences language (plurnk-service `d88b3543`) is comparable with anything after it; those run directories are gone and the ledger (#37) starts after it. |
@@ -714,7 +731,9 @@ reimplementation of its agent loop or an assertion that the study was reproduced
   toolchain with `LANG=C.UTF-8` and `LC_ALL=C.UTF-8`. Unicode arguments and stdin
   survive the host/container boundary; host PATH and locale settings are not
   imported into the image. The model-free preflight exercises the generated
-  Python shim with Unicode in both channels and fails if that probe fails.
+  Python shim with Unicode in both channels and fails if that probe fails. The
+  daemon's realized executor sources reach the container through the trial's
+  scratch mount ({§benchlet-container-scratch}).
 - §swebench-conditions The candidate uses the ordinary cascade
   ({§config-model-default}); the study's effort setting is
   `PLURNK_PROVIDERS_EFFORT_<alias>`. No positional or family-specific

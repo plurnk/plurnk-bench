@@ -1,9 +1,10 @@
-import { test } from "node:test";
+import { test, type TestContext } from "node:test";
 import Digest from "@plurnk/plurnk-service/digest";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, readFileSync, readdirSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { writeFileSync } from "node:fs";
 import {
     defaultBenchmarksDir,
@@ -18,11 +19,53 @@ import type { BenchRecord } from "./record.ts";
 import { allocateRunDirectory } from "./run-directory.ts";
 import { benchmarksHome } from "./host-paths.ts";
 
+// A WAL-mode database whose committed rows still sit in its -wal file: the shape a trial's
+// daemon leaves behind, and the one a filesystem copy loses.
+const walDatabase = (path: string, rows: number): DatabaseSync => {
+    const database = new DatabaseSync(path);
+    database.exec("PRAGMA journal_mode=WAL; CREATE TABLE evidence(n INTEGER)");
+    for (let n = 0; n < rows; n += 1) database.exec(`INSERT INTO evidence VALUES (${n})`);
+    return database;
+};
+
+const mockDigest = (t: TestContext, digestJson: unknown): void => {
+    t.mock.method(Digest, "run", ({ digestDir }: { digestDir: string }) => {
+        mkdirSync(digestDir);
+        writeFileSync(join(digestDir, "digest.json"), JSON.stringify(digestJson));
+    });
+};
+
+test("[§publish] {§share-snapshot} the published plurnk.db is SQLite's consistent copy: committed WAL pages arrive, the source is untouched", (t) => {
+    const root = mkdtempSync(join(tmpdir(), "bench-pub-snapshot-"));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    const dbPath = join(root, "agent", "plurnk.db");
+    mkdirSync(join(root, "agent"));
+    const source = walDatabase(dbPath, 5);
+    t.after(() => source.close());
+    assert.ok(statSync(`${dbPath}-wal`).size > 0, "the fixture's rows are in the WAL, not the main file");
+    const accounting = { requests: [], usage: null, costUsd: "0" };
+    mockDigest(t, { turns: [{ producer: "model" }], workspaces: [{ accounting }], provider_requests: [], turn_attempts: [] });
+    const record: BenchRecord = {
+        harness: "deepswe", taskId: "fixture", model: "fixture", durationMs: 1,
+        status: 200, outcome: "fail", reward: 0, turns: 1,
+        run: { dbPath, workspaceId: 1 },
+    };
+    const output = publishRun(record, join(root, "runs"));
+    assert.notEqual(output, null);
+    const copy = new DatabaseSync(join(output!, "plurnk.db"), { readOnly: true });
+    t.after(() => copy.close());
+    const rows = (database: DatabaseSync): unknown => (database.prepare("SELECT count(*) AS n FROM evidence").get() as { n: number }).n;
+    assert.equal(rows(copy), 5, "every committed row, including the WAL-resident ones");
+    assert.ok(!readdirSync(output!).some((name) => name.endsWith("-wal") || name.endsWith(".zip")), "a plain folder: consolidated database, no sidecars, no archive");
+    assert.equal(rows(source), 5, "the trial's database is read, never moved");
+    assert.throws(() => publishRun({ ...record, run: { dbPath: join(root, "missing.db") } }, join(root, "runs")), /share: no database at/);
+});
+
 test("[§publish-task-accounting] publication includes child requests and preserves the primary context", (t) => {
     const root = mkdtempSync(join(tmpdir(), "bench-pub-accounting-"));
     t.after(() => rmSync(root, { recursive: true, force: true }));
     const dbPath = join(root, "source.db");
-    writeFileSync(dbPath, "fixture");
+    walDatabase(dbPath, 1).close();
     const parent = { model: "parent", usage: { inputTokens: 100 }, cost: { kind: "estimated" } };
     const child = { model: "child", usage: { inputTokens: 50 }, cost: { kind: "charged" } };
     const accounting = {
