@@ -106,10 +106,12 @@ export async function runPiTrial({ instance, profilePath, preflight = false, sig
     const container = new CandidateContainer(shell);
     const user = `${process.getuid()}:${process.getgid()}`;
     try {
-        const id = container.start(manifest.environment, repository, user, "/testbed");
+        // {§benchlet-container-scratch}: the mount is the container contract's; Pi runs no daemon that writes there.
+        const mounts = { repository, scratch: join(trialDir, "exec-scratch"), containerRoot: "/testbed" };
+        const id = container.start(manifest.environment, mounts, user);
         const binDir = join(trialDir, "bin");
         writeExecutorShims(binDir, { container: id, repository, user, home: container.home, realPath: process.env.PATH ?? "" });
-        json(join(trialDir, "candidate-execution.json"), container.record(manifest.environment, repository, EXECUTOR_SHIMS, "/testbed"));
+        json(join(trialDir, "candidate-execution.json"), container.record(manifest.environment, mounts, EXECUTOR_SHIMS));
         const agentDir = join(trialDir, "agent");
         const configDir = join(agentDir, "config");
         mkdirSync(configDir, { recursive: true });
