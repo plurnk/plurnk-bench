@@ -12,7 +12,8 @@ const directory = dirname(fileURLToPath(import.meta.url));
 const json = (path, value) => writeFileSync(path, JSON.stringify(value, null, 2) + "\n");
 
 export function validateProfile(profile) {
-    if (profile.provider !== "openrouter") throw new Error("The Pi comparator profile currently supports OpenRouter");
+    // OpenRouter reports the charge on the wire; Pi's native DeepSeek provider reports usage only, priced by the profile's rates.
+    if (profile.provider !== "openrouter" && profile.provider !== "deepseek") throw new Error("The Pi comparator profile supports the openrouter and deepseek providers");
     for (const key of ["executable", "version", "model", "catalogPath", "effort"]) {
         if (typeof profile[key] !== "string" || !profile[key]) throw new Error(`Pi profile requires ${key}`);
     }

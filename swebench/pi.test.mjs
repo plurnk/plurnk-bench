@@ -52,7 +52,7 @@ test("{§swebench-pi} absent and interrupted responses remain explicitly unprice
 });
 
 test("{§swebench-pi} profiles require explicit route, version, limits and rates", () => {
-    assert.throws(() => validateProfile({}), /OpenRouter/);
+    assert.throws(() => validateProfile({}), /openrouter and deepseek/);
     assert.throws(() => validateProfile({ provider: "openrouter" }), /executable/);
 });
 

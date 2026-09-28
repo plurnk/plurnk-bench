@@ -99,7 +99,7 @@ provider/model/effort, personal-context isolation and benchmark limits are selec
 The observation extension never rewrites requests. See SPEC {§swebench-pi}.
 
 Refresh Pi's catalog with `PI_CODING_AGENT_DIR=<catalog-dir> pi update --models`.
-A profile JSON records `executable`, exact `version`, `provider` (`openrouter`),
+A profile JSON records `executable`, exact `version`, `provider` (`openrouter`, whose wire carries the charge, or `deepseek`, Pi's native provider, priced by the rates alone),
 `model`, `effort`, `catalogPath` (that directory's `models-store.json`), `turnCap`,
 `timeoutSeconds`, and fixed reporting `rates` (`input`, `output`, `cacheRead`,
 `cacheWrite`, dollars per million tokens). Credentials remain in the calling
