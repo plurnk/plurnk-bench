@@ -11,7 +11,7 @@
 // while it is still going. A trial that already published is never republished: its
 // marker names the run dir.
 
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { parseArgs } from "node:util";
@@ -83,14 +83,21 @@ export const publishRun = (record: BenchRecord, benchmarksDir: string): string |
     const digestDir = join(runDir, "digest");
     const db = join(runDir, "plurnk.db");
     Share.snapshot(record.run.dbPath, db);
-    // SPEC §publish-workspace-scope (#450): the digest is the run's FULL workspace —
-    // worker narrowing would exclude the vector pump's workspace-owned (turnless)
-    // embedding derivations and any child worker's own evidence.
-    Digest.run({
-        dbPath: db,
-        digestDir,
-        ...(record.run.workspaceId !== undefined ? { workspaceId: record.run.workspaceId } : {}),
-    });
+    // SPEC §publish-digest-provenance: a digest is read by the runtime that wrote the database. The
+    // candidate rendered its own beside the database; that copy is the published one. Only a run
+    // without one is rendered here, by this checkout's installed service.
+    if (record.run.digestDir !== undefined) {
+        cpSync(record.run.digestDir, digestDir, { recursive: true });
+    } else {
+        // SPEC §publish-workspace-scope (#450): the digest is the run's FULL workspace —
+        // worker narrowing would exclude the vector pump's workspace-owned (turnless)
+        // embedding derivations and any child worker's own evidence.
+        Digest.run({
+            dbPath: db,
+            digestDir,
+            ...(record.run.workspaceId !== undefined ? { workspaceId: record.run.workspaceId } : {}),
+        });
+    }
     if (!digestHasModelTurns(digestDir)) {
         rmSync(runDir, { recursive: true, force: true });
         return null;

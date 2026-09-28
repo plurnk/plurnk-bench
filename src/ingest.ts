@@ -272,6 +272,9 @@ export const readTrial = (trialDir: string, meta: { harness: string; taskId: str
     if (webMaterialization !== undefined) record.webMaterialization = webMaterialization;
     // Carry the DB pointer as the digest handle when the loop doc dropped the coordinate.
     if (existsSync(dbPath) && record.run === undefined) record.run = { dbPath };
+    // {§publish-digest-provenance} — the candidate's own digest, rendered by the runtime that wrote the database.
+    const digestDir = join(trialDir, "agent", "digest");
+    if (record.run !== undefined && existsSync(join(digestDir, "digest.json"))) record.run.digestDir = digestDir;
     // SPEC §attempt-telemetry. Did the model actually edit the repo? Pier extracts `git diff base..HEAD` here; an
     // empty patch = NO-ATTEMPT (the loop edited plurnk scratch, never `/app`).
     const patchPath = join(trialDir, "artifacts", "model.patch");

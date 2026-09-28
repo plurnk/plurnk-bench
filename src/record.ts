@@ -39,6 +39,8 @@ export interface RunRef {
     workspaceId?: number;       // workspace scope for digest
     workerId?: number;          // conversation worker scope for digest
     loopId?: number;            // terminal loop identity for correlation
+    // {§publish-digest-provenance} — the digest the run's own runtime rendered, beside its database.
+    digestDir?: string;
 }
 
 export interface BenchRecord {

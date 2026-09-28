@@ -274,3 +274,27 @@ test("[§publish-workspace-scope] the published digest is workspace-scoped, neve
     assert.match(call, /workspaceId/);
     assert.doesNotMatch(call, /workerId/, "worker narrowing excludes child worker evidence");
 });
+
+test("[§publish-digest-provenance] a trial's own digest is published verbatim; the installed service renders nothing", (t) => {
+    const root = mkdtempSync(join(tmpdir(), "bench-pub-provenance-"));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    const dbPath = join(root, "agent", "plurnk.db");
+    mkdirSync(join(root, "agent", "digest"), { recursive: true });
+    const source = walDatabase(dbPath, 1);
+    t.after(() => source.close());
+    const accounting = { requests: [], usage: null, costUsd: "0" };
+    const own = { turns: [{ producer: "model" }], workspaces: [{ accounting }], workers: [{ id: 1, edit_census: { edits: 3, refused: 0, revisits: 1, forms: { hash: 3 } } }], provider_requests: [], turn_attempts: [] };
+    writeFileSync(join(root, "agent", "digest", "digest.json"), JSON.stringify(own));
+    writeFileSync(join(root, "agent", "digest", "digest.md"), "# rendered by the candidate's runtime\n");
+    const rendered = t.mock.method(Digest, "run", () => { throw new Error("the installed service must not render a digest the candidate already rendered"); });
+    const record: BenchRecord = {
+        harness: "deepswe", taskId: "fixture", model: "fixture", durationMs: 1,
+        status: 200, outcome: "fail", reward: 0, turns: 1,
+        run: { dbPath, workspaceId: 1, digestDir: join(root, "agent", "digest") },
+    };
+    const output = publishRun(record, join(root, "runs"));
+    assert.notEqual(output, null);
+    assert.equal(rendered.mock.callCount(), 0);
+    assert.deepEqual(JSON.parse(readFileSync(join(output!, "digest", "digest.json"), "utf8")), own, "the census the candidate's runtime wrote survives publication");
+    assert.equal(readFileSync(join(output!, "digest", "digest.md"), "utf8"), "# rendered by the candidate's runtime\n");
+});

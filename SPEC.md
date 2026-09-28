@@ -185,6 +185,11 @@ Covered: `publish.test.ts [§publish] {§share-snapshot}`.
   requested it is BEST-EFFORT under the carried provider config: a missing witness is a
   skip, never a publish failure. Covered: `src/publish.test.ts [§publish-requiem]` (the
   opt-in gate); the live requiem itself is validated against real runs only.
+- §publish-digest-provenance A digest is read by the runtime that wrote the database. A trial whose
+  candidate rendered its own digest beside its database (`agent/digest/digest.json`) publishes
+  that digest, copied verbatim; only a run without one is rendered at publish time by this
+  checkout's installed service, whose digest may predate the schema the run was written under.
+  Covered: `src/publish.test.ts [§publish-digest-provenance]`.
 - §publish-workspace-scope The published digest is workspace-scoped, never worker-narrowed:
   the trial container's DB holds one fresh workspace, and the workerId selector would
   exclude child worker evidence. record.json keeps `run.workerId` as a
