@@ -1,67 +1,73 @@
 # plurnk-bench
 
-Benchmarking harnesses for [plurnk-service](https://github.com/plurnk/plurnk-service). Drive real benchmark task sets through the [plurnk](https://github.com/plurnk/plurnk) client against a running daemon; store, score, summarize, and forensically diagnose the runs.
+Evaluation runners and forensic reporting for [Plurnk](https://github.com/plurnk/plurnk).
+Run external benchmark tasks through the real client and daemon, grade the
+result with the benchmark's evaluator, and retain the evidence needed to explain it.
 
-## families
+## Choose an evaluation
 
-| family | status |
+| Guide | What it runs |
 |---|---|
-| `deepswe/` | **active** — the bench; local-model target (rtx5070), revived 2026-08-31 (#17) |
-| `terminal_bench/` | **revived for parity** — FrontierHarness Eval v1 lane (2026-09-02, #22): `terminal_bench/frontier.sh`, 30 tasks, one Harbor job each; the TB 4.0 leaderboard shape stays retired (#17) |
-| `atlas/` | retired, revivable (2026-08-31, #16) |
-| `enterprise/` | retired, revivable (2026-08-31, #16); its standing MCP fixtures are down |
+| [SWE-bench Lite](swebench/README.md) | Pinned repository issues, the official evaluator, repeatable campaigns, and native Pi comparisons. |
+| [DeepSWE](deepswe/README.md) | Tasks through Pier, plus a host-side diagnostic benchlet and mini-swe-agent comparisons. |
+| [Terminal-Bench / FrontierHarness](terminal_bench/README.md) | Tasks through Harbor and the checked-in FrontierHarness selection. |
 
-Retired families keep their code, tests, and SPEC sections byte-intact so a future revival is a re-activation, not an excavation — but no gate, ritual, or run surface references them.
+Each guide owns its prerequisites, commands, and evidence paths. Older
+[Atlas](atlas/README.md) and [Enterprise-Bench](enterprise/README.md) adapters
+remain available for investigation; check their external prerequisites before use.
 
-## shape
+## Setup
 
-```
-src/        shared bench core — DRY across every harness
-deepswe/    one folder per harness (see families table for status)
-```
-
-The core owns the cross-harness primitives: the result record (`BenchRecord`), the trial-artifact join (`ingest`), daemon-digest reuse (`digest`), and run publishing (`publish` → `benchmarks/run<N>` with record + digest + requiem). A harness adapts one benchmark's task format to that core: load tasks → drive each as a plurnk run → score with the benchmark's oracle → record.
-
-Contracts live in [SPEC.md](SPEC.md) — `§` tags, cited from code comments and test names (`[§tag] …`), house-style.
-
-## two verdicts, never conflated
-
-- **`status`** — plurnk's terminal SEND code. How the *agent loop* ended (`200` ok, `499` cancelled, `4xx`/`5xx` failed).
-- **`outcome`** — the *harness oracle*'s score. Whether the benchmark accepted the result (DeepSWE: do the repo's tests pass against the patch?). A loop can end `200` and still fail the oracle. The harness owns this; loop status never sets it. (SPEC `§verdicts`.)
-
-## run
-
-```
-plurnk-service start          # the daemon under test — separate process
-npm test                      # lint (tsc --noEmit) + unit (node --test)
-```
-
-Bench drives the daemon through the ordinary `plurnk` client and its AG-UI+
-HTTP/SSE surface (default `http://127.0.0.1:1066`). The model under test is the
-daemon's `PLURNK_MODEL` alias. See `.env.example` and SPEC `§config-carry`.
-
-## Frontier diagnostics
-
-`node terminal_bench/frontier.mjs summary <run-directory>` reports oracle verdicts
-separately from setup, cancellation, and execution outcomes. A missing reward is
-not a failed task; a passing reward does not hide a teardown error.
-
-Harbor retains live installation output at `<trial>/agent/setup/install.log`.
-To diagnose setup without inference, pass `--install-only` through the ordinary
-`terminal_bench/run.sh` invocation with the same task and pinned package versions.
-
-Setup is not an agent-phase connectivity test. For a task with a public setup
-baseline and `no-network` agent policy, run the deterministic probe with Harbor's
-Python environment (unauthenticated HTTPS only, no inference or verifier):
+Clone this repository and install its locked dependencies:
 
 ```sh
-python -m terminal_bench.network_probe <task-dir> <provider-https-url> <unrelated-https-url> \
-  --service-version <version> --client-version <version>
+git clone https://github.com/plurnk/plurnk-bench.git
+cd plurnk-bench
+npm ci
 ```
 
-It prints the evidence directory and exits nonzero if the provider allowance,
-unrelated-host denial, or baseline restoration fails. See {§frontier-egress-probe}.
+Use the Node.js version required by [package.json](package.json). Evaluation
+runners also need their guide's Python/container toolchain. Source-based runners
+require explicit service and client checkouts; container runners install the
+selected published packages. The runner owns daemon startup.
 
-## license
+Choose a model through Plurnk's normal
+[configuration](https://github.com/plurnk/plurnk-service/blob/main/plurnk-providers/README.md#configure-a-model).
+Provider credentials stay in the invoking environment. Benchmark settings live in
+[.env.defaults](.env.defaults); review them and select your own model before a run.
+Model runs and optional exit interviews can incur inference charges.
 
-MIT.
+## Read the evidence
+
+A completed agent loop is not necessarily a solved task. Reports keep the loop's
+terminal status separate from the evaluator's verdict, and distinguish missing
+grades, infrastructure errors, and model failures.
+
+Inspect the saved patch, evaluator output, and packet/reasoning digest alongside
+pass rate, cost, tokens, cache use, and elapsed time. Provider charges, estimates,
+and unknown costs remain distinct. The [specification](SPEC.md) defines the
+record and accounting contracts; [src/record.ts](src/record.ts) defines the shared
+`BenchRecord` shape.
+
+Public reports and evidence bundles belong in this repository's
+[GitHub releases](https://github.com/plurnk/plurnk-bench/releases), not in a separate
+repository per campaign. Include the task selection, revisions, model route and
+settings, limits, and accounting basis with each report. Review artifacts before
+publishing: transcripts and databases can contain private data.
+
+## Development
+
+```sh
+npm test
+```
+
+This runs TypeScript checks, Python driver tests, and Node tests; it does not
+launch a paid benchmark. Keep benchmark adaptation and reporting here;
+product fixes belong in the [service](https://github.com/plurnk/plurnk-service)
+or [client](https://github.com/plurnk/plurnk).
+
+[Issues](https://github.com/plurnk/plurnk-bench/issues) and pull requests are welcome.
+
+## License
+
+[MIT](LICENSE).

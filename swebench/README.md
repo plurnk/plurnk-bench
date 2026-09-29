@@ -1,122 +1,128 @@
-# swebench
+# SWE-bench Lite
 
-SWE-bench Lite as a fourth bench family beside `deepswe/` (SPEC `§swebench`). It drives
-pinned Lite instances through the ordinary plurnk client/service boundary and grades each
-attempt with the benchmark's **own official evaluator**, joining its report into the shared
-`BenchRecord` exactly as DeepSWE joins Pier's `reward.json`.
+Run pinned repository issues through Plurnk and grade their patches with the
+[official SWE-bench evaluator](https://github.com/SWE-bench/SWE-bench).
+See [SPEC.md](../SPEC.md#swebench-swe-bench-lite-and-native-harness-comparisons)
+for isolation, provenance, and comparison contracts.
 
-Reference context: the [HarnessTax study](https://harnesstax.github.io/) measures 21
-model-harness pairs on SWE-bench Lite and Terminal-Bench 2.0; plurnk is a fourth point on
-those axes (minimal like Pi, but one compositional op language rather than four tool
-schemas).
+Run commands from the repository root after the [shared setup](../README.md#setup).
 
-## toolchain (Phase 0, verified)
+## Prerequisites
 
-The official harness is installed into bench-ignored state, never the repo:
+Install the evaluator into the ignored cache, and have Docker running:
 
 ```sh
-B="$(git rev-parse --show-toplevel)"
-uv venv "$B/.cache/swebench/venv" --python 3.13
-uv pip install --python "$B/.cache/swebench/venv/bin/python" swebench datasets
+uv venv .cache/swebench/venv --python 3.13
+uv pip install --python .cache/swebench/venv/bin/python swebench datasets
 ```
 
-`PLURNK_SWEBENCH_PYTHON` overrides the pinned interpreter (default
-`<bench>/.cache/swebench/venv/bin/python`). Docker is the harness's only other hard
-dependency, and an eval image is several GB: a run refuses to start unless Docker's own
-root has `PLURNK_SWEBENCH_MIN_FREE_GB` free (default 15; `0` disables the check), and
-`PLURNK_SWEBENCH_PRUNE_IMAGE=1` removes the instance image when the run finishes, trading
-a re-pull for the disk.
+`PLURNK_SWEBENCH_PYTHON` selects a different interpreter. Container images need
+substantial disk space; the runner checks Docker's storage before launching.
 
-## pin
+Select clean, installed service and client checkouts and your configured model:
+
+```sh
+export PLURNK_SWEBENCH_SERVICE_ROOT=/path/to/plurnk-service
+export PLURNK_SWEBENCH_CLIENT_ROOT=/path/to/plurnk
+export PLURNK_MODEL="your-model-alias"
+```
+
+Credentials stay in the invoking environment. Do not edit or rebuild the
+candidate checkouts while a campaign uses them.
+
+## One task
 
 ```sh
 node swebench/pin-task.mjs mwaskom__seaborn-3010
+swebench/run.sh --instance mwaskom__seaborn-3010 --preflight
+swebench/run.sh --instance mwaskom__seaborn-3010
 ```
 
-writes `swebench/manifests/<instance>.json` from the official dataset: the repository, the
-base and environment commits, the eval image, budgets and resource limits, and the
-instance's FAIL_TO_PASS / PASS_TO_PASS — plus `datasetRevision`, the dataset's own commit
-sha at pin time, so a manifest says which revision it came from.
+Pinning records the dataset revision, repository commits, evaluation image,
+tests, and resource limits in [manifests/](manifests/). Review and commit a new
+manifest before using it for a comparison.
 
-## corpus
+`--preflight` checks the container and its execution environment without calling
+a model. The ordinary run starts an isolated daemon/client pair, forwards shell
+execution into the task container, captures the patch, and grades it. The host
+daemon can reach the model provider; the task container uses the manifest's
+network policy.
+
+`--timeout <seconds>` overrides the candidate budget. `--skip-grading` captures
+the attempt without running the evaluator. Trials retain provenance, the client
+result, database/digest, patch, and evaluator output; the runner prints their paths.
+
+To test the evaluator independently of a model, grade the dataset's own patch:
 
 ```sh
-node swebench/sample.ts --label shape-30 --seed harnesstax-parity-1        # draw 30 ids
-node swebench/sample.ts --label shape-30 --mode stratified --pin            # spread across repos, pin manifests
+node swebench/evaluate.ts --instance mwaskom__seaborn-3010 --patch gold --out /path/to/trial
 ```
 
-The draw is a record (`swebench/corpora/<label>.json`): dataset, label, seed, mode, count,
-ids, repo mix. The same seed always yields the same 30 — a declared shape, not parity with
-the study until its own trace release names its ids.
+## Campaigns
 
-## run
+[corpora/](corpora/) holds task selections and their provenance. A seeded sample
+is a new selection; the checked-in
+[HarnessTax corpus](corpora/harnesstax-swe-lite-30.json) identifies its cited study
+and exact task set. Matching tasks alone does not match a study's model,
+effort, attempt count, or limits.
+
+To create a separate reproducible sample:
 
 ```sh
-PLURNK_SWEBENCH_CLIENT_ROOT=/path/to/open-client \
-  swebench/run.sh --instance mwaskom__seaborn-3010
+node swebench/sample.ts --label my-sample --seed my-seed --mode stratified --pin
 ```
 
-The daemon and client run on the host, so the model endpoint is reached normally; the
-model's shell commands are forwarded by PATH shims into one long-lived container of the
-instance's eval image (the manifest's network, normally `none`), where the candidate
-repository is mounted at its own host path and at `/testbed` — the path the image's editable
-install points at, so the model's own tests import its edits. The runner captures the
-candidate's diff, writes the Pier-shaped trial directory (`result.json`,
-`agent/plurnk.json`, `agent/plurnk.db`, `artifacts/model.patch`), grades with the official
-evaluator, and publishes through the shared core. `provenance.json` (instance, model,
-dataset and revision, image id, start head, timeout, candidate exit) is written before
-publication and rewritten afterwards with the published `runDir`, so an interrupted run
-still leaves a described trial. Each attempt takes its own evaluation run id, so two
-attempts at one instance under `PLURNK_BENCH_JOBS` never share a container name.
-
-`--preflight` proves the container and the image's login-shell toolchain through
-the generated Python shim, including Unicode arguments and stdin, with no model
-and no client. `--skip-grading` stops after capture. `--timeout <s>` (or
-`PLURNK_SWEBENCH_TIMEOUT_SEC`) sets the client budget; the default is the manifest's
-`budgetSeconds` minus 120 s of boot/commit headroom.
-
-The condition (`PLURNK_PROVIDERS_EFFORT_<alias>=high`) and the client switches
-(`PLURNK_EXECS_QUESTION=0`, `PLURNK_SCHEMES_HTTP_HOSTS=[]`) are ordinary daemon
-configuration, exactly as SPEC `§swebench-conditions` and `§swebench-network` state.
-
-## oracle
-
-`swebench/evaluate.ts` is the verifier half: it feeds one patch to the official harness,
-reads the per-instance report, and writes `verifier/reward.json` in the shape
-`src/ingest.ts` joins.
+Run a checked-in corpus by its filename stem:
 
 ```sh
-node swebench/evaluate.ts --instance mwaskom__seaborn-3010 --patch <file|gold> --out <trialDir>
+swebench/campaign.sh --corpus harnesstax-swe-lite-30 --attempts 3 --jobs 1 --preflight
+swebench/campaign.sh --corpus harnesstax-swe-lite-30 --attempts 3 --jobs 1
+node swebench/report.ts /path/to/campaign
 ```
 
-`--patch gold` grades the dataset's own patch: the oracle path with no model.
+Campaigns retain each attempt and write `REPORT.md`. The default stops new work
+after a non-pass so it can be inspected. `--halt-on clean` also permits ordinary
+oracle misses. Use `--resume <campaign-directory>` after reviewing a pause;
+`--skip <id>` records an intentional omission rather than replacing a failed trial.
+`--limit`, `--only`, and `--jobs` bound the selected work and concurrency.
+
+Add `--json` to the report command for machine-readable results. Read failure
+and missing-telemetry sections alongside the aggregate scores.
 
 ## Native Pi comparison
 
-`pi.mjs` runs the installed Pi CLI against the same specimen, prompt, test image
-and official evaluator. It retains Pi's own prompt, tools and defaults; only
-provider/model/effort, personal-context isolation and benchmark limits are selected.
-The observation extension never rewrites requests. See SPEC {§swebench-pi}.
+[pi.mjs](pi.mjs) runs the installed Pi CLI against the same specimen, prompt,
+test image, and evaluator. Pi retains its own system prompt and tools. The
+adapter selects the provider/model/effort, isolates personal context, applies
+benchmark limits, and records requests without rewriting them.
 
-Refresh Pi's catalog with `PI_CODING_AGENT_DIR=<catalog-dir> pi update --models`.
-A profile JSON records `executable`, exact `version`, `provider` (`openrouter`, whose wire carries the charge, or `deepseek`, Pi's native provider, priced by the rates alone),
-`model`, `effort`, `catalogPath` (that directory's `models-store.json`), `turnCap`,
-`timeoutSeconds`, and fixed reporting `rates` (`input`, `output`, `cacheRead`,
-`cacheWrite`, dollars per million tokens). Credentials remain in the calling
-environment; no credential goes in the profile. Rates affect reporting only.
+A profile JSON supplies these fields:
+
+| Fields | Meaning |
+|---|---|
+| `executable`, `version` | Installed Pi executable and its exact expected version. |
+| `provider`, `model`, `effort` | Model selection; supported provider paths are `openrouter` and `deepseek`. |
+| `catalogPath` | Frozen `models-store.json` containing the selected model. |
+| `turnCap`, `timeoutSeconds` | Positive run limits. |
+| `rates` | `input`, `output`, `cacheRead`, and `cacheWrite`, in USD per million tokens, for reporting. |
+
+Refresh the catalog with
+`PI_CODING_AGENT_DIR=<catalog-directory> pi update --models`.
+Credentials never go in the profile.
 
 ```sh
-node swebench/pi.mjs --instance django__django-11620 --profile <profile.json> --preflight
-node swebench/pi.mjs --instance django__django-11620 --profile <profile.json>
+node swebench/pi.mjs --instance django__django-11620 --profile /path/to/profile.json --preflight
+node swebench/pi.mjs --instance django__django-11620 --profile /path/to/profile.json
 node swebench/pi-campaign.mjs --corpus swebench/corpora/harnesstax-swe-lite-30.json \
-  --profile <profile.json> --out <campaign-dir> --attempts 3 --jobs 2
+  --profile /path/to/profile.json --out /path/to/campaign --attempts 3 --jobs 1
 ```
 
-Trials live under `~/benchmarks/jobs/swebench-pi/`. Reusing a campaign directory
-resumes unattempted pairs with the unchanged profile. Review pauses before resuming;
-a failed trial is retained, never silently replaced. Raw wire responses retain
-authoritative OpenRouter/BYOK billing; `agent/summary.json` distinguishes charges,
-fixed-rate repricing and missing telemetry.
+Reusing a Pi campaign directory resumes unattempted pairs with the unchanged
+profile. Inspect any recorded pause first. `agent/summary.json` distinguishes
+provider charges, fixed-rate estimates, and missing telemetry.
 
-`PLURNK_BENCH_PI=/absolute/path/to/pi node --test swebench/pi.test.mjs` additionally
-checks the installed CLI's real requests and tools against a local fixture server.
+The optional installed-client check uses a local fixture server:
+
+```sh
+PLURNK_BENCH_PI=/absolute/path/to/pi node --test swebench/pi.test.mjs
+```

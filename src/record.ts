@@ -7,7 +7,7 @@
 // don't model; `run` is the drill-down handle back into digest.
 //
 // Two orthogonal verdicts (SPEC §verdicts), never conflated:
-//   - `status`: plurnk's terminal SEND code — how the AGENT LOOP ended (200/499/4xx).
+//   - `status`: the client's terminal loop status — how the AGENT LOOP ended (200/499/4xx).
 //   - `outcome`/`reward`/`testPassFraction`: the Pier verifier's score — how the
 //     BENCHMARK graded the produced patch. A loop can end 200 and still fail the oracle.
 
@@ -48,7 +48,7 @@ export interface BenchRecord {
     taskId: string;             // the benchmark's own task identifier
     model: string;              // model under test (PLURNK_MODEL alias / record label)
     durationMs: number;         // plurnk wallMs — agent-loop wall time
-    status: number;             // plurnk terminal SEND status (loop verdict)
+    status: number;             // client terminal loop status (loop verdict)
     outcome: Outcome;           // benchmark verdict — derived from the oracle / failure class
     reward?: number;            // Pier verifier binary reward (0 | 1)
     // Pier verifier `partial` — fraction of all tests passing (SPEC §attempt-partial-gated).

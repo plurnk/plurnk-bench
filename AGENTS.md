@@ -42,15 +42,14 @@ container when diagnosing the benchmark. Reproduce and repair failures through
 `deepswe/smoke.sh`, which already owns daemon startup, client execution,
 environment carriage, artifact capture, grading, and publication.
 
-The familiar FireFast smoke, run from Matt's fully configured shell environment,
-is:
+Run a smoke from the configured shell environment with an explicitly selected alias:
 
 ```sh
-PLURNK_BENCH_FORCE_BUILD=1 \
-  deepswe/smoke.sh abs-module-cache-flags firefast
+PLURNK_BENCH_FORCE_BUILD=1 PLURNK_MODEL="your-model-alias" \
+  deepswe/smoke.sh abs-module-cache-flags
 ```
 
-The `firefast` model alias is operator configuration from the XDG Plurnk config.
+Model aliases are operator configuration from the XDG Plurnk config.
 `deepswe/smoke.sh` carries model aliases from that file and provider
 credentials/endpoints from the calling shell into Pier's container. Read the
 runner and inspect the actual carried environment and daemon log before assigning
@@ -65,8 +64,8 @@ cheaper and more inspectable than Pier, but its score is not a canonical DeepSWE
 result. Use its single checked-in invocation rather than reconstructing candidate
 commands, environment loading, grading, or artifact publication by hand.
 
-The Pier driver installs `@plurnk/plurnk-service@latest` and
-`@plurnk/plurnk@latest` inside the agent image. The checkout's local dependency
+The runner resolves exact service/client publications before the Pier driver
+installs them inside the agent image. The checkout's local dependency
 and lockfile support bench-side ingest/digest/publish; their installed version
 does not select the daemon version exercised by the smoke. They still must
 understand the persisted DB schema written by that daemon, so refresh the local

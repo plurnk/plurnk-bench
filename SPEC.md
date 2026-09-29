@@ -1,7 +1,5 @@
 # plurnk-bench — Specification
 
-
-> **Family status (2026-08-31, #17):** `deepswe` is the active family (local-model target); `terminal_bench`, `atlas`, and `enterprise` are retired-revivable — their sections remain normative for their code, which stays in-tree, but no active surface invokes them.
 Canonical contracts the bench makes: what a `BenchRecord` asserts, what a published
 `benchmarks/run<N>` contains, and what the runner carries into a task container. The bench's
 complaints to the constellation are only as credible as these contracts — this file is what a
@@ -19,7 +17,7 @@ contract line with no citing test says **uncovered** — visibly, not silently.
 
 The record carries two independent judgments and never lets one set the other:
 
-- **`status`** — plurnk's terminal SEND code: how the *agent loop* ended (200 ok, 499
+- **`status`** — the client's terminal loop status: how the *agent loop* ended (200 ok, 499
   cancelled, 4xx/5xx failed). The loop's own claim about itself.
 - **`outcome` / `reward` / `testPassFraction`** — the *benchmark oracle*'s score (DeepSWE:
   Pier's verifier running the repo's tests against the produced patch). A loop can end 200
@@ -546,7 +544,7 @@ to the host LAN IP. Child contracts:
   (leaderboard-compliant; `--override-cpus` disqualifies). `PLURNK_BENCH_CPUS` is the
   explicit opt-in override.
 - §config-client-surface The harness does not invent a transport target. Its
-  in-container daemon and `plurnk` client use the product's AG-UI+ HTTP/SSE
+  in-container daemon and `plurnk` client use the product's AG-UI HTTP/SSE
   defaults; an explicit `PLURNK_HOST`, `PLURNK_PORT`, or `PLURNK_AGUI_URL`
   remains ordinary daemon/client configuration.
 - §config-package-version Resolve exact current service/client npm versions and pass them
