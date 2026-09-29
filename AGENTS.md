@@ -15,6 +15,9 @@ remote is the public downstream publication surface. GitHub changes are
 deliberate publication operations from accepted Gitea state; do not routinely
 dual-push.
 
+Publish public benchmark reports and evidence bundles as GitHub release assets
+of `plurnk/plurnk-bench`. Do not create a separate repository per campaign.
+
 ## Operator environment
 
 Matt's normal shell environment comes from `~/.bashrc` and is the authoritative
