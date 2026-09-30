@@ -68,8 +68,15 @@ docker cp "$TASK_PATH/tests/." "$CONTAINER:/tests/"
 
 # The same posture the Harbor driver carries (SPEC §enterprise-posture), on a host daemon.
 export PLURNK_MODEL="$MODEL"
-export PLURNK_MCP_PM="http://127.0.0.1:8011/mcp" PLURNK_MCP_CRM="http://127.0.0.1:8012/mcp" PLURNK_MCP_FILESERVER="http://127.0.0.1:8013/mcp"
-export PLURNK_MCP_ENABLED='["pm","crm","fileserver"]' PLURNK_MCP_EXPANDED='["pm","crm","fileserver"]'
+# The benchmark's services are one Agent Plugin in the run's own configuration home, the only root this
+# candidate reads, so the operator's installed plugins never ride.
+CONFIG_ROOT="$RUN_DIR/config"
+PLUGIN_DIR="$CONFIG_ROOT/plurnk/plugins/enterprise-bench"
+mkdir -p "$PLUGIN_DIR"
+printf '%s\n' '{"$schema":"https://agent-plugins.org/schemas/1.0.0/plugin.schema.json","name":"enterprise-bench"}' > "$PLUGIN_DIR/plugin.json"
+printf '%s\n' '{"$schema":"https://agent-plugins.org/schemas/1.0.0/mcp.schema.json","mcpServers":{"pm":{"type":"streamable-http","url":"http://127.0.0.1:8011/mcp"},"crm":{"type":"streamable-http","url":"http://127.0.0.1:8012/mcp"},"fileserver":{"type":"streamable-http","url":"http://127.0.0.1:8013/mcp"}}}' > "$PLUGIN_DIR/mcp.json"
+export XDG_CONFIG_HOME="$CONFIG_ROOT" PLURNK_SERVICE_ROOTS=plurnk
+export PLURNK_MCP_EXPANDED='["pm","crm","fileserver"]'
 export PLURNK_EXECS_ONLY="sh,pm,crm,fileserver"
 export PLURNK_CLIENT_CHECKOUT="$CLIENT_ROOT" PLURNK_BENCHMARKS="$HOME_DIR" PLURNK_CANDIDATE_DIR="$RUN_DIR"
 INSTRUCTION="$(cat "$TASK_PATH/instruction.md")"

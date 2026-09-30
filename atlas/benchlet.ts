@@ -213,6 +213,20 @@ const environmentKeyNames = (env: NodeJS.ProcessEnv): string[] =>
         .filter((name) => /(?:API_KEY|_TOKEN|BASE_URL)$/.test(name))
         .toSorted();
 
+// The adapter as the one server of an Agent Plugin in the candidate's project, the only root the gate
+// profile reads. The standard admits a bare or ./ command, so the plugin carries a wrapper that execs this
+// exact node.
+export const writeAtlasPlugin = (projectRoot: string, adapterArgs: readonly string[], node: string): void => {
+    const root = resolve(projectRoot, ".agents", "plugins", "atlas");
+    mkdirSync(root, { recursive: true });
+    writeFileSync(resolve(root, "plugin.json"), `${JSON.stringify({ $schema: "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json", name: "atlas" })}\n`);
+    writeFileSync(resolve(root, "atlas.sh"), `#!/bin/sh\nexec '${node.replaceAll("'", "'\\''")}' "$@"\n`, { mode: 0o755 });
+    writeFileSync(resolve(root, "mcp.json"), `${JSON.stringify({
+        $schema: "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+        mcpServers: { atlas: { type: "stdio", command: "./atlas.sh", args: [...adapterArgs] } },
+    })}\n`);
+};
+
 export const withoutMcpServers = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
     Object.fromEntries(
         Object.entries(env).filter(([name]) =>
@@ -805,14 +819,11 @@ const main = async (): Promise<void> => {
         PLURNK_CANDIDATE_CLIENT_ENV: JSON.stringify({
             PLURNK_EXECS_ONLY: "atlas",
         }),
-        PLURNK_MCP_ATLAS: process.execPath,
-        PLURNK_MCP_ATLAS_ARGS: JSON.stringify(adapterArgs),
-        // The committed gate profile enables no MCP server; the benchlet's own is the
-        // candidate's whole tool surface.
-        PLURNK_MCP_ENABLED: JSON.stringify(["atlas"]),
     };
     const workspaceRoot = resolve(runDir, "workspace");
     mkdirSync(workspaceRoot);
+    // The benchlet's own server is the candidate's whole tool surface.
+    writeAtlasPlugin(workspaceRoot, adapterArgs, process.execPath);
     const candidateArgs = [
         "scripts/candidate.mjs",
         ...atlasClientArgs({

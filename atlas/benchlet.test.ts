@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import {
     answerMatches,
@@ -8,6 +11,7 @@ import {
     requiemIsComplete,
     successfulExecutorCalls,
     withoutMcpServers,
+    writeAtlasPlugin,
 } from "./benchlet.ts";
 
 test("Atlas answer evidence requires the expected whole answer token", () => {
@@ -50,6 +54,23 @@ test("Atlas runs isolate their one MCP server without discarding model credentia
         PLURNK_MODEL_GROK: "xai/grok",
         XAI_API_KEY: "secret",
     });
+});
+
+test("Atlas installs its adapter as the one server of a project plugin, run by the benchlet's own node", () => {
+    const project = mkdtempSync(join(tmpdir(), "atlas-plugin-"));
+    try {
+        writeAtlasPlugin(project, ["server.ts", "--sandbox-url", "http://127.0.0.1:1"], "/opt/node's/bin/node");
+        const root = join(project, ".agents", "plugins", "atlas");
+        assert.equal(JSON.parse(readFileSync(join(root, "plugin.json"), "utf8")).name, "atlas");
+        assert.deepEqual(JSON.parse(readFileSync(join(root, "mcp.json"), "utf8")).mcpServers, {
+            atlas: { type: "stdio", command: "./atlas.sh", args: ["server.ts", "--sandbox-url", "http://127.0.0.1:1"] },
+        });
+        const wrapper = join(root, "atlas.sh");
+        assert.equal(readFileSync(wrapper, "utf8"), "#!/bin/sh\nexec '/opt/node'\\''s/bin/node' \"$@\"\n");
+        assert.equal(statSync(wrapper).mode & 0o111, 0o111, "the wrapper is executable");
+    } finally {
+        rmSync(project, { recursive: true, force: true });
+    }
 });
 
 test("Atlas preflight names every task tool absent from the live fixture catalog", () => {

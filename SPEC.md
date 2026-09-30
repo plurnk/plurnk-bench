@@ -315,10 +315,12 @@ complete evidence while changing one experimental variable at a time.
   so the mount and the export cannot name different directories. Covered:
   `candidate-container.test.ts [§benchlet-container-scratch]`.
 - §benchlet-isolation A benchlet candidate reaches no network beyond its model.
-  The operator's MCP server and A2A agent definitions (the operator file's and the
-  shell's) are set empty in the candidate's environment, which outranks the
-  operator file and masks each definition through the configuration cascade;
-  controls such as `PLURNK_MCP_ENABLED` and companions are untouched.
+  The operator's MCP servers arrive only in installed Agent Plugins, and the
+  candidate daemon's gate profile reads the project's own plugin root alone, so none
+  rides. The operator's A2A agent definitions (the operator file's and the shell's)
+  are set empty in the candidate's environment, which outranks the operator file and
+  masks each definition through the configuration cascade; controls and companions
+  are untouched.
   `PLURNK_SERVICE_CAPABILITIES` denies the `web` trait at the service ceiling, so the one
   resolver that refuses a web operation also drops the `https` and `wss` references and
   their survey rows ({§capability-admission}): the model is never taught a door it may not
@@ -615,6 +617,9 @@ never reproduces an agent loop.
   over the pinned tests. The daemon runs on the host, so the model's shell runs on the host;
   the run dir (`run<N>-enterprise-specimen-<task>-<model>`) records service/client/corpus
   provenance, the client record, the digest, the submitted answer, and the verifier output.
+  The benchmark's three MCP services ride as one Agent Plugin in the run's own configuration
+  home (`XDG_CONFIG_HOME=<run>/config`), the only root the candidate reads
+  (`PLURNK_SERVICE_ROOTS=plurnk`), so the operator's installed plugins never do.
   It is the iteration instrument; `enterprise/smoke.sh` remains the isolated, publishable one.
   Covered: `enterprise/specimen.test.ts [§enterprise-specimen]`.
 - §enterprise-spend The live route and the judge are explicit spending decisions: the

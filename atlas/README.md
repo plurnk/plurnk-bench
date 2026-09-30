@@ -10,9 +10,9 @@ keeping the protocol claim precise:
   `## EXEC0 [atlas]`.
 - The candidate's project root is an empty `workspace/` under the run directory
   (scratch files land there; Git-free), with every executor except `atlas`
-  disabled, matching Atlas's task-tool boundary. The benchlet cold-enables exactly
-  its own server (`PLURNK_MCP_ENABLED=["atlas"]`); the committed gate profile
-  enables none, so without this the candidate has no tools at all.
+  disabled, matching Atlas's task-tool boundary. The benchlet installs its own
+  server as an Agent Plugin in `workspace/.agents/plugins/atlas`, the one root the
+  committed gate profile reads, so without it the candidate has no tools at all.
 - The candidate's answer is the task loop's terminal content; an empty answer
   scores zero coverage without invoking Atlas's scorer.
 - The model must call an executable tool; an answer without an `EXEC` does not
