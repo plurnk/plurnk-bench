@@ -79,10 +79,11 @@ class DriverContractTest(unittest.TestCase):
 
         env = agent.mcp_environment()
 
-        self.assertEqual(env["PLURNK_MCP_PM"], "http://192.168.1.20:8011/mcp")
-        self.assertEqual(env["PLURNK_MCP_CRM"], "http://192.168.1.20:8012/mcp")
-        self.assertEqual(env["PLURNK_MCP_FILESERVER"], "http://192.168.1.20:8013/mcp")
-        self.assertEqual(json.loads(env["PLURNK_MCP_ENABLED"]), ["pm", "crm", "fileserver"])
+        for name, port in [("pm", 8011), ("crm", 8012), ("fileserver", 8013)]:
+            self.assertEqual(json.loads(env[f"PLURNK_MCP_{name}"]), {
+                "name": name, "type": "streamable-http", "url": f"http://192.168.1.20:{port}/mcp",
+            })
+        self.assertEqual(env["PLURNK_MCP_ENABLED"], "1")
         self.assertEqual(json.loads(env["PLURNK_MCP_EXPANDED"]), ["pm", "crm", "fileserver"])
         self.assertEqual(env["PLURNK_EXECS_ONLY"], "sh,pm,crm,fileserver")
 
@@ -91,7 +92,7 @@ class DriverContractTest(unittest.TestCase):
 
         env = agent.mcp_environment()
 
-        self.assertEqual(env["PLURNK_MCP_PM"], "http://host.docker.internal:8011/mcp")
+        self.assertEqual(json.loads(env["PLURNK_MCP_pm"])["url"], "http://host.docker.internal:8011/mcp")
 
     def test_mcp_carriage_fails_hard_without_servers_or_with_stdio(self):
         with self.assertRaisesRegex(ValueError, "none reached the plurnk agent"):
@@ -124,7 +125,7 @@ class DriverContractTest(unittest.TestCase):
         self.assertEqual(environment.env["PLURNK_MODEL"], "deepdumb")
         self.assertEqual(environment.env["DEEPSEEK_API_KEY"], "k")
         self.assertEqual(environment.env["PLURNK_CLIENT_PROJECT_ROOT"], "/workspace")
-        self.assertEqual(environment.env["PLURNK_MCP_CRM"], "http://10.0.0.5:8012/mcp")
+        self.assertEqual(json.loads(environment.env["PLURNK_MCP_crm"])["url"], "http://10.0.0.5:8012/mcp")
         self.assertEqual(environment.env["PLURNK_EXECS_ONLY"], "sh,pm,crm,fileserver")
 
     def test_run_records_the_exact_mcp_carriage_as_provenance(self):
@@ -135,7 +136,7 @@ class DriverContractTest(unittest.TestCase):
 
         self.assertIn("/logs/agent/plurnk-mcp.json", environment.command)
         self.assertIn('"host": "10.0.0.5"', environment.command)
-        self.assertIn('"PLURNK_MCP_FILESERVER": "http://10.0.0.5:8013/mcp"', environment.command)
+        self.assertIn(json.dumps(environment.env["PLURNK_MCP_fileserver"]), environment.command)
         self.assertNotIn("plurnk-bench.json", environment.command)
 
     def test_kwargs_survive_harbor_literal_parsing(self):

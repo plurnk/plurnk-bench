@@ -236,7 +236,7 @@ if ! git -C "$PWD" rev-parse --show-toplevel >/dev/null 2>&1; then
     exit 1
   fi
   project_root=/
-  export PLURNK_MEMBERS_TASK="${{PWD#/}}/**" PLURNK_MEMBERS_ENABLED='["task"]'
+  export PLURNK_MEMBERS_task="${{PWD#/}}/**" PLURNK_MEMBERS_ENABLED=1
 fi
 plurnk-service start > {shlex.quote(str(daemon_log))} 2>&1 &
 daemon_pid=$!

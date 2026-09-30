@@ -66,7 +66,7 @@ class PlainTaskTreeTest(unittest.TestCase):
         asyncio.run(agent(PLURNK_MODEL="test", PLURNK_MODEL_test=ROUTE).run("task", environment, object()))
         command = environment.command
         guard = command.index('if ! git -C "$PWD" rev-parse --show-toplevel')
-        self.assertIn('PLURNK_MEMBERS_TASK="${PWD#/}/**"', command)
+        self.assertIn('PLURNK_MEMBERS_task="${PWD#/}/**"', command)
         self.assertIn('--project-root "$project_root" --timeout', command)
         self.assertLess(guard, command.index("plurnk-service start"), "membership is decided before the daemon boots")
         self.assertNotIn("git init", command, "the harness never turns a task tree into a repository")
@@ -192,7 +192,7 @@ class ExecutionTest(unittest.TestCase):
             asyncio.run(agent(PLURNK_MODEL="test", PLURNK_MODEL_test=ROUTE).run("unaltered task", environment, object()))
         self.command = environment.command
         self.env = {**os.environ, **environment.env, "PATH": f"{bin_dir}:{os.environ['PATH']}"}
-        self.env.pop("PLURNK_MEMBERS_TASK", None)
+        self.env.pop("PLURNK_MEMBERS_task", None)
         self.env.pop("PLURNK_MEMBERS_ENABLED", None)
 
     def start(self, **env):
@@ -220,7 +220,7 @@ class ExecutionTest(unittest.TestCase):
         record = json.loads((self.logs / "plurnk.json").read_text())
         self.assertEqual(record["args"][record["args"].index("--project-root") + 1], "/")
         self.assertEqual(record["members"], f"{str(self.task).lstrip('/')}/**")
-        self.assertEqual(record["enabled"], '["task"]')
+        self.assertEqual(record["enabled"], "1")
         self.assertEqual(record["args"][-1], "unaltered task")
         self.read_evidence()
 

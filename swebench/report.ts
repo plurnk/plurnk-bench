@@ -103,8 +103,8 @@ const metric = (values: Array<number | null | undefined>): number | null => {
 const maskedAliases = (trialDir: string): Set<string> => {
     const isolation = json<{ masked?: string[] }>(join(trialDir, "candidate-isolation.json"));
     return new Set((isolation?.masked ?? []).flatMap((name) => {
-        const match = /^PLURNK_(?:MCP|A2A)_([A-Z0-9_]+)$/.exec(name);
-        return match === null ? [] : [match[1]!.toLowerCase()];
+        const match = /^PLURNK_(?:MCP|A2A)_([a-z][a-z0-9_]*)$/.exec(name);
+        return match === null ? [] : [match[1]!.replaceAll("_", "-")];
     }));
 };
 

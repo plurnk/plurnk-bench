@@ -315,12 +315,10 @@ complete evidence while changing one experimental variable at a time.
   so the mount and the export cannot name different directories. Covered:
   `candidate-container.test.ts [§benchlet-container-scratch]`.
 - §benchlet-isolation A benchlet candidate reaches no network beyond its model.
-  The operator's MCP servers arrive only in installed Agent Plugins, and the
-  candidate daemon's gate profile reads the project's own plugin root alone, so none
-  rides. The operator's A2A agent definitions (the operator file's and the shell's)
-  are set empty in the candidate's environment, which outranks the operator file and
-  masks each definition through the configuration cascade; controls and companions
-  are untouched.
+  The operator's MCP and A2A aliases (from files and the shell) receive explicit
+  `<alias>_ENABLED=0` controls, with both family defaults disabled. Definitions
+  remain inspectable and are never blanked. Alias-specific controls that precede
+  a definition are disabled too. The candidate reads no operator skill roots.
   `PLURNK_SERVICE_CAPABILITIES` denies the `web` trait at the service ceiling, so the one
   resolver that refuses a web operation also drops the `https` and `wss` references and
   their survey rows ({§capability-admission}): the model is never taught a door it may not
@@ -336,7 +334,7 @@ complete evidence while changing one experimental variable at a time.
   "terminal-bench"`, pinned by `pin-task.mjs --terminal-bench`): no repository,
   the image's `/app` copied out as the candidate tree, the task's own `[agent]
   timeout_sec` as the candidate budget, and the harness member definition
-  (`PLURNK_MEMBERS_TASK=**`) admitting the candidate tree relative to the
+  (`PLURNK_MEMBERS_task=**`) admitting the candidate tree relative to the
   host-side workspace root. Its state is the sorted sha256 listing of every file, submission and
   working state being one; grading copies the tree over a fresh task
   container's `/app` and runs the canonical `tests/test.sh`, whose
@@ -584,7 +582,8 @@ never reproduces an agent loop.
   follows Enterprise-Bench's reliability methodology (140 observations). Reporting never
   conflates the three. Covered: `enterprise/smoke.test.ts [§enterprise-profiles]`.
 - §enterprise-mcp-carry Harbor hands the benchmark's `mcp.json` to the driver, which
-  declares each service as a plurnk HTTP MCP server (`PLURNK_MCP_<ALIAS>=<url>`), enables
+  declares each service as complete `McpServerDefinition` JSON in
+  `PLURNK_MCP_<alias>`, sets the family enabledness flag to `1`,
   and expands exactly those, and derives the alias from the benchmark's server name by
   keeping its letters and digits (`file-server` → `fileserver`). `host.docker.internal` is
   rewritten to the host LAN IP for Linux Docker; the exact carriage is recorded as
@@ -651,7 +650,7 @@ an oracle result or proof of verifier isolation.
 | Task working directory | Plurnk root | Membership |
 | --- | --- | --- |
 | Inside a Git repository | Task working directory | Automatic tracked membership ({§membership-baseline} in plurnk-core); no harness member definition. |
-| Plain directory below `/` | `/` | Only that directory's subtree, expressed relative to `/` (e.g. `PLURNK_MEMBERS_TASK=app/**`); `app/x` and `/app/x` identify the same resource. |
+| Plain directory below `/` | `/` | Only that directory's subtree, expressed relative to `/` (e.g. `PLURNK_MEMBERS_task=app/**`); `app/x` and `/app/x` identify the same resource. |
 | Plain `/` | None | Reject before daemon startup; do not admit the entire container filesystem. |
 
 ### §frontier-trial-state Trial state and oracle verdict are independent

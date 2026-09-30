@@ -1,7 +1,4 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import test from "node:test";
 import {
     answerMatches,
@@ -11,7 +8,7 @@ import {
     requiemIsComplete,
     successfulExecutorCalls,
     withoutMcpServers,
-    writeAtlasPlugin,
+    atlasEnvironment,
 } from "./benchlet.ts";
 
 test("Atlas answer evidence requires the expected whole answer token", () => {
@@ -46,8 +43,8 @@ test("Atlas scoring input preserves the pinned task, claims, prompt, and multili
 
 test("Atlas runs isolate their one MCP server without discarding model credentials", () => {
     assert.deepEqual(withoutMcpServers({
-        PLURNK_MCP_GITHUB: "https://example.test/mcp",
-        PLURNK_MCP_GITHUB_HEADERS: "{\"Authorization\":\"secret\"}",
+        PLURNK_MCP_github: '{"name":"github","type":"streamable-http","url":"https://example.test/mcp"}',
+        PLURNK_MCP_github_ENABLED: "1",
         PLURNK_MODEL_GROK: "xai/grok",
         XAI_API_KEY: "secret",
     }), {
@@ -56,21 +53,13 @@ test("Atlas runs isolate their one MCP server without discarding model credentia
     });
 });
 
-test("Atlas installs its adapter as the one server of a project plugin, run by the benchlet's own node", () => {
-    const project = mkdtempSync(join(tmpdir(), "atlas-plugin-"));
-    try {
-        writeAtlasPlugin(project, ["server.ts", "--sandbox-url", "http://127.0.0.1:1"], "/opt/node's/bin/node");
-        const root = join(project, ".agents", "plugins", "atlas");
-        assert.equal(JSON.parse(readFileSync(join(root, "plugin.json"), "utf8")).name, "atlas");
-        assert.deepEqual(JSON.parse(readFileSync(join(root, "mcp.json"), "utf8")).mcpServers, {
-            atlas: { type: "stdio", command: "./atlas.sh", args: ["server.ts", "--sandbox-url", "http://127.0.0.1:1"] },
-        });
-        const wrapper = join(root, "atlas.sh");
-        assert.equal(readFileSync(wrapper, "utf8"), "#!/bin/sh\nexec '/opt/node'\\''s/bin/node' \"$@\"\n");
-        assert.equal(statSync(wrapper).mode & 0o111, 0o111, "the wrapper is executable");
-    } finally {
-        rmSync(project, { recursive: true, force: true });
-    }
+test("Atlas declares its adapter directly with the benchlet's exact node and arguments", () => {
+    const args = ["server.ts", "--sandbox-url", "http://127.0.0.1:1"];
+    const env = atlasEnvironment(args, "/opt/node's/bin/node");
+    assert.equal(env.PLURNK_MCP_ENABLED, "1");
+    assert.deepEqual(JSON.parse(env.PLURNK_MCP_atlas!), {
+        name: "atlas", type: "stdio", command: "/opt/node's/bin/node", args,
+    });
 });
 
 test("Atlas preflight names every task tool absent from the live fixture catalog", () => {

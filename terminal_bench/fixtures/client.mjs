@@ -6,7 +6,7 @@ if (process.argv[2] === "models") {
 }
 process.stdout.write(JSON.stringify({
     args: process.argv.slice(2),
-    members: process.env.PLURNK_MEMBERS_TASK ?? null,
+    members: process.env.PLURNK_MEMBERS_task ?? null,
     enabled: process.env.PLURNK_MEMBERS_ENABLED ?? null,
 }));
 if (process.env.TEST_CLIENT_EXIT !== undefined) process.exit(Number(process.env.TEST_CLIENT_EXIT));

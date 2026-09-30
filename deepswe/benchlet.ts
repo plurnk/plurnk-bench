@@ -1665,7 +1665,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         PLURNK_CLIENT_CHECKOUT: clientRoot,
         // {§benchlet-tree} — a task tree is no repository: the harness admits it as a service member
         // definition, exactly as the Harbor agent does (terminal_bench/plurnk_agent.py).
-        ...(isTreeManifest(manifest) ? { PLURNK_MEMBERS_TASK: "**", PLURNK_MEMBERS_ENABLED: "[\"task\"]" } : {}),
+        ...(isTreeManifest(manifest) ? { PLURNK_MEMBERS_task: "**", PLURNK_MEMBERS_ENABLED: "1" } : {}),
         PLURNK_SERVICE_POLICY: candidatePolicySnapshot,
         ...(candidateRecapSnapshot === null ? {} : { PLURNK_SERVICE_RECAP: candidateRecapSnapshot }),
         ...(timeless ? { PLURNK_CANDIDATE_GRADE_DEADLINE_SEC: String(candidateTimeout) } : {}),
