@@ -318,7 +318,10 @@ complete evidence while changing one experimental variable at a time.
   The operator's MCP and A2A aliases (from files and the shell) receive explicit
   `<alias>_ENABLED=0` controls, with both family defaults disabled. Definitions
   remain inspectable and are never blanked. Alias-specific controls that precede
-  a definition are disabled too. The candidate reads no operator skill roots.
+  a definition are disabled too. The candidate reads no operator skill roots;
+  explicit operator `PLURNK_SKILLS_<name>` definitions, including standard Unicode
+  and digit-leading names, receive the same per-alias disable controls. The
+  service-provided Plurnk reference remains available under its normal defaults.
   `PLURNK_SERVICE_CAPABILITIES` denies the `web` trait at the service ceiling, so the one
   resolver that refuses a web operation also drops the `https` and `wss` references and
   their survey rows ({§capability-admission}): the model is never taught a door it may not
@@ -616,9 +619,10 @@ never reproduces an agent loop.
   over the pinned tests. The daemon runs on the host, so the model's shell runs on the host;
   the run dir (`run<N>-enterprise-specimen-<task>-<model>`) records service/client/corpus
   provenance, the client record, the digest, the submitted answer, and the verifier output.
-  The benchmark's three MCP services ride as one Agent Plugin in the run's own configuration
-  home (`XDG_CONFIG_HOME=<run>/config`), the only root the candidate reads
-  (`PLURNK_SERVICE_ROOTS=plurnk`), so the operator's installed plugins never do.
+  The benchmark's three MCP services are complete `PLURNK_MCP_<alias>` environment
+  definitions. The candidate reads only its isolated configuration root
+  (`XDG_CONFIG_HOME=<run>/config`, `PLURNK_SERVICE_ROOTS=plurnk`), so operator-installed
+  plugins do not contribute configuration.
   It is the iteration instrument; `enterprise/smoke.sh` remains the isolated, publishable one.
   Covered: `enterprise/specimen.test.ts [§enterprise-specimen]`.
 - §enterprise-spend The live route and the judge are explicit spending decisions: the

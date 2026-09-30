@@ -1,6 +1,6 @@
-// {§benchlet-isolation} Disable ambient endpoint aliases without destroying definitions;
+// {§benchlet-isolation} Disable ambient endpoint/skill aliases without destroying definitions;
 // capability and HTTP ceilings independently prevent model-created outbound access.
-const RESOURCE = /^(PLURNK_(?:MCP|A2A)_[a-z][a-z0-9_]*)(?:_[A-Z][A-Z0-9_]*)?$/u;
+const RESOURCE = /^(PLURNK_(?:MCP|A2A|SKILLS)_[\p{Ll}\p{Lo}\p{Lm}\p{N}][\p{Ll}\p{Lo}\p{Lm}\p{N}_]*)(?:_[A-Z][A-Z0-9_]*)?$/u;
 const SEARCH_CREDENTIALS = Object.freeze(["BRAVE_API_KEY", "TAVILY_API_KEY"]);
 const CAPABILITIES = Object.freeze({ deny: Object.freeze([
     Object.freeze({ traits: Object.freeze(["web"]) }),
