@@ -9,7 +9,7 @@ import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { readTrialDir } from "../src/ingest.ts";
 import { PUBLISHED_MARKER } from "../src/publish.ts";
-import { summarizeDigestAccounting, type DigestAccountingInput } from "../src/accounting.ts";
+import { summarizeDigestAccounting, type CostEvidence, type DigestAccountingInput } from "../src/accounting.ts";
 import { median } from "../src/statistics.ts";
 import { readDigest } from "../src/digest.ts";
 import { baselinesFor, compareBaselines, renderComparison, type Comparison } from "./comparison.ts";
@@ -28,6 +28,9 @@ export interface TrialRow {
     readonly rejectedEmissions: number | null;
     readonly tokens: { readonly input: number; readonly cached: number; readonly output: number; readonly reasoning: number } | null;
     readonly costUsd: number | null;
+    readonly knownCostUsd: number | null;
+    readonly pricedRequests: number | null;
+    readonly costEvidence: CostEvidence | null;
     readonly wallMs: number | null;
     readonly emptyTurns: number;    // emissions with no fence at all: prose, or a foreign tool-call grammar (plurnk-service#840)
     readonly webReferences: number; // web scheme references the first packet taught: doors the model was shown
@@ -62,6 +65,8 @@ export interface CampaignSummary {
     readonly resolveRate: number | null;
     readonly spend: {
         readonly totalUsd: number | null;
+        readonly knownUsd: number | null;
+        readonly pricedTrials: number;
         readonly medianCostUsd: number | null;
         readonly medianGrossTokens: number | null;
         readonly medianTurns: number | null;
@@ -168,6 +173,9 @@ export const readTrialRow = (trialDir: string, attempt: number): TrialRow | null
             reasoning: usage.outputTokenDetails?.reasoningTokens ?? 0,
         },
         costUsd: accounting?.costUsd === null || accounting?.costUsd === undefined ? null : Number(accounting.costUsd),
+        knownCostUsd: accounting?.knownCostUsd === null || accounting?.knownCostUsd === undefined ? null : Number(accounting.knownCostUsd),
+        pricedRequests: accounting?.pricedRequests ?? null,
+        costEvidence: accounting?.costEvidence ?? null,
         wallMs: record.durationMs > 0 ? record.durationMs : null,
         emptyTurns: emptyTurnsOf(digestDir(trialDir), digest?.turns ?? []),
         webReferences: webReferencesTaught(digestDir(trialDir), digest?.turns ?? []),
@@ -192,6 +200,7 @@ export const summarize = (rows: readonly TrialRow[]): CampaignSummary => {
     const graded = rows.filter((row) => row.reward !== null);
     const resolved = graded.filter((row) => row.reward === 1);
     const costs = rows.map((row) => row.costUsd).filter((value): value is number => value !== null);
+    const knownCosts = rows.map((row) => row.knownCostUsd).filter((value): value is number => value !== null);
     return {
         trials: rows.length,
         refusedByOp,
@@ -220,7 +229,9 @@ export const summarize = (rows: readonly TrialRow[]): CampaignSummary => {
         resolved: resolved.length,
         resolveRate: graded.length === 0 ? null : resolved.length / graded.length,
         spend: {
-            totalUsd: costs.length === 0 ? null : sum(costs),
+            totalUsd: costs.length === 0 || costs.length !== rows.length ? null : sum(costs),
+            knownUsd: knownCosts.length === 0 ? null : sum(knownCosts),
+            pricedTrials: costs.length,
             medianCostUsd: metric(rows.map((row) => row.costUsd)),
             medianGrossTokens: metric(rows.map((row) => row.tokens === null ? null : row.tokens.input + row.tokens.output)),
             medianTurns: metric(rows.map((row) => row.turns)),
@@ -262,6 +273,8 @@ export const render = (campaign: { corpus?: string; model?: string | null; servi
     "## Spend",
     "",
     `- total ${usd(summary.spend.totalUsd)} · median per rollout ${usd(summary.spend.medianCostUsd)} · median gross tokens ${num(summary.spend.medianGrossTokens)} · median turns ${num(summary.spend.medianTurns)} · median wall ${minutes(summary.spend.medianWallMs)}`,
+    `- known subtotal ${usd(summary.spend.knownUsd)} · complete costs ${summary.spend.pricedTrials}/${summary.trials} trials; medians exclude incomplete costs`,
+    ...rows.map((row) => `- ${row.instance} attempt ${row.attempt}: priced requests ${row.pricedRequests ?? "—"}/${row.requests ?? "—"}; ${row.costEvidence === null ? "cost evidence unavailable" : pairs(row.costEvidence)}; known subtotal ${usd(row.knownCostUsd)}`),
     "",
     // {§swebench-comparison} — the study's statistics, after friction, verdicts and spend, before the rows.
     ...(comparison === null ? [] : renderComparison(comparison, `Plurnk · ${campaign.model ?? "?"}`)),

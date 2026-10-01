@@ -10,10 +10,12 @@ const task = (name: string, reward: number | null, costUsd: string | null): Task
     task: name, reward, outcome: reward === 1 ? "pass" : "fail", durationMs: 60_000,
     evidence: "/fixture", accounting: {
         providerRequests: 2, rejectedEmissions: 1, models: ["model"], costUsd,
+        knownCostUsd: costUsd, pricedRequests: costUsd === null ? 0 : 2,
+        costEvidence: { charged: 0, estimated: costUsd === null ? 0 : 2, unknown: costUsd === null ? 2 : 0 },
         usage: { inputTokens: 100, outputTokens: 10, inputTokenDetails: { cacheReadTokens: 80 } },
         cacheEffectiveness: { inputTokens: 100, cacheReadTokens: 80, cacheReadTokenRatio: 0.8 },
     },
-    costEvidence: { charged: 0, estimated: 2, unknown: 0 },
+    costEvidence: { charged: 0, estimated: costUsd === null ? 0 : 2, unknown: costUsd === null ? 2 : 0 },
 });
 
 test("{§deepswe-report} task-weighted medians include failures and retain cost authority", () => {
@@ -26,7 +28,7 @@ test("{§deepswe-report} task-weighted medians include failures and retain cost 
     assert.deepEqual(result.metrics.medianCacheHitRatePerSuccessfulTask, { value: 0.8, reported: 2, eligible: 2 });
     assert.deepEqual(result.metrics.medianTimePerSuccessfulTaskMs, { value: 60_000, reported: 2, eligible: 2 });
     assert.deepEqual(result.costEvidence, { charged: 0, estimated: 6, unknown: 0 });
-    assert.deepEqual(result.recordedCost, { totalUsd: "4.5", reported: 3, eligible: 3 });
+    assert.deepEqual(result.recordedCost, { totalUsd: "4.5", knownUsd: "4.5", reported: 3, eligible: 3 });
 });
 
 test("{§deepswe-report} unknown accounting and absent rewards are not zero-cost failures", () => {
@@ -36,7 +38,7 @@ test("{§deepswe-report} unknown accounting and absent rewards are not zero-cost
     assert.equal(result.graded, 1);
     assert.equal(result.ungraded, 1);
     assert.deepEqual(result.metrics.medianCostPerSuccessfulTaskUsd, { value: null, reported: 0, eligible: 1 });
-    assert.deepEqual(result.recordedCost, { totalUsd: null, reported: 0, eligible: 2 });
+    assert.deepEqual(result.recordedCost, { totalUsd: null, knownUsd: null, reported: 0, eligible: 2 });
     assert.equal(result.accountingCoverage.reported, 1);
     assert.throws(() => summarizeTasks([task("same", 1, "0"), task("same", 0, "0")]), /duplicate task/);
 });
@@ -56,7 +58,7 @@ test("{§deepswe-report} saved-job reporting reads the workspace digest, not par
     write(join(trial, "verifier", "reward.json"), { reward: 1 });
     writeFileSync(join(trial, ".plurnk-bench-published"), published);
     const requests = ["parent", "child"].map((model) => ({
-        model, cost: { kind: "estimated" },
+        model, cost: { kind: "estimated", amount: { amount: "0.15", currency: "USD" }, source: "fixture" },
         usage: { inputTokens: 50, inputTokenDetails: { cacheReadTokens: 45 } },
     }));
     write(join(published, "digest", "digest.json"), {
@@ -70,7 +72,8 @@ test("{§deepswe-report} saved-job reporting reads the workspace digest, not par
     assert.equal(report.metrics.medianCacheHitRatePerSuccessfulTask.value, 0.9);
     assert.deepEqual(report.runnerSnapshot, { n_completed_trials: 1 });
 
-    const bare = { model: "fixture", usage: { inputTokens: 900, inputTokenDetails: { cacheReadTokens: 0 } }, cost: { kind: "estimated" } };
+    const bare = { model: "fixture", usage: { inputTokens: 900, inputTokenDetails: { cacheReadTokens: 0 } },
+        cost: { kind: "estimated", amount: { amount: "0.2", currency: "USD" }, source: "fixture" } };
     write(join(published, "digest", "digest.json"), {
         workspaces: [{ accounting: {
             requests: [...requests, bare], costUsd: "0.5",
@@ -87,4 +90,16 @@ test("{§deepswe-report} saved-job reporting reads the workspace digest, not par
     assert.equal(withBare.rows[0]?.accounting?.providerRequests, 3);
     assert.equal(withBare.rows[0]?.accounting?.usage?.inputTokens, 1000);
     assert.equal(withBare.recordedCost.totalUsd, "0.5");
+
+    const unknown = { model: "fixture", cost: { kind: "unknown", reason: "No usage received." } };
+    write(join(published, "digest", "digest.json"), {
+        workspaces: [{ accounting: { requests: [...requests, unknown], costUsd: "0.3", usage: null } }],
+        provider_requests: [...requests, unknown].map((accounting) => ({ kind: "emission", accounting })),
+        turn_attempts: [],
+    });
+    const partial = reportJob(root);
+    assert.deepEqual(partial.recordedCost, { totalUsd: null, knownUsd: "0.3", reported: 0, eligible: 1 });
+    assert.deepEqual(partial.costEvidence, { charged: 0, estimated: 2, unknown: 1 });
+    assert.equal(partial.rows[0]?.accounting?.pricedRequests, 2);
+    assert.equal(partial.metrics.medianCostPerSuccessfulTaskUsd.value, null);
 });

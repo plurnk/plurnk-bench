@@ -49,6 +49,7 @@ export interface Comparison {
     readonly resolveRate: Interval | null;
     readonly costPerRollout: Interval | null;
     readonly costPerSolve: number | null;
+    readonly costCoverage: { readonly rollouts: number; readonly totalRollouts: number; readonly tasks: number; readonly totalTasks: number };
     readonly medianGrossTokens: number | null;
     readonly medianCalls: number | null;
     readonly medianTurns: number | null;
@@ -69,7 +70,7 @@ export const perTask = (rows: readonly TrialRow[]): TaskStat[] => {
             graded: graded.length,
             resolved: resolved.length,
             resolveRate: graded.length === 0 ? null : resolved.length / graded.length,
-            meanCostUsd: costs.length === 0 ? null : mean(costs),
+            meanCostUsd: costs.length !== attempts.length ? null : mean(costs),
             baseline: {},
         };
     });
@@ -124,7 +125,8 @@ export const compareBaselines = (rows: readonly TrialRow[], baselines: Baselines
         resolvedRollouts,
         resolveRate: rates.length === 0 ? null : bootstrapMean(rates, resamples, seededUniform(`${seed}|resolve`)),
         costPerRollout: costs.length === 0 ? null : bootstrapMean(costs, resamples, seededUniform(`${seed}|cost`)),
-        costPerSolve: resolvedRollouts === 0 || spent.length === 0 ? null : spent.reduce((total, value) => total + value, 0) / resolvedRollouts,
+        costPerSolve: resolvedRollouts === 0 || spent.length !== rows.length ? null : spent.reduce((total, value) => total + value, 0) / resolvedRollouts,
+        costCoverage: { rollouts: spent.length, totalRollouts: rows.length, tasks: costs.length, totalTasks: tasks.length },
         medianGrossTokens: median(rows.map((row) => row.tokens).filter((tokens): tokens is NonNullable<TrialRow["tokens"]> => tokens !== null).map((tokens) => tokens.input + tokens.output)),
         medianCalls: median(rows.map((row) => row.requests).filter((value): value is number => value !== null)),
         medianTurns: median(rows.map((row) => row.turns)),
@@ -156,7 +158,8 @@ export const renderComparison = (comparison: Comparison, harness: string): strin
     return [
         "## Statistics",
         "",
-        `Attempts averaged within each task, then across ${comparison.tasks.length} tasks; 95% intervals from ${comparison.resamples.toLocaleString("en-US")} bootstrap resamples of tasks (seed \`${comparison.seed}\`); each baseline compared per task, paired, by a sign-flip permutation test with Holm correction. Cost per solve is total spend over resolved rollouts; tokens, calls and turns are medians per rollout. Dollars are approximate: compare tokens and calls first.`,
+        `Attempts averaged within each task, then across ${comparison.tasks.length} tasks; 95% intervals from ${comparison.resamples.toLocaleString("en-US")} bootstrap resamples of tasks (seed \`${comparison.seed}\`); each baseline compared per task, paired, by a sign-flip permutation test with Holm correction. Cost per solve requires complete spend over resolved rollouts; tokens, calls and turns are medians per rollout.`,
+        `Cost coverage: ${comparison.costCoverage.rollouts}/${comparison.costCoverage.totalRollouts} rollouts, ${comparison.costCoverage.tasks}/${comparison.costCoverage.totalTasks} tasks. Cost averages and intervals use only fully priced tasks; charged and estimated evidence remain distinct in the spend section.`,
         "",
         "| Harness | Resolved | Resolved 95% CI | Cost/rollout | Cost 95% CI | Cost/solve | Median tokens | Median model calls | Median loop turns |",
         "|---|---:|---:|---:|---:|---:|---:|---:|---:|",

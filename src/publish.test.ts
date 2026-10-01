@@ -66,8 +66,8 @@ test("[§publish-task-accounting] publication includes child requests and preser
     t.after(() => rmSync(root, { recursive: true, force: true }));
     const dbPath = join(root, "source.db");
     walDatabase(dbPath, 1).close();
-    const parent = { model: "parent", usage: { inputTokens: 100 }, cost: { kind: "estimated" } };
-    const child = { model: "child", usage: { inputTokens: 50 }, cost: { kind: "charged" } };
+    const parent = { model: "parent", usage: { inputTokens: 100 }, cost: { kind: "estimated", amount: { amount: "0.01", currency: "USD" }, source: "fixture" } };
+    const child = { model: "child", usage: { inputTokens: 50 }, cost: { kind: "charged", amount: { amount: "0.02", currency: "USD" }, source: "fixture" } };
     const accounting = {
         requests: [parent, child],
         usage: { inputTokens: 150, outputTokens: 30, inputTokenDetails: { cacheReadTokens: 80 } },
@@ -259,6 +259,9 @@ test("[§publish-requiem-accounting] a banked interview's spend folds into recor
             },
             cacheEffectiveness: { inputTokens: 10, cacheReadTokens: 1, cacheReadTokenRatio: 0.1 },
             costUsd: "0.05",
+            knownCostUsd: "0.05",
+            pricedRequests: 1,
+            costEvidence: { charged: 1, estimated: 0, unknown: 0 },
         });
         // A missing requiem report fails hard - never a silent no-op.
         rmSync(join(dir, "digest", "requiem.json"));

@@ -5,7 +5,7 @@ import type { ProviderUsageProjection } from "./accounting.ts";
 
 const request = (kind: string, usage?: ProviderUsageProjection) => ({
     kind,
-    accounting: { model: "fixture", ...(usage === undefined ? {} : { usage }) },
+    accounting: { model: "fixture", cost: { kind: "charged", amount: { amount: "0.1", currency: "USD" }, source: "fixture" }, ...(usage === undefined ? {} : { usage }) },
 });
 
 const cached = (inputTokens: number, cacheReadTokens: number): ProviderUsageProjection => ({

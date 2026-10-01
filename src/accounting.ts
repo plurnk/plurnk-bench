@@ -27,19 +27,31 @@ interface ProviderRequestProjection {
     usage?: ProviderUsageProjection;
 }
 
+export type CostEvidence = {
+    charged: number;
+    estimated: number;
+    unknown: number;
+};
+
+interface CostSummary {
+    costUsd: string | null;
+    knownCostUsd: string | null;
+    pricedRequests: number;
+    costEvidence: CostEvidence;
+}
+
 export interface DigestAccountingInput {
     workspaces: Array<{ accounting: ProviderAccountingProjection | null }>;
     provider_requests: Array<{ kind: string; accounting: ProviderRequestProjection | null }>;
     turn_attempts: Array<{ accepted: boolean | null }>;
 }
 
-export interface AccountingSummary {
+export interface AccountingSummary extends CostSummary {
     providerRequests: number;
     rejectedEmissions: number;
     models: string[];
     usage: ProviderUsageProjection | null;
     cacheEffectiveness: CacheEffectiveness | null;
-    costUsd: string | null;
 }
 
 export interface CacheEffectiveness {
@@ -53,12 +65,11 @@ export interface RequiemAccountingInput {
     workers: Array<{ accounting: ProviderAccountingProjection }>;
 }
 
-export interface RequiemAccountingSummary {
+export interface RequiemAccountingSummary extends CostSummary {
     workers: number;
     providerRequests: number;
     usage: ProviderUsageProjection | null;
     cacheEffectiveness: CacheEffectiveness | null;
-    costUsd: string | null;
 }
 
 const DECIMAL = /^(?:0|[1-9]\d*)(?:\.\d+)?$/;
@@ -180,6 +191,33 @@ const acceptedEmission = (value: unknown, subject: string): boolean | null => {
     return value;
 };
 
+// {§accounting-cost-completeness}: preserve the daemon's subtotal; do not reprice requests.
+const summarizeCosts = (requests: readonly unknown[], knownCostUsd: string | null): CostSummary => {
+    const costEvidence: CostEvidence = { charged: 0, estimated: 0, unknown: 0 };
+    let pricedRequests = 0;
+    for (const [index, request] of requests.entries()) {
+        if (request === null) {
+            costEvidence.unknown++;
+            continue;
+        }
+        const accounting = recordOf(request, `provider request ${index} accounting`);
+        const cost = recordOf(accounting.cost, `provider request ${index} cost`);
+        if (cost.kind !== "charged" && cost.kind !== "estimated" && cost.kind !== "unknown") {
+            throw new TypeError(`provider request ${index} has invalid cost kind ${String(cost.kind)}`);
+        }
+        costEvidence[cost.kind]++;
+        if (cost.kind === "unknown") continue;
+        const amount = recordOf(cost.amount, `provider request ${index} cost amount`);
+        if (amount.currency === "USD" || cost.kind === "charged" && typeof cost.usdEquivalent === "string") pricedRequests++;
+    }
+    return {
+        costUsd: pricedRequests === requests.length ? knownCostUsd : null,
+        knownCostUsd,
+        pricedRequests,
+        costEvidence,
+    };
+};
+
 export const summarizeDigestAccounting = (digest: DigestAccountingInput): AccountingSummary => {
     if (!Array.isArray(digest.workspaces) || digest.workspaces.length !== 1) {
         throw new TypeError("bench digest accounting requires exactly one workspace");
@@ -226,7 +264,7 @@ export const summarizeDigestAccounting = (digest: DigestAccountingInput): Accoun
         usage,
         cacheEffectiveness: cacheEffectivenessForRequests(digest.provider_requests
             .map(({ accounting }) => accounting)),
-        costUsd: workspaceAccounting?.costUsd ?? null,
+        ...summarizeCosts(digest.provider_requests.map(({ accounting }) => accounting), workspaceAccounting?.costUsd ?? null),
     };
 };
 
@@ -312,11 +350,13 @@ export const summarizeRequiemAccounting = (
     const accountings = report.workers.map((worker, index) =>
         assertProviderAccountingProjection(worker.accounting, `requiem worker ${index} accounting`));
     const usage = aggregateUsage(accountings);
+    const knownCosts = accountings.flatMap(({ costUsd }) => costUsd === null ? [] : [costUsd]);
     return {
         workers: accountings.length,
         providerRequests: accountings.reduce((sum, accounting) => sum + accounting.requests.length, 0),
         usage,
         cacheEffectiveness: cacheEffectivenessForRequests(accountings.flatMap(({ requests }) => requests)),
-        costUsd: addSettledUsd(...accountings.map(({ costUsd }) => costUsd)),
+        ...summarizeCosts(accountings.flatMap(({ requests }) => requests),
+            knownCosts.length === 0 && accountings.length > 0 ? null : addSettledUsd(...knownCosts)),
     };
 };

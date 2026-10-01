@@ -6,7 +6,9 @@ import type { TrialRow } from "./report.ts";
 const row = (over: Partial<TrialRow>): TrialRow => ({
     instance: "django__django-11620", attempt: 1, model: "deepdumb", outcome: "pass", loopStatus: 200, reward: 1, emptyPatch: false, exception: null,
     turns: 12, requests: 14, rejectedEmissions: 0, tokens: { input: 400_000, cached: 100_000, output: 20_000, reasoning: 5_000 },
-    costUsd: 0.12, wallMs: 600_000, emptyTurns: 0, webReferences: 0, webAttempts: 0, webReads: 0, mcpCalls: 0, refused: {}, edits: null, evidence: "/tmp/x", ...over,
+    costUsd: 0.12, knownCostUsd: over.costUsd === undefined ? 0.12 : over.costUsd,
+    pricedRequests: over.costUsd === null ? 0 : 14, costEvidence: { charged: 14, estimated: 0, unknown: 0 },
+    wallMs: 600_000, emptyTurns: 0, webReferences: 0, webAttempts: 0, webReads: 0, mcpCalls: 0, refused: {}, edits: null, evidence: "/tmp/x", ...over,
 });
 
 const fixture = (): TrialRow[] => [
@@ -26,7 +28,9 @@ test("[§swebench-comparison] attempts average within each task before anything 
         ["c", 2, 1, 1, 1],
     ], "an ungraded attempt is not a failure; it is absent from the task's rate");
     const close = (actual: number | null, expected: number): boolean => actual !== null && Math.abs(actual - expected) < 1e-12;
-    assert.ok(tasks.every((task, index) => close(task.meanCostUsd, [0.2, 0.4, 0.5][index]!)), `mean cost per task: ${tasks.map((task) => task.meanCostUsd).join(", ")}`);
+    assert.ok(close(tasks[0]!.meanCostUsd, 0.2));
+    assert.ok(close(tasks[1]!.meanCostUsd, 0.4));
+    assert.equal(tasks[2]!.meanCostUsd, null, "one missing attempt cost prevents the full-task average");
 });
 
 test("[§swebench-comparison] a comparison is per task against the study's successes of three, with wins, losses and ties", () => {
@@ -52,8 +56,9 @@ test("[§swebench-comparison] the campaign comparison carries the section-one ro
     assert.equal(comparison.rollouts, 5, "graded rollouts");
     assert.equal(comparison.resolvedRollouts, 3);
     assert.ok(comparison.resolveRate !== null && Math.abs(comparison.resolveRate.mean - (2 / 3 + 0 + 1) / 3) < 1e-12, "the rate is the mean of per-task rates");
-    assert.ok(comparison.costPerRollout !== null && Math.abs(comparison.costPerRollout.mean - (0.2 + 0.4 + 0.5) / 3) < 1e-12);
-    assert.ok(comparison.costPerSolve !== null && Math.abs(comparison.costPerSolve - 1.5 / 3) < 1e-12, "total spend over resolved rollouts");
+    assert.ok(comparison.costPerRollout !== null && Math.abs(comparison.costPerRollout.mean - (0.2 + 0.4) / 2) < 1e-12);
+    assert.equal(comparison.costPerSolve, null, "cost per solve needs every trial's spend");
+    assert.deepEqual(comparison.costCoverage, { rollouts: 5, totalRollouts: 6, tasks: 2, totalTasks: 3 });
     assert.equal(comparison.medianGrossTokens, 420_000);
     assert.equal(comparison.medianCalls, 14);
     assert.deepEqual(comparison.baselineKeys, ["cc", "codex", "pi"]);
@@ -62,7 +67,8 @@ test("[§swebench-comparison] the campaign comparison carries the section-one ro
     const lines = renderComparison(comparison, "Plurnk · deepdumb");
     const sheet = lines.join("\n");
     assert.equal(lines[0], "## Statistics");
-    assert.match(sheet, /\| Plurnk · deepdumb \| 55\.6% \(3\/5\) \| \d+\.\d%–\d+\.\d% \| \$0\.367 \| \$\d\.\d{3}–\$\d\.\d{3} \| \$0\.500 \| 420,000 \| 14 \| 12 \|/);
+    assert.match(sheet, /Cost coverage: 5\/6 rollouts, 2\/3 tasks/u);
+    assert.match(sheet, /\| Plurnk · deepdumb \| 55\.6% \(3\/5\) \| \d+\.\d%–\d+\.\d% \| \$0\.300 \| \$\d\.\d{3}–\$\d\.\d{3} \| — \| 420,000 \| 14 \| 12 \|/);
     assert.match(sheet, /\| Plurnk · deepdumb vs K3 · Pi \| [+-]\d+\.\d pp \(-?\d+\.\d to -?\d+\.\d\) \| \d\.\d{4} \| \d\.\d{4} \| \d+ \/ \d+ \/ \d+ \|/);
     assert.match(sheet, /\| `a` \| 2\/3 \| 3\/3 \| 3\/3 \| 2\/3 \|/, "the matrix row: ours, then each baseline's successes of three");
     assert.match(sheet, /\| `c` \| 1\/1 \| 3\/3 \| 3\/3 \| 3\/3 \|/, "an ungraded attempt leaves the task's denominator");

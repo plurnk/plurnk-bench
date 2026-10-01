@@ -3,13 +3,12 @@ import { join, resolve } from "node:path";
 import { parseArgs } from "node:util";
 import { addSettledUsd, summarizeDigestAccounting } from "../src/accounting.ts";
 import { readDigest } from "../src/digest.ts";
-import type { AccountingSummary, DigestAccountingInput } from "../src/accounting.ts";
+import type { AccountingSummary, CostEvidence, DigestAccountingInput } from "../src/accounting.ts";
 import { readTrialDir } from "../src/ingest.ts";
 import { PUBLISHED_MARKER } from "../src/publish.ts";
 import { median } from "../src/statistics.ts";
 import { compareBaseline, type BaselineTrial } from "./comparison.ts";
 
-type CostEvidence = { charged: number; estimated: number; unknown: number };
 export interface TaskReport {
     task: string;
     reward: number | null;
@@ -35,6 +34,7 @@ export const summarizeTasks = (rows: TaskReport[]) => {
     const cost = ({ accounting }: TaskReport) => accounting?.costUsd === null || accounting?.costUsd === undefined
         ? null : Number(accounting.costUsd);
     const costs = rows.map(({ accounting }) => accounting?.costUsd ?? null);
+    const knownCosts = rows.flatMap(({ accounting }) => accounting?.knownCostUsd == null ? [] : [accounting.knownCostUsd]);
     const costEvidence: CostEvidence = { charged: 0, estimated: 0, unknown: 0 };
     for (const row of rows) {
         for (const kind of ["charged", "estimated", "unknown"] as const) {
@@ -47,6 +47,7 @@ export const summarizeTasks = (rows: TaskReport[]) => {
         costEvidence,
         recordedCost: {
             totalUsd: costs.length === 0 ? null : addSettledUsd(...costs),
+            knownUsd: knownCosts.length === 0 ? null : addSettledUsd(...knownCosts),
             reported: costs.filter((value) => value !== null).length, eligible: costs.length,
         },
         metrics: {
@@ -71,20 +72,10 @@ export const reportJob = (job: string) => {
         const digestPath = published === "" ? null : join(published, "digest", "digest.json");
         const digest = digestPath !== null && existsSync(digestPath) ? readDigest<DigestAccountingInput>(digestPath) : null;
         const accounting = digest === null ? null : summarizeDigestAccounting(digest);
-        const costEvidence: CostEvidence | null = digest === null ? null : { charged: 0, estimated: 0, unknown: 0 };
-        if (costEvidence !== null) {
-            for (const request of digest!.workspaces[0]!.accounting?.requests ?? []) {
-                const kind = (request as { cost?: { kind?: string } }).cost?.kind;
-                if (kind !== "charged" && kind !== "estimated" && kind !== "unknown") {
-                    throw new TypeError(`${trial}: invalid request cost kind ${String(kind)}`);
-                }
-                costEvidence[kind]++;
-            }
-        }
         rows.push({
             task: record.taskId, reward: record.reward ?? null, outcome: record.outcome,
             durationMs: record.durationMs > 0 ? record.durationMs : null,
-            evidence: published || trial, accounting, costEvidence,
+            evidence: published || trial, accounting, costEvidence: accounting?.costEvidence ?? null,
         });
     }
     const state = json<{

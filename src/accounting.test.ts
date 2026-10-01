@@ -54,6 +54,9 @@ test("bench accounting copies the one workspace's authoritative physical-request
             cacheReadTokenRatio: 10 / 150,
         },
         costUsd: "0.031941728",
+        knownCostUsd: "0.031941728",
+        pricedRequests: 2,
+        costEvidence: { charged: 2, estimated: 0, unknown: 0 },
     });
 });
 
@@ -69,7 +72,51 @@ test("an unsettled physical request remains cardinal while aggregate accounting 
         usage: null,
         cacheEffectiveness: null,
         costUsd: null,
+        knownCostUsd: null,
+        pricedRequests: 0,
+        costEvidence: { charged: 0, estimated: 0, unknown: 1 },
     });
+});
+
+test("{§accounting-cost-completeness} settled usage-less requests do not turn a subtotal into complete spend", () => {
+    const priced = request("provider/model");
+    const unmetered = { model: "provider/child", cost: { kind: "unknown", reason: "interrupted before usage" } };
+    const requests = [priced, unmetered];
+    const summary = summarizeDigestAccounting({
+        workspaces: [{ accounting: { requests, usage: priced.usage, costUsd: "0.1" } }],
+        provider_requests: [{ kind: "emission", accounting: priced }, { kind: "bare", accounting: unmetered }],
+        turn_attempts: [{ accepted: true }],
+    });
+    assert.equal(summary.costUsd, null);
+    assert.equal(summary.knownCostUsd, "0.1");
+    assert.equal(summary.pricedRequests, 1);
+    assert.deepEqual(summary.costEvidence, { charged: 1, estimated: 0, unknown: 1 });
+    const interview = summarizeRequiemAccounting({ workers: [
+        { accounting: { requests: [priced], usage: priced.usage, costUsd: "0.1" } },
+        { accounting: { requests: [unmetered], usage: null, costUsd: null } },
+    ] });
+    assert.equal(interview.costUsd, null);
+    assert.equal(interview.knownCostUsd, "0.1");
+    assert.equal(interview.pricedRequests, 1);
+});
+
+test("{§accounting-cost-completeness} estimates, explicit zero, and non-USD evidence retain their provenance", () => {
+    for (const [cost, known, full, evidence, pricedRequests] of [
+        [{ kind: "estimated", amount: { amount: "0.1", currency: "USD" }, source: "catalog" }, "0.1", "0.1", { charged: 0, estimated: 1, unknown: 0 }, 1],
+        [{ kind: "charged", amount: { amount: "0", currency: "USD" }, source: "provider" }, "0", "0", { charged: 1, estimated: 0, unknown: 0 }, 1],
+        [{ kind: "charged", amount: { amount: "3", currency: "EUR" }, source: "provider" }, null, null, { charged: 1, estimated: 0, unknown: 0 }, 0],
+        [{ kind: "charged", amount: { amount: "3", currency: "EUR" }, usdEquivalent: "3.5", source: "provider" }, "3.5", "3.5", { charged: 1, estimated: 0, unknown: 0 }, 1],
+    ] as const) {
+        const item = { model: "provider/model", cost };
+        const summary = summarizeDigestAccounting({
+            workspaces: [{ accounting: { requests: [item], usage: null, costUsd: known } }],
+            provider_requests: [{ kind: "emission", accounting: item }], turn_attempts: [],
+        });
+        assert.equal(summary.costUsd, full);
+        assert.equal(summary.knownCostUsd, known);
+        assert.equal(summary.pricedRequests, pricedRequests);
+        assert.deepEqual(summary.costEvidence, evidence);
+    }
 });
 
 test("digest accounting rejects ambiguous scope and inconsistent source cardinality", () => {
@@ -140,6 +187,9 @@ test("requiem composes worker projections with exact decimals and unknown-field 
             cacheReadTokenRatio: 4 / 30,
         },
         costUsd: "0.3",
+        knownCostUsd: "0.3",
+        pricedRequests: 2,
+        costEvidence: { charged: 2, estimated: 0, unknown: 0 },
     });
     assert.equal(addSettledUsd("0.1", null), null);
     assert.equal(addSettledUsd("0.1", "0.2"), "0.3");

@@ -88,6 +88,19 @@ remain explicit and are excluded from both matched denominators. Peer token and
 agent-time medians use that same matched set. Historical USD figures are not
 silently compared under different rate cards.
 
+§accounting-cost-completeness Reporting preserves the daemon's known USD subtotal
+as `knownCostUsd` and counts priced physical requests and charged/estimated/unknown
+cost evidence. `costUsd` is complete only when every request has USD evidence;
+unsettled requests, unknown costs, and non-USD costs without a supplied USD
+equivalent leave it `null`. Missing usage does not invalidate a directly reported
+charge. Explicit zero is a measured amount, not missing evidence.
+
+Campaign totals and cost-per-solve require complete trial costs. Medians may use
+complete trials only, with their coverage shown; task-averaged cost requires every
+attempt of that task. Reports retain partial known spend separately and never
+call catalog estimates provider bills. Requiem follows the same rule over its
+own request ledger. Original request evidence is never rewritten by a report.
+
 ## §digest-boundary Bench never reads the daemon DB
 
 DB→forensics belongs to the daemon's own digest (reused via

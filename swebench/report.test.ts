@@ -3,14 +3,65 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { emptyTurnsOf, latestLaunches, render, summarize, verdictOf, webReferencesTaught, type DigestTurn, type TrialRow } from "./report.ts";
+import { emptyTurnsOf, latestLaunches, readTrialRow, render, summarize, verdictOf, webReferencesTaught, type DigestTurn, type TrialRow } from "./report.ts";
 import { compareBaselines } from "./comparison.ts";
 import { readDigest } from "../src/digest.ts";
 
 const row = (over: Partial<TrialRow>): TrialRow => ({
     instance: "django__django-11620", attempt: 1, model: "deepdumb", outcome: "fail", loopStatus: 200, reward: 0, emptyPatch: false, exception: null,
     turns: 12, requests: 12, rejectedEmissions: 0, tokens: { input: 400_000, cached: 100_000, output: 20_000, reasoning: 5_000 },
-    costUsd: 0.12, wallMs: 600_000, emptyTurns: 0, webReferences: 0, webAttempts: 0, webReads: 0, mcpCalls: 0, refused: {}, edits: null, evidence: "/tmp/x", ...over,
+    costUsd: 0.12, knownCostUsd: over.costUsd === undefined ? 0.12 : over.costUsd,
+    pricedRequests: over.costUsd === null ? 0 : 12, costEvidence: { charged: 12, estimated: 0, unknown: 0 },
+    wallMs: 600_000, emptyTurns: 0, webReferences: 0, webAttempts: 0, webReads: 0, mcpCalls: 0, refused: {}, edits: null, evidence: "/tmp/x", ...over,
+});
+
+test("{§accounting-cost-completeness} incomplete trials retain known spend but do not reduce cost metrics", () => {
+    const rows = [
+        row({ instance: "complete", costUsd: 0.2, reward: 1 }),
+        row({ instance: "partial", costUsd: null, knownCostUsd: 0.01, pricedRequests: 11,
+            costEvidence: { charged: 0, estimated: 11, unknown: 1 } }),
+    ];
+    const summary = summarize(rows);
+    assert.equal(summary.spend.totalUsd, null);
+    assert.ok(Math.abs(summary.spend.knownUsd! - 0.21) < 1e-12);
+    assert.equal(summary.spend.pricedTrials, 1);
+    assert.equal(summary.spend.medianCostUsd, 0.2);
+    const comparison = compareBaselines(rows, new Map(), { resamples: 10 });
+    assert.equal(comparison.costPerSolve, null);
+    const sheet = render({}, rows, summary, comparison);
+    assert.match(sheet, /known subtotal \$0\.210/u);
+    assert.match(sheet, /complete costs 1\/2 trials/u);
+    assert.match(sheet, /11\/12/u);
+});
+
+test("{§accounting-cost-completeness} saved SWE-bench trials keep incomplete request costs out of comparisons", (t) => {
+    const trial = mkdtempSync(join(tmpdir(), "swebench-cost-"));
+    t.after(() => rmSync(trial, { recursive: true, force: true }));
+    mkdirSync(join(trial, "agent", "digest"), { recursive: true });
+    mkdirSync(join(trial, "verifier"));
+    const write = (file: string, value: unknown) => writeFileSync(join(trial, file), JSON.stringify(value));
+    write("result.json", { trial_name: "fixture", task_name: "fixture" });
+    write("agent/plurnk.json", { schemaVersion: 6, finalStatus: 200, wallMs: 10 });
+    write("verifier/reward.json", { reward: 1 });
+    const requests = [
+        { model: "fixture", cost: { kind: "charged", amount: { amount: "0.01", currency: "USD" }, source: "fixture" } },
+        { model: "fixture", cost: { kind: "unknown", reason: "No usage received." } },
+    ];
+    write("agent/digest/digest.json", {
+        workspaces: [{ accounting: { requests, costUsd: "0.01", usage: null } }],
+        provider_requests: requests.map((accounting) => ({ kind: "emission", accounting })), turn_attempts: [],
+    });
+    const result = readTrialRow(trial, 1);
+    assert.ok(result);
+    assert.equal(result.costUsd, null);
+    assert.equal(result.knownCostUsd, 0.01);
+    assert.equal(result.pricedRequests, 1);
+    assert.equal(result.requests, 2);
+    assert.deepEqual(result.costEvidence, { charged: 1, estimated: 0, unknown: 1 });
+    const comparison = compareBaselines([result], new Map(), { resamples: 10 });
+    assert.equal(comparison.costPerRollout, null);
+    assert.equal(comparison.costPerSolve, null);
+    assert.deepEqual(comparison.costCoverage, { rollouts: 0, totalRollouts: 1, tasks: 0, totalTasks: 1 });
 });
 
 test("[§swebench-profiles] the campaign sheet counts friction before verdicts, and spend as medians", () => {
@@ -29,7 +80,8 @@ test("[§swebench-profiles] the campaign sheet counts friction before verdicts, 
     assert.deepEqual(summary.isolation, { webReferences: 2, webAttempts: 5, webReads: 3, mcpCalls: 1, trialsTouched: 1 });
     assert.deepEqual(summary.loopsEnded, { "500": 1 }, "a loop the daemon ended is friction even when the oracle passes it");
     assert.deepEqual([summary.graded, summary.resolved, summary.resolveRate], [2, 1, 0.5]);
-    assert.equal(summary.spend.totalUsd, 0.4);
+    assert.equal(summary.spend.totalUsd, null, "an unpriced trial precludes a complete total");
+    assert.equal(summary.spend.knownUsd, 0.4);
     assert.equal(summary.spend.medianCostUsd, 0.2);
     assert.equal(summary.spend.medianGrossTokens, 420_000);
     assert.equal(summary.spend.medianTurns, 12);
