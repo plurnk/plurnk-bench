@@ -101,7 +101,7 @@ A profile JSON supplies these fields:
 | Fields | Meaning |
 |---|---|
 | `executable`, `version` | Installed Pi executable and its exact expected version. |
-| `provider`, `model`, `effort` | Model selection; supported provider paths are `openrouter` and `deepseek`. |
+| `provider`, `model`, `effort` | Model selection; supported provider paths are `openrouter`, `deepseek` and `fireworks`. |
 | `catalogPath` | Frozen `models-store.json` containing the selected model. |
 | `turnCap`, `timeoutSeconds` | Positive run limits. |
 | `rates` | `input`, `output`, `cacheRead`, and `cacheWrite`, in USD per million tokens, for reporting. |

@@ -52,8 +52,11 @@ test("{§swebench-pi} absent and interrupted responses remain explicitly unprice
 });
 
 test("{§swebench-pi} profiles require explicit route, version, limits and rates", () => {
-    assert.throws(() => validateProfile({}), /openrouter and deepseek/);
+    assert.throws(() => validateProfile({}), /openrouter, deepseek and fireworks/);
     assert.throws(() => validateProfile({ provider: "openrouter" }), /executable/);
+    const profile = { provider: "fireworks", executable: "pi", version: "fixture", model: "fixture",
+        catalogPath: "catalog.json", effort: "medium", turnCap: 100, timeoutSeconds: 14400, rates };
+    assert.equal(validateProfile(profile), profile);
 });
 
 test("{§swebench-pi} campaigns bound concurrency, retain losses and resume without rebuying attempts", async () => {
@@ -160,8 +163,11 @@ for (const { name, limits, errors, failures = [], pause } of [
     });
 }
 
-for (const turnCap of [1, 100]) {
-    test(`{§swebench-pi} installed native Pi: isolated context, tools, wire effort and ${turnCap}-turn bound`, {
+for (const { provider, effort, credential } of [
+    { provider: "openrouter", effort: "low", credential: "OPENROUTER_API_KEY" },
+    { provider: "fireworks", effort: "medium", credential: "FIREWORKS_API_KEY" },
+]) for (const turnCap of [1, 100]) {
+    test(`{§swebench-pi} installed native Pi ${provider}: isolated context, tools, wire effort and ${turnCap}-turn bound`, {
         skip: !process.env.PLURNK_BENCH_PI, timeout: 60000,
     }, async () => {
         const agent = mkdtempSync(join(root, "native-"));
@@ -181,26 +187,28 @@ for (const turnCap of [1, 100]) {
             const tools = [{ index: 0, id: "shell1", type: "function", function: { name: "bash", arguments: '{"command":"printf shell-tested"}' } },
                 { index: 1, id: "write1", type: "function", function: { name: "write", arguments: '{"path":"native.txt","content":"native write"}' } }];
             const first = requests.length === 1;
+            const { cost: _cost, is_byok: _byok, cost_details: _details, ...tokenUsage } = usage;
             const frame = { id: "fixture", object: "chat.completion.chunk", created: 1, model: "fixture",
-                choices: [{ index: 0, delta: { role: "assistant", ...(first ? { tool_calls: tools } : { content: "Verified." }) }, finish_reason: first ? "tool_calls" : "stop" }], usage };
+                choices: [{ index: 0, delta: { role: "assistant", ...(first ? { tool_calls: tools } : { content: "Verified." }) }, finish_reason: first ? "tool_calls" : "stop" }],
+                usage: provider === "fireworks" ? tokenUsage : usage };
             response.writeHead(200, { "content-type": "text/event-stream" });
             response.end(`data: ${JSON.stringify(frame)}\n\ndata: [DONE]\n\n`);
         });
         server.listen(0, "127.0.0.1");
         await once(server, "listening");
         try {
-            const profile = { executable: process.env.PLURNK_BENCH_PI, version: "fixture", provider: "openrouter", model: "fixture",
-                baseUrl: `http://127.0.0.1:${server.address().port}/v1`, effort: "low", turnCap, maxOutputTokens: 32768,
+            const profile = { executable: process.env.PLURNK_BENCH_PI, version: "fixture", provider, model: "fixture",
+                baseUrl: `http://127.0.0.1:${server.address().port}/v1`, effort, turnCap, maxOutputTokens: 32768,
                 timeoutSeconds: 30, contextWindow: 1000000, rates };
             json(join(configDir, "settings.json"), piConfiguration(shellPath));
-            json(join(configDir, "models.json"), { providers: { openrouter: {
-                baseUrl: profile.baseUrl, api: "openai-completions", apiKey: "$OPENROUTER_API_KEY",
+            json(join(configDir, "models.json"), { providers: { [provider]: {
+                baseUrl: profile.baseUrl, api: "openai-completions", apiKey: `$${credential}`,
                 models: [{ id: "fixture", reasoning: true, input: ["text"], contextWindow: 1000000, maxTokens: 32768, cost: rates }],
             } } });
             json(join(agent, "profile.json"), profile);
             const launch = piLaunch(profile.executable, piArguments(profile, join(agent, "sessions"), "Run the tool check."));
             const result = await runToFiles(launch.command, launch.args, {
-                cwd: repo, env: { ...process.env, OPENROUTER_API_KEY: "fixture-not-a-credential", PI_CODING_AGENT_DIR: configDir,
+                cwd: repo, env: { ...process.env, [credential]: "fixture-not-a-credential", PI_CODING_AGENT_DIR: configDir,
                     PATH: `${agent}:${process.env.PATH}`, PI_TELEMETRY: "0", PLURNK_PI_PROFILE: join(agent, "profile.json"), PLURNK_PI_AGENT_DIR: agent,
                     NODE_OPTIONS: "" },
                 stdoutPath: join(agent, "pi.stdout.jsonl"), stderrPath: join(agent, "pi.stderr.log"), timeoutMs: 30000,
@@ -210,7 +218,8 @@ for (const turnCap of [1, 100]) {
             assert.deepEqual(requests[0].tools.map((tool) => tool.function.name).sort(), ["bash", "edit", "read", "write"]);
             for (const request of requests) {
                 assert.equal(request.max_tokens, undefined);
-                assert.equal(request.reasoning.effort, "low");
+                if (provider === "openrouter") assert.equal(request.reasoning.effort, effort);
+                else assert.equal(request.reasoning_effort, effort);
                 assert.equal(request.frequency_penalty, undefined);
                 assert.doesNotMatch(JSON.stringify(request.messages), /FORBIDDEN_PERSONAL_CONTEXT_MARKER|Operation Syntax|plurnk\.md/);
             }
@@ -218,7 +227,10 @@ for (const turnCap of [1, 100]) {
             if (turnCap > 1) assert.match(JSON.stringify(requests[1].messages), /NATIVE_SHELL_PATH_USED/);
             const summary = summarizePi(agent, rates);
             assert.equal(summary.responsesWithUsage, requests.length);
-            assert.equal(summary.unpricedRequests, 0);
+            assert.equal(summary.unpricedRequests, provider === "fireworks" ? requests.length : 0);
+            assert.equal(summary.responsesWithTokenBreakdown, requests.length);
+            assert.equal(summary.repricedUsd, 0.00000815 * requests.length);
+            assert.equal(summary.chargedUsd, provider === "fireworks" ? 0 : 0.003 * requests.length);
             assert.equal(summary.limits.length, turnCap === 1 ? 1 : 0);
         } finally { server.closeAllConnections(); await new Promise((resolve) => server.close(resolve)); }
     });
