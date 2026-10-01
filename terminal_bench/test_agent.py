@@ -10,6 +10,7 @@ import tempfile
 import time
 import types
 import unittest
+from contextlib import closing
 from pathlib import Path, PurePosixPath
 from unittest.mock import patch
 
@@ -209,7 +210,7 @@ class ExecutionTest(unittest.TestCase):
         return process
 
     def read_evidence(self):
-        with sqlite3.connect(self.logs / "plurnk.db") as db:
+        with closing(sqlite3.connect(self.logs / "plurnk.db")) as db:
             self.assertEqual(db.execute("PRAGMA integrity_check").fetchone(), ("ok",))
             self.assertEqual(db.execute("SELECT body FROM evidence").fetchall(), [("committed before termination",)])
 
