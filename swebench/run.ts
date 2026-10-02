@@ -2,13 +2,8 @@
 // ordinary plurnk client/service boundary and grade the candidate's patch with the
 // benchmark's OWN official evaluator (swebench/evaluate.ts).
 //
-// Architecture, mirroring deepswe/benchlet.ts's candidate stage: the plurnk daemon and client
-// run on the HOST, so the daemon reaches the model endpoint normally; the model's shell
-// commands are forwarded by PATH shims (swebench/exec.ts) INTO one long-lived container of
-// the instance's eval image (manifest.environment.network, normally `none`), where the
-// candidate repository is mounted at its own host path and at `/testbed` — the path the
-// image's editable install points at, so the model's own tests import its edits. The oracle
-// then grades in its own fresh container.
+// {§swebench-container-runtime}: the complete candidate inhabits the task container.
+// The host owns provisioning, evidence and the separate official evaluation only.
 //
 // The trial directory is the Pier-shaped layout the shared core reads:
 //   result.json            provenance (trial_name, task_name, model) — src/ingest.ts §provenance
@@ -26,11 +21,11 @@ import { finished } from "node:stream/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import CandidateContainer from "../src/candidate-container.ts";
 import { requiredClientCheckout } from "../src/client-checkout.ts";
 import { benchmarksHome, jobsRoot, loadBenchmarkEnvironment, selectedModel } from "../src/host-paths.ts";
 import { publishTrial } from "../src/publish.ts";
-import { EXECUTOR_SHIMS, writeExecutorShims } from "./exec.ts";
+import { modelHosts, runContainer } from "./container.ts";
+import { plurnkEnvironment, prepareRuntime } from "./runtime.ts";
 import { candidateIsolation } from "../src/candidate-isolation.ts";
 import { assertCleanSources } from "../src/source-provenance.ts";
 
@@ -68,7 +63,7 @@ export const candidateArgv = (
     instruction: string,
     turnCap: number,
 ): string[] => [
-    "scripts/candidate.mjs",
+    "plurnk",
     "--json",
     "--auto",
     "--proposals", "accept",
@@ -289,48 +284,12 @@ const main = async (signal?: AbortSignal): Promise<void> => {
     const imageId = dockerImageId(manifest.environment.image);
     const startHead = prepareRepository(manifest, repository);
 
-    const candidateContainer = new CandidateContainer((command, args, options) => shell(command, args, options));
-    const user = process.getuid!() + ":" + process.getgid!();
-    // {§benchlet-container-scratch} — the daemon's executor scratch is per-trial and mounted as-is.
-    const mounts = { repository, scratch: join(trialDir, "exec-scratch"), containerRoot: "/testbed" };
-    const container = candidateContainer.start(manifest.environment, mounts, user);
     try {
-        const binDir = join(trialDir, "bin");
-        writeExecutorShims(binDir, { container, repository, user, home: candidateContainer.home!, realPath: process.env.PATH ?? "" });
-        writeJson(join(trialDir, "candidate-execution.json"), candidateContainer.record(manifest.environment, mounts, EXECUTOR_SHIMS));
-
-        if (values.preflight) {
-            // The image's own toolchain, not one instance's dependency: every SWE-bench image
-            // installs its repository into the testbed environment, so importing it proves the shim
-            // reaches the right interpreter for any instance (#40).
-            const probe = spawnSync(join(binDir, "python"), ["-c",
-                'import sys; assert sys.stdin.read() == "café ✓\\n"; print(sys.executable); print("Unicode ✓")'],
-            { cwd: repository, input: "café ✓\n", encoding: "utf8", timeout: 30_000 });
-            writeJson(join(trialDir, "preflight.json"), {
-                status: probe.status === 0 ? "ready" : "failed",
-                instance,
-                model,
-                dataset: DATASET,
-                image: manifest.environment.image,
-                imageId,
-                network: manifest.environment.network,
-                startHead,
-                baseCommit: manifest.baseCommit,
-                repository,
-                executors: EXECUTOR_SHIMS,
-                gitStatus: git(repository, ["status", "--porcelain"]),
-                probe: { status: probe.status, stdout: probe.stdout.trim(), stderr: probe.stderr.trim() },
-            });
-            if (probe.status !== 0) throw new Error(`executor preflight failed: ${trialDir}`, { cause: probe.error ?? probe.stderr });
-            process.stdout.write(`ready=${trialDir}\n`);
-            return;
-        }
-
         const clientRoot = requiredClientCheckout(benchRoot, process.env, "PLURNK_SWEBENCH_CLIENT_ROOT");
         const serviceRoot = resolve(benchRoot, process.env.PLURNK_SWEBENCH_SERVICE_ROOT ?? "../plurnk-service");
-        if (!existsSync(join(serviceRoot, "scripts", "candidate.mjs"))) throw new Error(`service checkout has no scripts/candidate.mjs: ${serviceRoot}`);
         const sources = assertCleanSources({ bench: benchRoot, service: serviceRoot, client: clientRoot });
-
+        const allowedHosts = modelHosts(process.env, values.preflight === true);
+        const runtime = await prepareRuntime({ kind: "plurnk", serviceRoot, clientRoot, sources });
         const agentDir = join(trialDir, "agent");
         mkdirSync(agentDir, { recursive: true });
         // {§benchlet-isolation} — the candidate reaches no network beyond its model:
@@ -339,28 +298,33 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         const isolation = candidateIsolation(Object.keys(process.env));
         writeJson(join(trialDir, "candidate-isolation.json"), { masked: isolation.masked, webHosts: [], capabilities: isolation.capabilities });
         const candidateEnv: NodeJS.ProcessEnv = {
-            ...process.env,
-            PATH: binDir + ":" + (process.env.PATH ?? ""),
-            PLURNK_CANDIDATE_DIR: agentDir,
-            PLURNK_MODEL: model,
-            PLURNK_CLIENT_CHECKOUT: clientRoot,
+            ...(values.preflight ? {} : await plurnkEnvironment(serviceRoot, model, process.env)),
             PLURNK_EXECS_QUESTION: "0",
-            ...candidateContainer.daemonEnvironment(),
+            PLURNK_SERVICE_POLICY: "",
+            PLURNK_SERVICE_PACKET_INJECT: "",
+            PLURNK_SERVICE_ROOTS: "project",
             ...isolation.overrides,
         };
         const stdoutPath = join(agentDir, "plurnk.stdout.log");
         const startedAt = new Date();
-        const result = await runToFiles(process.execPath, candidateArgv(repository, timeout, taskPrompt(manifest.problemStatement), manifest.turnCap ?? 100), {
-            cwd: serviceRoot,
-            env: candidateEnv,
-            stdoutPath,
-            stderrPath: join(agentDir, "plurnk.stderr.log"),
-            tee: true,
+        const result = await runContainer({
+            trial: trialDir, runtime: runtime.path, repository, agent: agentDir,
+            image: imageId, cpus: manifest.environment.cpus, memoryMb: manifest.environment.memoryMb,
+            allowedHosts, env: candidateEnv, preflight: values.preflight === true,
+            argv: values.preflight ? ["plurnk", "--preflight"] : candidateArgv("/testbed", timeout, taskPrompt(manifest.problemStatement), manifest.turnCap ?? 100),
+        }, {
             ...(timeout === -1 ? {} : { timeoutMs: (timeout + overhead) * 1000 }),
             signal,
         });
         const finishedAt = new Date();
-        candidateContainer.stop();
+        writeJson(join(trialDir, "runtime.json"), runtime.provenance);
+        if (values.preflight) {
+            if (result.status !== 0) throw new Error(`Container preflight failed; see ${trialDir}/container.stderr.log`);
+            writeJson(join(trialDir, "preflight.json"), { instance, imageId, startHead, sources,
+                ...JSON.parse(readFileSync(join(agentDir, "preflight.json"), "utf8")) });
+            process.stdout.write(`ready=${trialDir}\n`);
+            return;
+        }
 
         const docLine = extractPlurnkDoc(readFileSync(stdoutPath, "utf8"));
         if (docLine === null) throw new Error(`the plurnk client left no JSON document in ${stdoutPath}`);
@@ -410,7 +374,6 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         process.stdout.write(`artifact=${trialDir}\n`);
         if (runDir !== null) process.stdout.write(`published=${runDir}\n`);
     } finally {
-        candidateContainer.stop();
         pruneImage(manifest.environment.image);
     }
 };

@@ -746,18 +746,32 @@ reimplementation of its agent loop or an assertion that the study was reproduced
   (`PLURNK_SWEBENCH_MIN_FREE_GB`, default 15; `0` disables the check) and fails loudly
   rather than half-way through a pull; `PLURNK_SWEBENCH_PRUNE_IMAGE=1` removes the
   instance image afterwards for a small disk at the cost of re-pulling.
-- §swebench-network Task containers run `network:none`; the candidate reaches no
-  network beyond its model — the operator's MCP/A2A definitions are masked, search
-  credentials blanked, and the daemon's web schemes admit no host through the shared
-  `{§benchlet-isolation}` seam (`src/candidate-isolation.ts`) — and web tools are
-  removed with `PLURNK_EXECS_QUESTION=0` ({§config-unattended}).
-- §swebench-executor-encoding Executor shims run in the pinned image's login-shell
-  toolchain with `LANG=C.UTF-8` and `LC_ALL=C.UTF-8`. Unicode arguments and stdin
-  survive the host/container boundary; host PATH and locale settings are not
-  imported into the image. The model-free preflight exercises the generated
-  Python shim with Unicode in both channels and fails if that probe fails. The
-  daemon's realized executor sources reach the container through the trial's
-  scratch mount ({§benchlet-container-scratch}).
+- §swebench-network Harbor's Docker backend enforces an explicit model-host
+  allowlist (`PLURNK_SWEBENCH_MODEL_HOSTS`, JSON array). An empty list permits no
+  external network and is valid for model-free preflight only. No public-network
+  fallback or Docker socket is available to the candidate. Provider credentials
+  travel in the process environment, never in mounted configuration files.
+  The shared `{§benchlet-isolation}` policy additionally disables ambient MCP/A2A
+  services and web schemes. The official verifier retains the manifest's network
+  policy in its separate, fresh evaluation container.
+- §swebench-container-runtime The whole candidate runs inside the pinned task
+  image: Plurnk's daemon, client, native file operations, executor discovery,
+  scratch files, and subprocesses; or stock Pi and all its tools. Both see one
+  repository at `/testbed`, the image's login-shell toolchain, and UTF-8 locale.
+  There are no executor forwarding shims or host-path aliases. Node and the
+  harness packages are explicitly provisioned prerequisites, recorded by version
+  and artifact hash; they do not replace the specimen's Python or other tools.
+  A read-only runtime bundle contains only installed package artifacts and the
+  adapter, not benchmark manifests, oracle code, source checkouts, or operator
+  configuration. Each trial owns its writable repository, evidence, home, and
+  container. The disposable checkout's ownership matches the image's agent user;
+  Harbor restores host ownership before teardown. Cancellation drains the
+  candidate before container teardown.
+- §swebench-executor-encoding Unicode arguments, stdin, and stream output remain
+  ordinary in-container process I/O. Model-free preflight verifies Node and the
+  task's Python, project cwd, UTF-8 round trips, and file visibility. Integration
+  coverage additionally exercises native READ/EDIT and shell access to the same
+  bytes, executor availability, network denial, and independent trial teardown.
 - §swebench-conditions The candidate uses the ordinary cascade
   ({§config-model-default}); the study's effort setting is
   `PLURNK_PROVIDERS_EFFORT_<alias>`. No positional or family-specific
@@ -815,7 +829,7 @@ on resume, and a changed profile requires a new campaign directory.
 |----------|----------|
 | Agent | Stock system prompt, default tools, compaction, sampling, output and retry behavior. Select only provider, model and effort; the version and Pi's refreshed catalog are frozen and retained. No request-payload rewriting. |
 | Personal context | Fresh Pi configuration per trial; no operator/project extensions, skills, prompt templates or AGENTS/CLAUDE files. No Plurnk teaching. |
-| Environment | Reuse {§swebench-trial}, {§swebench-network} and {§swebench-executor-encoding}. Pi's ordinary `shellPath` setting reaches the same isolated image; native file tools see the mounted checkout. |
+| Environment | Reuse {§swebench-trial}, {§swebench-network} and {§swebench-container-runtime}. Stock Pi and all its native tools run inside the image, on the same provisioned Node runtime as Plurnk. |
 | Limits | A benchmark-only extension aborts before the next model turn beyond the declared cap. The common wall-clock guard still applies. Limits do not add model-facing instructions. |
 | Evidence | Observe, without changing, each native chat-completions request and response. Retain raw streams, Pi JSON events, session files, configuration, errors, patch and official oracle. No synthetic Plurnk database or digest. |
 | Cost | OpenRouter response usage owns charged cost: `cost`, plus explicit `cost_details.upstream_inference_cost` when `is_byok` is true. Missing billing or cache fields remain unknown; report coverage. Native `deepseek` and `fireworks` responses without a charge use fixed-rate repricing, explicitly labeled rather than reported as billed cost. Fixed-rate repricing is separate from native catalog estimates and actual charges. |

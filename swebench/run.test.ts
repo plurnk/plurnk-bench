@@ -8,7 +8,7 @@ import { candidateArgv, exceptionInfo, extractPlurnkDoc, runToFiles, taskPrompt 
 
 test("[§swebench] the candidate runs the ordinary client: --json, --auto, the task prompt after --", () => {
     assert.deepEqual(candidateArgv("/runs/run1/repo", 1680, "Fix the missing-data crash", 100), [
-        "scripts/candidate.mjs",
+        "plurnk",
         "--json",
         "--auto",
         "--proposals", "accept",
@@ -30,7 +30,7 @@ test("[§swebench-conditions] the candidate states a proposal disposition, or it
 
 test("[§swebench] -1 is the no-limit idiom: no --timeout flag is emitted", () => {
     assert.deepEqual(candidateArgv("/r", -1, "p", 100), [
-        "scripts/candidate.mjs", "--json", "--auto", "--proposals", "accept",
+        "plurnk", "--json", "--auto", "--proposals", "accept",
         "--max-turns", "100", "--project-root", "/r", "--", "p",
     ]);
 });

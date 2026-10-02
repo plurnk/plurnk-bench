@@ -13,11 +13,14 @@ Install the evaluator into the ignored cache, and have Docker running:
 
 ```sh
 uv venv .cache/swebench/venv --python 3.13
-uv pip install --python .cache/swebench/venv/bin/python swebench datasets
+uv pip install --python .cache/swebench/venv/bin/python swebench datasets harbor
 ```
 
 `PLURNK_SWEBENCH_PYTHON` selects a different interpreter. Container images need
 substantial disk space; the runner checks Docker's storage before launching.
+`PLURNK_SWEBENCH_HARBOR_PYTHON` selects the interpreter containing Harbor (default
+`python`). The candidate also needs a Linux x64 host's Node 26+ distribution and npm;
+the runner provisions the same Node runtime for Plurnk and Pi inside the image.
 
 Select clean, installed service and client checkouts and your configured model:
 
@@ -25,6 +28,8 @@ Select clean, installed service and client checkouts and your configured model:
 export PLURNK_SWEBENCH_SERVICE_ROOT=/path/to/plurnk-service
 export PLURNK_SWEBENCH_CLIENT_ROOT=/path/to/plurnk
 export PLURNK_MODEL="your-model-alias"
+export PLURNK_SWEBENCH_HARBOR_PYTHON="$PWD/.cache/swebench/venv/bin/python"
+export PLURNK_SWEBENCH_MODEL_HOSTS='["your.model.endpoint"]'
 ```
 
 Credentials stay in the invoking environment. Do not edit or rebuild the
@@ -43,10 +48,17 @@ tests, and resource limits in [manifests/](manifests/). Review and commit a new
 manifest before using it for a comparison.
 
 `--preflight` checks the container and its execution environment without calling
-a model. The ordinary run starts an isolated daemon/client pair, forwards shell
-execution into the task container, captures the patch, and grades it. The host
-daemon can reach the model provider; the task container uses the manifest's
-network policy.
+a model. The whole candidate—including native file tools and executor discovery—
+runs inside the task container at `/testbed`. Harbor allows only the explicitly
+listed model hosts; empty means no external network and is valid for preflight.
+Local endpoints must already use a container-reachable address; no route is
+silently rewritten. The official verifier remains separate and unchanged.
+
+Clean source builds are packed and installed into a read-only runtime bundle,
+cached under `~/benchmarks/cache/swebench-runtimes` by source and adapter identity.
+Trials record the exact package hashes and Node version. No source checkout,
+benchmark solution, host configuration, or Docker socket is mounted into the
+candidate. Removing that cache simply requires rebuilding on the next run.
 
 `--timeout <seconds>` overrides the candidate budget. `--skip-grading` captures
 the attempt without running the evaluator. Trials retain provenance, the client

@@ -3,10 +3,10 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdir
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import CandidateContainer from "../src/candidate-container.ts";
 import { jobsRoot } from "../src/host-paths.ts";
-import { EXECUTOR_SHIMS, writeExecutorShims } from "./exec.ts";
-import { capturePatch, dockerImageId, exceptionInfo, prepareRepository, pruneImage, requireDiskRoom, runToFiles, shell, taskPrompt } from "./run.ts";
+import { modelHosts, runContainer } from "./container.ts";
+import { installedPiRoot, prepareRuntime } from "./runtime.ts";
+import { capturePatch, dockerImageId, exceptionInfo, prepareRepository, pruneImage, requireDiskRoom, shell, taskPrompt } from "./run.ts";
 
 const directory = dirname(fileURLToPath(import.meta.url));
 const json = (path, value) => writeFileSync(path, JSON.stringify(value, null, 2) + "\n");
@@ -27,14 +27,14 @@ export function validateProfile(profile) {
 
 export const piConfiguration = (shellPath) => ({ shellPath });
 
-// Pi runs on the host; its own shebang must not select the specimen's node shim.
+// An explicit Node binary avoids an unrelated shebang selection in installed-CLI tests.
 export const piLaunch = (executable, args) => ({ command: process.execPath, args: [realpathSync(executable), ...args] });
 
-export function piArguments(profile, sessionDir, prompt) {
+export function piArguments(profile, sessionDir, prompt, extension = join(directory, "pi-extension.mjs")) {
     return ["--print", "--mode", "json", "--provider", profile.provider, "--model", profile.model,
         "--thinking", profile.effort, "--no-extensions",
         "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files", "--no-approve", "--offline",
-        "--extension", join(directory, "pi-extension.mjs"), "--session-dir", sessionDir, "--", prompt];
+        "--extension", extension, "--session-dir", sessionDir, "--", prompt];
 }
 
 export function summarizePi(agentDir, rates) {
@@ -103,40 +103,37 @@ export async function runPiTrial({ instance, profilePath, preflight = false, sig
     const imageId = dockerImageId(manifest.environment.image);
     const repository = join(trialDir, "repo");
     const startHead = prepareRepository(manifest, repository);
-    const container = new CandidateContainer(shell);
-    const user = `${process.getuid()}:${process.getgid()}`;
     try {
-        // {§benchlet-container-scratch}: the mount is the container contract's; Pi runs no daemon that writes there.
-        const mounts = { repository, scratch: join(trialDir, "exec-scratch"), containerRoot: "/testbed" };
-        const id = container.start(manifest.environment, mounts, user);
-        const binDir = join(trialDir, "bin");
-        writeExecutorShims(binDir, { container: id, repository, user, home: container.home, realPath: process.env.PATH ?? "" });
-        json(join(trialDir, "candidate-execution.json"), container.record(manifest.environment, mounts, EXECUTOR_SHIMS));
+        const allowedHosts = modelHosts(process.env, preflight);
+        const runtime = await prepareRuntime({ kind: "pi", piRoot: await installedPiRoot(profile.executable), version });
+        json(join(trialDir, "runtime.json"), runtime.provenance);
         const agentDir = join(trialDir, "agent");
         const configDir = join(agentDir, "config");
         mkdirSync(configDir, { recursive: true });
-        const config = piConfiguration(join(binDir, "bash"));
+        const config = piConfiguration("/bin/bash");
         json(join(configDir, "settings.json"), config);
         copyFileSync(profile.catalogPath, join(configDir, "models-store.json"));
         json(join(agentDir, "profile.json"), profile);
         const prompt = taskPrompt(manifest.problemStatement);
-        const argv = piArguments(profile, join(agentDir, "sessions"), prompt);
-        const launch = piLaunch(profile.executable, argv);
+        const argv = piArguments(profile, "/logs/agent/sessions", prompt, "/opt/harness/pi-extension.mjs");
         const provenance = { agent: "pi", version, instance, profile, model, imageId, startHead, datasetRevision: manifest.datasetRevision,
-            baseCommit: manifest.baseCommit, repository, taskPrompt: prompt, argv, launch, node: process.version, startedAt: new Date().toISOString() };
+            baseCommit: manifest.baseCommit, repository, taskPrompt: prompt, argv, node: process.version, startedAt: new Date().toISOString() };
         json(join(trialDir, "provenance.json"), provenance);
+        const credential = { openrouter: "OPENROUTER_API_KEY", deepseek: "DEEPSEEK_API_KEY", fireworks: "FIREWORKS_API_KEY" }[profile.provider];
+        const result = await runContainer({
+            trial: trialDir, runtime: runtime.path, repository, agent: agentDir,
+            image: imageId, cpus: manifest.environment.cpus, memoryMb: manifest.environment.memoryMb,
+            allowedHosts, preflight, argv: preflight ? ["pi", "--preflight"] : ["pi", ...argv],
+            env: { ...(process.env[credential] ? { [credential]: process.env[credential] } : {}),
+                PI_CODING_AGENT_DIR: "/logs/agent/config", PI_TELEMETRY: "0",
+                PLURNK_PI_PROFILE: "/logs/agent/profile.json", PLURNK_PI_AGENT_DIR: "/logs/agent" },
+        }, { signal, timeoutMs: profile.timeoutSeconds * 1000 });
         if (preflight) {
-            const output = shell(join(binDir, "bash"), ["-c", "python -c 'import sys; print(sys.executable)'"], { cwd: repository });
-            if (!output.includes("/opt/miniconda3/envs/testbed/bin/python")) throw new Error(`Pi bash did not reach the testbed interpreter: ${output}`);
-            json(join(trialDir, "preflight.json"), { version, output, config, argv });
+            if (result.status !== 0) throw new Error(`Pi preflight failed; see ${trialDir}/container.stderr.log`);
+            json(join(trialDir, "preflight.json"), { version, config, argv,
+                ...JSON.parse(readFileSync(join(agentDir, "preflight.json"), "utf8")) });
             return trialDir;
         }
-        const result = await runToFiles(launch.command, launch.args, { cwd: repository, signal,
-            env: { ...process.env, PATH: `${binDir}:${process.env.PATH ?? ""}`, PI_CODING_AGENT_DIR: configDir, PI_TELEMETRY: "0",
-                PLURNK_PI_PROFILE: join(agentDir, "profile.json"), PLURNK_PI_AGENT_DIR: agentDir, NODE_OPTIONS: "" },
-            stdoutPath: join(agentDir, "pi.stdout.jsonl"), stderrPath: join(agentDir, "pi.stderr.log"), timeoutMs: profile.timeoutSeconds * 1000,
-        });
-        container.stop();
         json(join(trialDir, "result.json"), { schemaVersion: 2, trial_name: `pi-${instance}`, task_name: instance,
             config: { agent: { name: "pi", model_name: `${profile.provider}/${profile.model}` } },
             started_at: provenance.startedAt, finished_at: new Date().toISOString(), exception_info: exceptionInfo(result, profile.timeoutSeconds) });
@@ -145,7 +142,6 @@ export async function runPiTrial({ instance, profilePath, preflight = false, sig
         json(join(agentDir, "summary.json"), summarizePi(agentDir, profile.rates));
         return trialDir;
     } finally {
-        container.stop();
         pruneImage(manifest.environment.image);
     }
 }
