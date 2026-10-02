@@ -1,6 +1,7 @@
 // Deterministic provider fixture, copied only into the integration-test bundle.
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { request as https } from "node:https";
 import { once } from "node:events";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
@@ -24,6 +25,7 @@ const piCalls = [
     tool("d", "bash", { command: 'node -e \'console.log("NODE_READ=" + require("node:fs").readFileSync("/testbed/native.txt", "utf8").trim())\'' }),
 ];
 const server = createServer(async (request, response) => {
+    if (request.url === "/isolation-check") { response.end("trial-listener"); return; }
     let body = "";
     for await (const part of request) body += part;
     requests.push(JSON.parse(body));
@@ -43,8 +45,9 @@ const server = createServer(async (request, response) => {
         prompt_tokens: 100, completion_tokens: 80, total_tokens: 180, prompt_tokens_details: { cached_tokens: 0 },
     } })}\n\ndata: [DONE]\n\n`);
 });
-server.listen(0, "127.0.0.1");
+server.listen(0, "0.0.0.0");
 await once(server, "listening");
+writeFileSync(join(evidence, "fixture.endpoint.json"), JSON.stringify({ port: server.address().port }));
 const baseUrl = `http://127.0.0.1:${server.address().port}/v1`;
 Object.assign(process.env, {
     PLURNK_MODEL: "fixture", PLURNK_MODEL_fixture: "fixture/fixture",
@@ -67,11 +70,23 @@ writeFileSync(join(process.env.PI_CODING_AGENT_DIR, "models.json"), JSON.stringi
         cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 } }] },
 } }));
 try {
-    if (process.env.FIXTURE_NETWORK === "1") {
-        const allowed = await fetch("https://example.com", { signal: AbortSignal.timeout(10000) });
-        await allowed.body?.cancel();
+    if (process.env.FIXTURE_NETWORK) {
+        let allowed = null;
+        if (process.env.FIXTURE_NETWORK === "none") {
+            await assert.rejects(fetch("https://example.com", { signal: AbortSignal.timeout(4000) }));
+        } else {
+            const response = await fetch("https://example.com", { signal: AbortSignal.timeout(10000) });
+            allowed = response.status;
+            await response.body?.cancel();
+        }
         await assert.rejects(fetch("https://example.org", { signal: AbortSignal.timeout(4000) }));
-        writeFileSync(join(evidence, "network.json"), JSON.stringify({ allowed: allowed.status, denied: true }));
+        await assert.rejects(new Promise((accept, reject) => {
+            const request = https("https://1.1.1.1", { rejectUnauthorized: false, signal: AbortSignal.timeout(4000) }, (response) => {
+                response.destroy(); accept(response.statusCode);
+            });
+            request.once("error", reject); request.end();
+        }));
+        writeFileSync(join(evidence, "network.json"), JSON.stringify({ allowed, denied: true, directIpDenied: true }));
     } else await import("./production-runner.mjs");
     if (!process.env.FIXTURE_WAIT && !process.env.FIXTURE_NETWORK) {
         assert.equal(readFileSync("/testbed/native.txt", "utf8").trim(), "native edited");

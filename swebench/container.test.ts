@@ -60,12 +60,13 @@ for await (const part of process.stdin) input += part;
 const request = JSON.parse(input);
 if (request.env.PROVIDER_API_KEY !== "fixture-secret") process.exit(5);
 if (process.argv.some((arg) => arg.includes("fixture-secret"))) process.exit(6);
+if (request.resolverConfig !== "/configured/resolv.conf") process.exit(7);
 console.log("received through stdin");
 `, { mode: 0o755 });
     const request: ContainerRequest = { trial: root, runtime: root, repository: root, agent: root,
         image: "fixture", cpus: 1, memoryMb: 512, allowedHosts: ["provider.example"],
         preflight: false, argv: ["plurnk"], env: { PROVIDER_API_KEY: "fixture-secret" } };
-    const result = await runContainer(request, { python: executable });
+    const result = await runContainer(request, { python: executable, resolverConfig: "/configured/resolv.conf" });
     assert.equal(result.status, 0);
     assert.equal(await readFile(join(root, "container.stdout.log"), "utf8"), "received through stdin\n");
     assert.equal(await readFile(join(root, "container.stderr.log"), "utf8"), "");

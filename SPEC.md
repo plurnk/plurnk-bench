@@ -754,6 +754,12 @@ reimplementation of its agent loop or an assertion that the study was reproduced
   The shared `{§benchlet-isolation}` policy additionally disables ambient MCP/A2A
   services and web schemes. The official verifier retains the manifest's network
   policy in its separate, fresh evaluation container.
+  Each candidate retains its own Compose network. An optional
+  `PLURNK_SWEBENCH_RESOLV_CONF` snapshots an explicitly selected resolver file,
+  mounted read-only at `/etc/resolv.conf` in the candidate and Harbor egress
+  sidecar; the trial records its source and SHA-256. Empty uses Docker's normal
+  DNS configuration. This changes name resolution only, never the allowlist,
+  network topology, verifier, or host firewall.
 - §swebench-container-runtime The whole candidate runs inside the pinned task
   image: Plurnk's daemon, client, native file operations, executor discovery,
   scratch files, and subprocesses; or stock Pi and all its tools. Both see one

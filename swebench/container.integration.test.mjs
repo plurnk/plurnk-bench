@@ -107,6 +107,31 @@ test("{§swebench-container-runtime} cancellation drains only its candidate and 
     }));
     assert.ok(pending.every((calls) => calls.length === 1), "both real clients are awaiting their independent provider");
     assert.ok(requests.every((request) => containers(request)), "both trial containers are running");
+    const peers = await Promise.all(requests.map(async (request) => {
+        const members = JSON.parse(shell("docker", ["inspect", ...containers(request).split("\n")]));
+        const main = members.find((member) => member.Config.Labels["com.docker.compose.service"] === "main");
+        const sidecar = members.find((member) => member.Config.Labels["com.docker.compose.service"] === "harbor-docker-egress-control-sidecar");
+        const networks = Object.entries(sidecar.NetworkSettings.Networks);
+        assert.equal(networks.length, 1);
+        const [network, details] = networks[0];
+        assert.notEqual(network, "bridge", "the candidate does not join Docker's shared bridge");
+        assert.equal(main.HostConfig.NetworkMode, `container:${sidecar.Id}`, "the candidate shares the filtered namespace");
+        const { port } = JSON.parse(await readFile(join(request.agent, "fixture.endpoint.json"), "utf8"));
+        return { main: main.Id, network, address: details.IPAddress, port };
+    }));
+    assert.notEqual(peers[0].network, peers[1].network, "trials own different networks");
+    for (const [index, peer] of peers.entries()) {
+        const other = peers[1 - index];
+        shell("docker", ["exec", peer.main, "/opt/harness/bin/node", "--input-type=module", "-e", `
+            import assert from "node:assert/strict";
+            assert.equal(await (await fetch("http://127.0.0.1:${peer.port}/isolation-check")).text(), "trial-listener");
+            for (const headers of [{}, { host: "example.com" }]) {
+                await assert.rejects(fetch("http://${other.address}:${other.port}/isolation-check", {
+                    headers, signal: AbortSignal.timeout(4000),
+                }));
+            }
+        `]);
+    }
     controllers[0].abort();
     const first = await results[0];
     assert.equal(first.cancelled, true);
@@ -125,7 +150,7 @@ test("{§swebench-container-runtime} cancellation drains only its candidate and 
     for (const request of requests) await rm(request.trial, { recursive: true });
 });
 
-test("{§swebench-network} Harbor permits the declared model host and denies another host", {
+for (const mode of ["allowlist", "none"]) test(`{§swebench-network} Harbor enforces ${mode} for hostnames and direct IPs`, {
     skip: !process.env.PLURNK_BENCH_PLURNK_RUNTIME, timeout: 60000,
 }, async (t) => {
     const parent = join(benchmarksHome(), "jobs", "adapter-tests");
@@ -139,11 +164,14 @@ test("{§swebench-network} Harbor permits the declared model host and denies ano
     const repository = join(trial, "repo"), agent = join(trial, "agent");
     await mkdir(repository); await mkdir(agent);
     const result = await runContainer({ trial, runtime, repository, agent, image: dockerImageId(image), cpus: 1, memoryMb: 512,
-        allowedHosts: ["example.com"], preflight: false, argv: ["plurnk"], env: { FIXTURE_NETWORK: "1" },
+        allowedHosts: mode === "allowlist" ? ["example.com"] : [], preflight: mode === "none",
+        argv: ["plurnk"], env: { FIXTURE_NETWORK: mode },
     }, { signal: t.signal, timeoutMs: 45000 });
     assert.equal(result.status, 0, await readFile(join(trial, "container.stderr.log"), "utf8"));
     const network = JSON.parse(await readFile(join(agent, "network.json"), "utf8"));
-    assert.ok(network.allowed >= 100);
+    if (mode === "allowlist") assert.ok(network.allowed >= 100);
+    else assert.equal(network.allowed, null);
     assert.equal(network.denied, true);
+    assert.equal(network.directIpDenied, true);
     await rm(trial, { recursive: true });
 });

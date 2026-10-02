@@ -28,8 +28,11 @@ export function modelHosts(env: NodeJS.ProcessEnv, preflight: boolean): string[]
     return hosts;
 }
 
-export async function runContainer(request: ContainerRequest, { signal, timeoutMs, python = process.env.PLURNK_SWEBENCH_HARBOR_PYTHON ?? "python" }: {
-    signal?: AbortSignal; timeoutMs?: number; python?: string;
+export async function runContainer(request: ContainerRequest, {
+    signal, timeoutMs, python = process.env.PLURNK_SWEBENCH_HARBOR_PYTHON ?? "python",
+    resolverConfig = process.env.PLURNK_SWEBENCH_RESOLV_CONF ?? "",
+}: {
+    signal?: AbortSignal; timeoutMs?: number; python?: string; resolverConfig?: string;
 } = {}): Promise<CandidateExit> {
     signal?.throwIfAborted();
     const stdout = createWriteStream(join(request.trial, "container.stdout.log"));
@@ -38,7 +41,7 @@ export async function runContainer(request: ContainerRequest, { signal, timeoutM
     child.stdout.pipe(stdout);
     child.stderr.pipe(stderr);
     // Credentials are ephemeral stdin/process environment, not an on-disk request.
-    child.stdin.end(JSON.stringify(request));
+    child.stdin.end(JSON.stringify({ ...request, resolverConfig }));
     let error: Error | undefined;
     let cancelled = false;
     let timedOut = false;

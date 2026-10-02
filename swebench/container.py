@@ -1,6 +1,7 @@
 """Run one candidate inside Harbor's task environment; no agent loop or oracle."""
 
 import asyncio
+import hashlib
 import importlib.metadata
 import json
 import logging
@@ -26,8 +27,28 @@ class EnvironmentFormatter(logging.Formatter):
         return redacted(super().format(record), self.env)
 
 
+def resolver_configuration(root, source):
+    """Use Harbor's supported Compose overlay without changing its topology."""
+    if not source:
+        return [], None
+    source = Path(source).resolve(strict=True)
+    if not source.is_file():
+        raise ValueError("resolver configuration must be a file")
+    content = source.read_bytes()
+    snapshot = root / "resolv.conf"
+    snapshot.write_bytes(content)
+    mount = {"type": "bind", "source": str(snapshot),
+             "target": "/etc/resolv.conf", "read_only": True}
+    overlay = root / "resolver-compose.json"
+    overlay.write_text(json.dumps({"services": {
+        service: {"volumes": [mount]}
+        for service in ("main", "harbor-docker-egress-control-sidecar")
+    }}, indent=2) + "\n")
+    return [overlay], {"source": str(source), "sha256": hashlib.sha256(content).hexdigest()}
+
+
 def configuration(request):
-    """Only three mounts cross the boundary; the benchmark checkout never does."""
+    """Candidate data mounts never expose the benchmark checkout."""
     hosts = request["allowedHosts"]
     if not isinstance(hosts, list) or any(not isinstance(host, str) or not host for host in hosts):
         raise ValueError("allowedHosts must be a list of nonempty host names")
@@ -58,6 +79,7 @@ async def run(request):
     paths.mkdir()
     environment_dir = root / "environment"
     environment_dir.mkdir()
+    compose, resolver = resolver_configuration(root, request.get("resolverConfig", ""))
     # Backend errors may include exec environment arguments. Preserve failures,
     # including best-effort teardown warnings, without their credential values.
     logger = logging.getLogger(root.name)
@@ -73,6 +95,7 @@ async def run(request):
             docker_image=request["image"], cpus=request["cpus"],
             memory_mb=request["memoryMb"], workdir="/testbed",
         ), mounts=mounts, network_policy=NetworkPolicy(**policy),
+        extra_docker_compose=compose,
     )
     task = asyncio.current_task()
     loop = asyncio.get_running_loop()
@@ -91,6 +114,7 @@ async def run(request):
             "adapter": "container-native", "harbor": importlib.metadata.version("harbor"),
             "image": request["image"], "projectRoot": "/testbed", "network": policy,
             "mounts": mounts, "cpus": request["cpus"], "memoryMb": request["memoryMb"],
+            **({"resolver": resolver} if resolver else {}),
         }
         (root / "candidate-execution.json").write_text(json.dumps(record, indent=2) + "\n")
         argv = ["/opt/harness/bin/node", "/opt/harness/runner.mjs", *request["argv"]]

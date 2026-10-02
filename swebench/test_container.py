@@ -1,12 +1,44 @@
 import tempfile
 import unittest
 import logging
+import hashlib
+import json
 from pathlib import Path
 
-from swebench.container import EnvironmentFormatter, configuration
+from swebench.container import EnvironmentFormatter, configuration, resolver_configuration
 
 
 class ContainerContract(unittest.TestCase):
+    def test_resolver_override_is_opt_in_and_cannot_change_trial_networks(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.assertEqual(resolver_configuration(root, ""), ([], None))
+            source = root / "operator-resolv.conf"
+            content = b"nameserver 192.0.2.53\noptions timeout:2\n"
+            source.write_bytes(content)
+            files, provenance = resolver_configuration(root, str(source))
+            self.assertEqual(provenance, {"source": str(source), "sha256": hashlib.sha256(content).hexdigest()})
+            self.assertEqual(len(files), 1)
+            overlay = json.loads(files[0].read_text())
+            self.assertEqual(set(overlay), {"services"})
+            self.assertEqual(set(overlay["services"]), {"main", "harbor-docker-egress-control-sidecar"})
+            for service in overlay["services"].values():
+                self.assertEqual(set(service), {"volumes"})
+                mount, = service["volumes"]
+                self.assertEqual(mount, {"type": "bind", "source": str(root / "resolv.conf"),
+                                         "target": "/etc/resolv.conf", "read_only": True})
+                self.assertEqual(Path(mount["source"]).read_bytes(), content)
+            source.write_text("nameserver 198.51.100.53\n")
+            self.assertEqual((root / "resolv.conf").read_bytes(), content, "the trial retains its initial configuration")
+
+    def test_invalid_resolver_file_fails_before_startup(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with self.assertRaisesRegex(ValueError, "resolver configuration must be a file"):
+                resolver_configuration(root, directory)
+            with self.assertRaises(FileNotFoundError):
+                resolver_configuration(root, str(root / "missing"))
+
     def test_backend_failures_are_visible_without_environment_secrets(self):
         record = logging.LogRecord("backend", logging.WARNING, "backend.py", 42,
                                    "Teardown failed after exec TOKEN=%s: network unavailable", ("fixture-private-token",), None)

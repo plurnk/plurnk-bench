@@ -13,7 +13,7 @@ Install the evaluator into the ignored cache, and have Docker running:
 
 ```sh
 uv venv .cache/swebench/venv --python 3.13
-uv pip install --python .cache/swebench/venv/bin/python swebench datasets harbor
+uv pip install --python .cache/swebench/venv/bin/python swebench datasets harbor==0.23.0
 ```
 
 `PLURNK_SWEBENCH_PYTHON` selects a different interpreter. Container images need
@@ -53,6 +53,12 @@ runs inside the task container at `/testbed`. Harbor allows only the explicitly
 listed model hosts; empty means no external network and is valid for preflight.
 Local endpoints must already use a container-reachable address; no route is
 silently rewritten. The official verifier remains separate and unchanged.
+
+If Docker's embedded DNS cannot resolve names under the allowlist, set
+`PLURNK_SWEBENCH_RESOLV_CONF` to a resolver file containing DNS servers reachable
+from the container (not a host-loopback stub). Harbor and the candidate receive
+the same read-only snapshot; each trial keeps its private network and allowlist.
+The source and hash are recorded in `candidate-execution.json`.
 
 Clean source builds are packed and installed into a read-only runtime bundle,
 cached under `~/benchmarks/cache/swebench-runtimes` by source and adapter identity.
