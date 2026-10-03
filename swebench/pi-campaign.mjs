@@ -50,11 +50,9 @@ export async function runCampaign({ corpus, profile, out, attempts, jobs, signal
             const reward = rewardPath && existsSync(rewardPath) ? json(rewardPath) : null;
             const resultPath = artifact && join(artifact, "result.json");
             const exception = resultPath && existsSync(resultPath) ? json(resultPath).exception_info : null;
-            const capped = summary?.limits?.some(({ event }) => event === "turn-cap");
-            const pause = execution.status !== 0 || !reward || !summary?.requests || exception !== null ||
-                summary.errors.some(({ stopReason, error }, index) => stopReason === "error" &&
-                    !(capped && index === summary.errors.length - 1 && error === "This operation was aborted")) ||
-                summary.failures.some(({ error }) => error?.includes("capture"));
+            const agentOutcome = exception === null ||
+                ["AgentExitError", "AgentTimeoutError", "AgentCancelledError"].includes(exception.exception_type);
+            const pause = execution.status !== 0 || !reward || !summary?.requests || !agentOutcome;
             const entry = { ...trial, artifact, exit: execution.status, reward, exception, summary, pause, finishedAt: new Date().toISOString() };
             appendFileSync(resultsPath, JSON.stringify(entry) + "\n");
             completed.push(entry);

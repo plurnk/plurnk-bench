@@ -139,7 +139,8 @@ node swebench/pi-campaign.mjs --corpus swebench/corpora/harnesstax-swe-lite-30.j
 ```
 
 Reusing a Pi campaign directory resumes unattempted pairs with the unchanged
-profile. Inspect any recorded pause first. `agent/summary.json` distinguishes
+profile. Native Pi failures remain scored attempts and do not pause the sweep;
+adapter, setup and evaluator failures do. `agent/summary.json` distinguishes
 provider charges, fixed-rate estimates, and missing telemetry.
 
 The optional installed-client check uses a local fixture server:

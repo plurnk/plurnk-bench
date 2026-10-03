@@ -238,19 +238,27 @@ test("{§swebench-pi} a setup failure pauses new work without discarding the fai
     assert.equal(completed.pause, true);
 });
 
-for (const { name, limits, errors, failures = [], pause } of [
+for (const { name, limits, errors, failures = [], exception = null, pause } of [
     { name: "recorded turn-cap abort", limits: [{ event: "turn-cap", turnCap: 100 }],
         errors: [{ stopReason: "error", error: "This operation was aborted" }], pause: false },
     { name: "unexplained abort", limits: [],
-        errors: [{ stopReason: "error", error: "This operation was aborted" }], pause: true },
+        errors: [{ stopReason: "error", error: "This operation was aborted" }], pause: false },
     { name: "provider failure despite a cap", limits: [{ event: "turn-cap", turnCap: 100 }],
-        errors: [{ stopReason: "error", error: "HTTP 503: unavailable" }], pause: true },
+        errors: [{ stopReason: "error", error: "HTTP 503: unavailable" }], pause: false },
     { name: "earlier provider failure before a cap", limits: [{ event: "turn-cap", turnCap: 100 }],
         errors: [{ stopReason: "error", error: "HTTP 503: unavailable" },
-            { stopReason: "error", error: "This operation was aborted" }], pause: true },
+            { stopReason: "error", error: "This operation was aborted" }], pause: false },
+    { name: "native stream truncation", limits: [],
+        errors: [{ stopReason: "error", error: "Anthropic stream ended before message_stop" }], pause: false },
+    { name: "nonzero agent exit", limits: [], errors: [],
+        exception: { exception_type: "AgentExitError", exception_message: "the client exited 1" }, pause: false },
+    { name: "agent time limit", limits: [], errors: [],
+        exception: { exception_type: "AgentTimeoutError", exception_message: "the client exceeded its limit" }, pause: false },
+    { name: "agent spawn failure", limits: [], errors: [],
+        exception: { exception_type: "AgentSpawnError", exception_message: "spawn failed" }, pause: true },
     { name: "capture failure despite a cap", limits: [{ event: "turn-cap", turnCap: 100 }],
         errors: [{ stopReason: "error", error: "This operation was aborted" }],
-        failures: [{ error: "Response capture interrupted" }], pause: true },
+        failures: [{ error: "Response capture interrupted" }], pause: false },
 ]) {
     test(`{§swebench-pi} campaign distinguishes ${name} without discarding evidence`, async () => {
         const dir = mkdtempSync(join(root, "stops-"));
@@ -268,7 +276,7 @@ for (const { name, limits, errors, failures = [], pause } of [
             json(join(artifact, "agent/summary.json"), { requests: 100, chargedUsd: 0.1, unpricedRequests: 0,
                 errors, failures, limits });
             json(join(artifact, "verifier/reward.json"), { reward: 0 });
-            json(join(artifact, "result.json"), { exception_info: null });
+            json(join(artifact, "result.json"), { exception_info: exception });
             return { status: 0 };
         };
         if (pause) await assert.rejects(runCampaign(options, execute), /paused for review/);
@@ -278,6 +286,7 @@ for (const { name, limits, errors, failures = [], pause } of [
         assert.equal(results[0].pause, pause);
         assert.deepEqual(results[0].summary.errors, errors);
         assert.deepEqual(results[0].summary.limits, limits);
+        assert.deepEqual(results[0].exception, exception);
         assert.equal(results[0].reward.reward, 0);
         if (!pause) {
             await runCampaign(options, execute);
