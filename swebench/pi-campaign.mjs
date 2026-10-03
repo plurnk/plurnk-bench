@@ -10,6 +10,17 @@ const directory = dirname(fileURLToPath(import.meta.url));
 const json = (path) => JSON.parse(readFileSync(path, "utf8"));
 const save = (path, value) => writeFileSync(path, JSON.stringify(value, null, 2) + "\n");
 
+const campaignPrice = (summaries, field, knownField, priced) => {
+    const totals = summaries.map((summary) => summary && priced(summary) === summary.requests ? summary[field] ?? null : null);
+    const known = summaries.map((summary) => !summary ? null : Object.hasOwn(summary, knownField)
+        ? summary[knownField] : priced(summary) > 0 || summary.requests === 0 ? summary[field] ?? null : null)
+        .filter((amount) => amount !== null);
+    return {
+        total: totals.every((amount) => amount !== null) ? totals.reduce((sum, amount) => sum + amount, 0) : null,
+        known: known.length > 0 || summaries.length === 0 ? known.reduce((sum, amount) => sum + amount, 0) : null,
+    };
+};
+
 export async function runCampaign({ corpus, profile, out, attempts, jobs, signal }, execute = runToFiles) {
     if (![attempts, jobs].every((n) => Number.isSafeInteger(n) && n > 0)) throw new Error("attempts and jobs must be positive integers");
     mkdirSync(out, { recursive: true });
@@ -47,9 +58,13 @@ export async function runCampaign({ corpus, profile, out, attempts, jobs, signal
             const entry = { ...trial, artifact, exit: execution.status, reward, exception, summary, pause, finishedAt: new Date().toISOString() };
             appendFileSync(resultsPath, JSON.stringify(entry) + "\n");
             completed.push(entry);
+            const summaries = completed.map(({ summary }) => summary);
+            const charged = campaignPrice(summaries, "chargedUsd", "knownChargedUsd", (s) => s.requests - s.unpricedRequests);
+            const repriced = campaignPrice(summaries, "repricedUsd", "knownRepricedUsd", (s) => s.responsesWithTokenBreakdown);
             save(join(out, "summary.json"), { planned: plan.trials.length, finished: completed.length,
                 passes: completed.filter(({ reward }) => reward?.reward === 1).length,
-                chargedUsd: completed.reduce((n, { summary }) => n + (summary?.chargedUsd ?? 0), 0),
+                chargedUsd: charged.total, knownChargedUsd: charged.known,
+                repricedUsd: repriced.total, knownRepricedUsd: repriced.known,
                 unpricedRequests: completed.reduce((n, { summary }) => n + (summary?.unpricedRequests ?? 0), 0),
                 paused: completed.filter(({ pause }) => pause).map(({ id, attempt }) => ({ id, attempt })),
             });

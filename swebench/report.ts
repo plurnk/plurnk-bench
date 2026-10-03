@@ -26,7 +26,7 @@ export interface TrialRow {
     readonly turns: number;
     readonly requests: number | null;
     readonly rejectedEmissions: number | null;
-    readonly tokens: { readonly input: number; readonly cached: number; readonly output: number; readonly reasoning: number } | null;
+    readonly tokens: { readonly input: number | null; readonly cached: number | null; readonly output: number | null; readonly reasoning: number | null } | null;
     readonly costUsd: number | null;
     readonly knownCostUsd: number | null;
     readonly pricedRequests: number | null;
@@ -167,10 +167,10 @@ export const readTrialRow = (trialDir: string, attempt: number): TrialRow | null
         requests: accounting?.providerRequests ?? null,
         rejectedEmissions: accounting?.rejectedEmissions ?? null,
         tokens: usage === null ? null : {
-            input: usage.inputTokens ?? 0,
-            cached: usage.inputTokenDetails?.cacheReadTokens ?? 0,
-            output: usage.outputTokens ?? 0,
-            reasoning: usage.outputTokenDetails?.reasoningTokens ?? 0,
+            input: usage.inputTokens ?? null,
+            cached: usage.inputTokenDetails?.cacheReadTokens ?? null,
+            output: usage.outputTokens ?? null,
+            reasoning: usage.outputTokenDetails?.reasoningTokens ?? null,
         },
         costUsd: accounting?.costUsd === null || accounting?.costUsd === undefined ? null : Number(accounting.costUsd),
         knownCostUsd: accounting?.knownCostUsd === null || accounting?.knownCostUsd === undefined ? null : Number(accounting.knownCostUsd),
@@ -233,7 +233,7 @@ export const summarize = (rows: readonly TrialRow[]): CampaignSummary => {
             knownUsd: knownCosts.length === 0 ? null : sum(knownCosts),
             pricedTrials: costs.length,
             medianCostUsd: metric(rows.map((row) => row.costUsd)),
-            medianGrossTokens: metric(rows.map((row) => row.tokens === null ? null : row.tokens.input + row.tokens.output)),
+            medianGrossTokens: metric(rows.map(({ tokens }) => tokens?.input == null || tokens.output === null ? null : tokens.input + tokens.output)),
             medianTurns: metric(rows.map((row) => row.turns)),
             medianWallMs: metric(rows.map((row) => row.wallMs)),
         },
@@ -282,7 +282,7 @@ export const render = (campaign: { corpus?: string; model?: string | null; servi
     "",
     "| instance | att | outcome | loop | reward | empty | turns | req | in | cached | out | reason | cost | wall | web | mcp | refused | edits | exception |",
     "| --- | ---: | --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |",
-    ...rows.map((row) => `| ${row.instance} | ${row.attempt} | ${row.outcome} | ${row.loopStatus} | ${row.reward ?? "—"} | ${row.emptyPatch ? "yes" : ""} | ${row.turns} | ${row.requests ?? "—"} | ${row.tokens === null ? "—" : row.tokens.input} | ${row.tokens === null ? "—" : row.tokens.cached} | ${row.tokens === null ? "—" : row.tokens.output} | ${row.tokens === null ? "—" : row.tokens.reasoning} | ${usd(row.costUsd)} | ${minutes(row.wallMs)} | ${row.webAttempts}/${row.webReads} | ${row.mcpCalls} | ${pairs(row.refused)} | ${row.edits === null ? "—" : `${row.edits.count}/${row.edits.refused}/${row.edits.revisits}`} | ${row.exception ?? ""} |`),
+    ...rows.map((row) => `| ${row.instance} | ${row.attempt} | ${row.outcome} | ${row.loopStatus} | ${row.reward ?? "—"} | ${row.emptyPatch ? "yes" : ""} | ${row.turns} | ${row.requests ?? "—"} | ${row.tokens?.input ?? "—"} | ${row.tokens?.cached ?? "—"} | ${row.tokens?.output ?? "—"} | ${row.tokens?.reasoning ?? "—"} | ${usd(row.costUsd)} | ${minutes(row.wallMs)} | ${row.webAttempts}/${row.webReads} | ${row.mcpCalls} | ${pairs(row.refused)} | ${row.edits === null ? "—" : `${row.edits.count}/${row.edits.refused}/${row.edits.revisits}`} | ${row.exception ?? ""} |`),
     "",
 ].join("\n");
 

@@ -60,7 +60,7 @@ export function summarizePi(agentDir, rates) {
     const captures = join(agentDir, "wire");
     const files = existsSync(captures) ? readdirSync(captures) : [];
     const requests = files.filter((name) => name.endsWith(".request.json"));
-    const usage = { input: 0, cacheRead: 0, cacheWrite: 0, output: 0, reasoning: 0 };
+    const knownUsage = { input: 0, cacheRead: 0, cacheWrite: 0, output: 0, reasoning: 0 };
     let chargedUsd = 0;
     let unpricedRequests = 0;
     let responsesWithUsage = 0;
@@ -81,28 +81,39 @@ export function summarizePi(agentDir, rates) {
         const status = existsSync(httpPath) ? JSON.parse(readFileSync(httpPath, "utf8")).status : null;
         if (status === null || status >= 400) failures.push({ request: stem, status });
         if (files.includes(`${stem}.capture-error.json`)) failures.push({ request: stem, error: "Response capture interrupted" });
-        if (!tokens) { unpricedRequests++; continue; }
-        const { total, input, output, cacheRead, cacheWrite, reasoning } = tokens;
+        const billing = Object.assign({}, ...frames.flatMap((frame) => [frame.message?.usage, frame.usage]));
+        const upstream = billing.cost_details?.upstream_inference_cost;
+        if (typeof billing.cost === "number" && (billing.is_byok === false || (billing.is_byok === true && typeof upstream === "number"))) {
+            chargedUsd += billing.cost + (billing.is_byok ? upstream : 0);
+        } else unpricedRequests++;
+        if (!tokens) continue;
+        const { input, output, cacheRead, cacheWrite, reasoning } = tokens;
         responsesWithUsage++;
         if ([input, output, cacheRead, cacheWrite].every((value) => Number.isSafeInteger(value) && value >= 0)) {
             responsesWithTokenBreakdown++;
-            usage.input += input;
-            usage.cacheRead += cacheRead;
-            usage.cacheWrite += cacheWrite;
-            usage.output += output;
+            knownUsage.input += input;
+            knownUsage.cacheRead += cacheRead;
+            knownUsage.cacheWrite += cacheWrite;
+            knownUsage.output += output;
             if (Number.isSafeInteger(reasoning) && reasoning >= 0) {
                 responsesWithReasoningBreakdown++;
-                usage.reasoning += reasoning;
+                knownUsage.reasoning += reasoning;
             }
         }
-        const upstream = total.cost_details?.upstream_inference_cost;
-        if (typeof total.cost === "number" && (total.is_byok === false || (total.is_byok === true && typeof upstream === "number"))) {
-            chargedUsd += total.cost + (total.is_byok ? upstream : 0);
-        } else unpricedRequests++;
     }
-    const repricedUsd = (usage.input * rates.input + usage.cacheRead * rates.cacheRead + usage.cacheWrite * rates.cacheWrite + usage.output * rates.output) / 1e6;
+    const repricedUsd = (knownUsage.input * rates.input + knownUsage.cacheRead * rates.cacheRead + knownUsage.cacheWrite * rates.cacheWrite + knownUsage.output * rates.output) / 1e6;
+    const usage = Object.fromEntries(Object.entries(knownUsage).map(([key, value]) => [key,
+        (key === "reasoning" ? responsesWithReasoningBreakdown : responsesWithTokenBreakdown) === requests.length ? value : null]));
+    const subtotalUsage = Object.fromEntries(Object.entries(knownUsage).map(([key, value]) => [key,
+        requests.length === 0 || (key === "reasoning" ? responsesWithReasoningBreakdown : responsesWithTokenBreakdown) > 0 ? value : null]));
     const limits = join(agentDir, "limits.jsonl");
-    return { requests: requests.length, responsesWithUsage, responsesWithTokenBreakdown, responsesWithReasoningBreakdown, chargedUsd, unpricedRequests, repricedUsd, usage, failures,
+    return { requests: requests.length, responsesWithUsage, responsesWithTokenBreakdown, responsesWithReasoningBreakdown,
+        chargedUsd: unpricedRequests === 0 ? chargedUsd : null,
+        knownChargedUsd: requests.length === 0 || unpricedRequests < requests.length ? chargedUsd : null,
+        unpricedRequests,
+        repricedUsd: responsesWithTokenBreakdown === requests.length ? repricedUsd : null,
+        knownRepricedUsd: requests.length === 0 || responsesWithTokenBreakdown > 0 ? repricedUsd : null,
+        usage, knownUsage: subtotalUsage, failures,
         assistantMessages: messages.length, errors: messages.filter((m) => m.stopReason === "error" || m.stopReason === "aborted").map((m) => ({ stopReason: m.stopReason, error: m.errorMessage })),
         limits: existsSync(limits) ? readFileSync(limits, "utf8").trim().split("\n").map((line) => JSON.parse(line)) : [],
     };

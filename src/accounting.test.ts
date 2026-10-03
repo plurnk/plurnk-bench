@@ -100,6 +100,23 @@ test("{§accounting-cost-completeness} settled usage-less requests do not turn a
     assert.equal(interview.pricedRequests, 1);
 });
 
+test("{§accounting-cost-completeness} explicit incomplete totals retain their separate known subtotal", () => {
+    const priced = request("provider/model");
+    const requests = [priced, { model: "provider/model", cost: { kind: "unknown", reason: "Missing usage" } }];
+    const accounting = { requests, usage: null, knownUsage: priced.usage, costUsd: null, knownCostUsd: "0.1" };
+    const summary = summarizeDigestAccounting({
+        workspaces: [{ accounting }],
+        provider_requests: requests.map((accounting) => ({ kind: "emission", accounting })),
+        turn_attempts: [],
+    });
+    assert.equal(summary.costUsd, null);
+    assert.equal(summary.knownCostUsd, "0.1");
+    assert.equal(summary.usage, null);
+    const requiem = summarizeRequiemAccounting({ workers: [{ accounting }] });
+    assert.equal(requiem.costUsd, null);
+    assert.equal(requiem.knownCostUsd, "0.1");
+});
+
 test("{§accounting-cost-completeness} estimates, explicit zero, and non-USD evidence retain their provenance", () => {
     for (const [cost, known, full, evidence, pricedRequests] of [
         [{ kind: "estimated", amount: { amount: "0.1", currency: "USD" }, source: "catalog" }, "0.1", "0.1", { charged: 0, estimated: 1, unknown: 0 }, 1],

@@ -36,7 +36,8 @@ test("{§swebench-pi} wire observation preserves streaming content and authorita
     assert.equal(summary.repricedUsd, 0.00000815);
     writeFileSync(join(wire, "0001.response.txt"), raw.replace(',"upstream_inference_cost":0.002', '').replace('"upstream_inference_cost":0.002', ''));
     assert.equal(summarizePi(agent, rates).unpricedRequests, 1);
-    assert.equal(summarizePi(agent, rates).chargedUsd, 0);
+    assert.equal(summarizePi(agent, rates).chargedUsd, null);
+    assert.equal(summarizePi(agent, rates).knownChargedUsd, null);
 });
 
 test("{§swebench-pi} absent and interrupted responses remain explicitly unpriced", () => {
@@ -49,7 +50,79 @@ test("{§swebench-pi} absent and interrupted responses remain explicitly unprice
     const summary = summarizePi(agent, rates);
     assert.equal(summary.unpricedRequests, 1);
     assert.equal(summary.responsesWithUsage, 0);
+    assert.equal(summary.chargedUsd, null);
+    assert.equal(summary.knownChargedUsd, null);
+    assert.equal(summary.repricedUsd, null);
+    assert.equal(summary.knownRepricedUsd, null);
+    assert.deepEqual(summary.usage, { input: null, cacheRead: null, cacheWrite: null, output: null, reasoning: null });
     assert.match(summary.failures[0].error, /Incomplete provider frame/);
+});
+
+test("{§swebench-pi} a successful retry cannot erase the missing accounting of its failed request", () => {
+    const agent = mkdtempSync(join(root, "partial-"));
+    mkdirSync(join(agent, "wire"));
+    writeFileSync(join(agent, "pi.stdout.jsonl"), "");
+    for (const id of ["0001", "0002"]) {
+        json(join(agent, `wire/${id}.request.json`), { model: "example" });
+        json(join(agent, `wire/${id}.http.json`), { status: 200 });
+    }
+    const failed = 'data: {"choices":[{"delta":{"reasoning_content":"Partial thought"}}]}\n\n';
+    writeFileSync(join(agent, "wire/0001.response.txt"), failed);
+    writeFileSync(join(agent, "wire/0002.response.txt"), `data: ${JSON.stringify({ usage })}\n\ndata: [DONE]\n\n`);
+    const summary = summarizePi(agent, rates);
+    assert.equal(summary.requests, 2);
+    assert.equal(summary.responsesWithUsage, 1);
+    assert.equal(summary.chargedUsd, null);
+    assert.equal(summary.knownChargedUsd, 0.003);
+    assert.equal(summary.repricedUsd, null);
+    assert.equal(summary.knownRepricedUsd, 0.00000815);
+    assert.equal(summary.usage.output, null);
+    assert.deepEqual(summary.knownUsage, { input: 20, cacheRead: 5, cacheWrite: 0, output: 10, reasoning: 4 });
+    assert.equal(readFileSync(join(agent, "wire/0001.response.txt"), "utf8"), failed);
+});
+
+test("{§swebench-pi} a reported charge survives missing token usage", () => {
+    const agent = mkdtempSync(join(root, "charge-only-"));
+    mkdirSync(join(agent, "wire"));
+    writeFileSync(join(agent, "pi.stdout.jsonl"), "");
+    json(join(agent, "wire/0001.request.json"), { model: "example" });
+    json(join(agent, "wire/0001.http.json"), { status: 200 });
+    writeFileSync(join(agent, "wire/0001.response.txt"), 'data: {"usage":{"cost":0.02,"is_byok":false}}\n\n');
+    const summary = summarizePi(agent, rates);
+    assert.equal(summary.chargedUsd, 0.02);
+    assert.equal(summary.knownChargedUsd, 0.02);
+    assert.equal(summary.repricedUsd, null);
+    assert.equal(summary.responsesWithUsage, 0);
+});
+
+test("{§swebench-pi} campaign summaries preserve incomplete trial costs, including historical captures", async () => {
+    const dir = mkdtempSync(join(root, "campaign-partial-"));
+    const corpus = join(dir, "corpus.json");
+    const profile = join(dir, "profile.json");
+    const out = join(dir, "campaign");
+    json(corpus, ["a", "b"]);
+    json(profile, {});
+    let calls = 0;
+    await runCampaign({ corpus, profile, out, attempts: 1, jobs: 1 }, async (_command, _args, { stdoutPath }) => {
+        const artifact = join(dir, `trial-${++calls}`);
+        mkdirSync(join(artifact, "agent"), { recursive: true });
+        mkdirSync(join(artifact, "verifier"));
+        writeFileSync(stdoutPath, `artifact=${artifact}\n`);
+        json(join(artifact, "agent/summary.json"), calls === 1
+            ? { requests: 2, chargedUsd: null, knownChargedUsd: 0.01, unpricedRequests: 1,
+                repricedUsd: null, knownRepricedUsd: 0.02, responsesWithTokenBreakdown: 1, errors: [], failures: [] }
+            : { requests: 1, chargedUsd: 0, unpricedRequests: 1, repricedUsd: 0.03,
+                responsesWithTokenBreakdown: 1, errors: [], failures: [] });
+        json(join(artifact, "verifier/reward.json"), { reward: 1 });
+        json(join(artifact, "result.json"), { exception_info: null });
+        return { status: 0 };
+    });
+    const summary = JSON.parse(readFileSync(join(out, "summary.json"), "utf8"));
+    assert.equal(summary.finished, 2);
+    assert.equal(summary.chargedUsd, null);
+    assert.equal(summary.knownChargedUsd, 0.01);
+    assert.equal(summary.repricedUsd, null);
+    assert.equal(summary.knownRepricedUsd, 0.05);
 });
 
 test("{§swebench-pi} Messages capture preserves bytes and merges final cumulative usage without double counting", async () => {
@@ -79,9 +152,9 @@ test("{§swebench-pi} Messages capture preserves bytes and merges final cumulati
     assert.equal(summary.responsesWithUsage, 1);
     assert.equal(summary.responsesWithTokenBreakdown, 1);
     assert.equal(summary.responsesWithReasoningBreakdown, 0);
-    assert.deepEqual(summary.usage, { input: 22, cacheRead: 5, cacheWrite: 3, output: 10, reasoning: 0 });
+    assert.deepEqual(summary.usage, { input: 22, cacheRead: 5, cacheWrite: 3, output: 10, reasoning: null });
     assert.equal(summary.repricedUsd, 0.00011125);
-    assert.equal(summary.chargedUsd, 0);
+    assert.equal(summary.chargedUsd, null);
     assert.equal(summary.unpricedRequests, 1);
     assert.deepEqual(summary.failures, []);
 });
@@ -306,7 +379,7 @@ for (const { provider, api, effort, credential } of [
             assert.equal(summary.unpricedRequests, provider === "fireworks" ? requests.length : 0);
             assert.equal(summary.responsesWithTokenBreakdown, requests.length);
             assert.equal(summary.repricedUsd, 0.00000815 * requests.length);
-            assert.equal(summary.chargedUsd, provider === "fireworks" ? 0 : 0.003 * requests.length);
+            assert.equal(summary.chargedUsd, provider === "fireworks" ? null : 0.003 * requests.length);
             assert.equal(summary.limits.length, turnCap === 1 ? 1 : 0);
         } finally { server.closeAllConnections(); await new Promise((resolve) => server.close(resolve)); }
     });

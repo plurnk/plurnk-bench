@@ -20,6 +20,8 @@ export interface ProviderAccountingProjection {
     requests: readonly unknown[];
     usage: ProviderUsageProjection | null;
     costUsd: string | null;
+    knownUsage?: ProviderUsageProjection | null;
+    knownCostUsd?: string | null;
 }
 
 interface ProviderRequestProjection {
@@ -131,8 +133,17 @@ export const assertProviderAccountingProjection = (
         assertProviderUsageProjection(accounting.usage, `${subject}.usage`);
     }
     settledUsd(accounting.costUsd, `${subject}.costUsd`);
+    if (accounting.knownCostUsd !== undefined) settledUsd(accounting.knownCostUsd, `${subject}.knownCostUsd`);
+    if (accounting.knownUsage !== undefined && accounting.knownUsage !== null) {
+        assertProviderUsageProjection(accounting.knownUsage, `${subject}.knownUsage`);
+    }
     return value as unknown as ProviderAccountingProjection;
 };
+
+// Historical digests stored the known subtotal in costUsd; request completeness
+// remains independently checked below when reading those retained artifacts.
+const knownCostOf = (accounting: ProviderAccountingProjection | null): string | null =>
+    accounting === null ? null : accounting.knownCostUsd === undefined ? accounting.costUsd : accounting.knownCostUsd;
 
 export const cacheEffectivenessOf = (
     usage: ProviderUsageProjection | null,
@@ -264,7 +275,7 @@ export const summarizeDigestAccounting = (digest: DigestAccountingInput): Accoun
         usage,
         cacheEffectiveness: cacheEffectivenessForRequests(digest.provider_requests
             .map(({ accounting }) => accounting)),
-        ...summarizeCosts(digest.provider_requests.map(({ accounting }) => accounting), workspaceAccounting?.costUsd ?? null),
+        ...summarizeCosts(digest.provider_requests.map(({ accounting }) => accounting), knownCostOf(workspaceAccounting)),
     };
 };
 
@@ -350,7 +361,7 @@ export const summarizeRequiemAccounting = (
     const accountings = report.workers.map((worker, index) =>
         assertProviderAccountingProjection(worker.accounting, `requiem worker ${index} accounting`));
     const usage = aggregateUsage(accountings);
-    const knownCosts = accountings.flatMap(({ costUsd }) => costUsd === null ? [] : [costUsd]);
+    const knownCosts = accountings.map(knownCostOf).filter((cost): cost is string => cost !== null);
     return {
         workers: accountings.length,
         providerRequests: accountings.reduce((sum, accounting) => sum + accounting.requests.length, 0),

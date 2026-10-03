@@ -127,7 +127,7 @@ export const compareBaselines = (rows: readonly TrialRow[], baselines: Baselines
         costPerRollout: costs.length === 0 ? null : bootstrapMean(costs, resamples, seededUniform(`${seed}|cost`)),
         costPerSolve: resolvedRollouts === 0 || spent.length !== rows.length ? null : spent.reduce((total, value) => total + value, 0) / resolvedRollouts,
         costCoverage: { rollouts: spent.length, totalRollouts: rows.length, tasks: costs.length, totalTasks: tasks.length },
-        medianGrossTokens: median(rows.map((row) => row.tokens).filter((tokens): tokens is NonNullable<TrialRow["tokens"]> => tokens !== null).map((tokens) => tokens.input + tokens.output)),
+        medianGrossTokens: median(rows.flatMap(({ tokens }) => tokens?.input == null || tokens.output === null ? [] : [tokens.input + tokens.output])),
         medianCalls: median(rows.map((row) => row.requests).filter((value): value is number => value !== null)),
         medianTurns: median(rows.map((row) => row.turns)),
         baselineKeys,

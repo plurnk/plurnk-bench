@@ -62,6 +62,17 @@ test("{§accounting-cost-completeness} saved SWE-bench trials keep incomplete re
     assert.equal(comparison.costPerRollout, null);
     assert.equal(comparison.costPerSolve, null);
     assert.deepEqual(comparison.costCoverage, { rollouts: 0, totalRollouts: 1, tasks: 0, totalTasks: 1 });
+    write("agent/digest/digest.json", {
+        workspaces: [{ accounting: { requests, costUsd: null, knownCostUsd: "0.01",
+            usage: { inputTokens: 10 }, knownUsage: { inputTokens: 10, outputTokens: 5 } } }],
+        provider_requests: requests.map((accounting) => ({ kind: "emission", accounting })), turn_attempts: [],
+    });
+    const incomplete = readTrialRow(trial, 1)!;
+    assert.equal(incomplete.knownCostUsd, 0.01);
+    assert.deepEqual(incomplete.tokens, { input: 10, output: null, cached: null, reasoning: null });
+    assert.equal(summarize([incomplete]).spend.medianGrossTokens, null);
+    assert.equal(compareBaselines([incomplete], new Map(), { resamples: 10 }).medianGrossTokens, null);
+    assert.match(render({}, [incomplete], summarize([incomplete])), /\| 10 \| — \| — \| — \|/u);
 });
 
 test("[§swebench-profiles] the campaign sheet counts friction before verdicts, and spend as medians", () => {

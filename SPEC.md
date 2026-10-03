@@ -100,6 +100,10 @@ complete trials only, with their coverage shown; task-averaged cost requires eve
 attempt of that task. Reports retain partial known spend separately and never
 call catalog estimates provider bills. Requiem follows the same rule over its
 own request ledger. Original request evidence is never rewritten by a report.
+Current daemon projections supply separate complete and known quantities. For
+historical digests whose `costUsd` is a subtotal, reporting still verifies every
+request before accepting a complete cost. Missing token fields remain unknown,
+never zero; gross-token metrics require both complete input and output counts.
 
 ## §digest-boundary Bench never reads the daemon DB
 
@@ -846,6 +850,14 @@ on resume, and a changed profile requires a new campaign directory.
 | Evidence | Observe, without changing, each native Chat Completions or Messages request and response. Retain raw streams, Pi JSON events, session files, configuration, errors, patch and official oracle. No synthetic Plurnk database or digest. |
 | Cost | OpenRouter response usage owns charged cost: `cost`, plus explicit `cost_details.upstream_inference_cost` when `is_byok` is true. Messages usage merges cumulative start/delta counters only after a terminal event; its input, cache-read and cache-write counts are disjoint. Missing billing, token breakdowns and reasoning breakdowns retain separate coverage. Native `deepseek` and `fireworks` responses without a charge use fixed-rate repricing, explicitly labeled rather than reported as billed cost. Fixed-rate repricing is separate from native catalog estimates and actual charges. |
 | Failure | Grade available work regardless of agent outcome. Campaigns pause new trials for infrastructure/provider failures; other in-flight trials finish. Oracle failures and turn-cap exhaustion remain scored outcomes and permit the next trial. The recorded cap's terminal abort is expected; unrelated errors still pause. Preserve all error and limit evidence. |
+
+Pi trial and campaign `chargedUsd` and `repricedUsd` are `null` unless every
+request supplies the respective charge or complete rate-card token breakdown.
+`knownChargedUsd` and `knownRepricedUsd` preserve available subtotals, or `null`
+when none is known. `usage` contains only complete per-field totals;
+`knownUsage` carries the available subtotals. An explicit charge survives missing
+token usage; neither price type substitutes for the other. Historical summaries
+are interpreted using their request-coverage counters, not a zero default.
 
 Coverage: `swebench/pi.test.mjs`; native installed-CLI checks require
 `PLURNK_BENCH_PI` and use a local fixture endpoint with no paid inference.
