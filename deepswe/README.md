@@ -95,6 +95,8 @@ the deadline as well as after an extended run; those are distinct results.
 
 For repeatable source lanes, `deepswe/relock.sh <service-ref> <client-ref>`
 creates or updates dedicated checkouts and prints their environment exports.
+It builds the client against the selected platform's packed contracts, including
+unpublished changes, without rewriting source manifests or lockfiles.
 Do not relock lanes while they are running. See
 [frozen-lane rules](../SPEC.md#bench-relock-frozen-lanes-move-with-one-command).
 

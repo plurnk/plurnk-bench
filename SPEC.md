@@ -487,6 +487,10 @@ worktrees beside the checkout (`../bench-lanes/plurnk-service`,
 `../bench-lanes/plurnk`) at exact commits, creating them on first use and
 moving them afterwards, runs `npm ci` in each, and prints the two exports a
 lane needs (`PLURNK_BENCHLET_SERVICE_ROOT`, `PLURNK_BENCHLET_CLIENT_ROOT`).
+The client install defers lifecycle scripts until the selected, built platform's
+projected contracts tarball is installed; then it builds. SWE-bench runtime
+preparation uses the same contract-first client build. Neither preparation
+changes candidate source manifests or lockfiles.
 The candidate always runs from a lane, never from a checkout being edited
 (`{§benchlet-provenance}`); after a publication the lanes are relocked to the
 published commits before any comparative run. The requiem runs the lane's

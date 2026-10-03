@@ -7,6 +7,7 @@ import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { benchmarksHome } from "../src/host-paths.ts";
+import { buildCandidateClient } from "../src/candidate-client.ts";
 
 const execute = promisify(execFile);
 const run = async (command: string, args: string[], cwd: string) => (await execute(command, args, { cwd, maxBuffer: 32 * 1024 * 1024 })).stdout;
@@ -23,7 +24,7 @@ export async function prepareRuntime(input: Input) {
     }
     const identity = {
         ...input, node: process.version, nodeSha256: sha256(await readFile(process.execPath)),
-        adapter: Object.fromEntries(await Promise.all(["runtime.ts", ...adapterFiles].map(async (name) =>
+        adapter: Object.fromEntries(await Promise.all(["runtime.ts", "../src/candidate-client.ts", ...adapterFiles].map(async (name) =>
             [name, sha256(await readFile(join(import.meta.dirname, name)))]))),
     };
     const root = join(benchmarksHome(), "cache", "swebench-runtimes");
@@ -51,7 +52,7 @@ async function build(target: string, identity: Identity) {
         };
         if (identity.kind === "plurnk") {
             await run("npm", ["run", "build"], identity.serviceRoot);
-            await run("npm", ["run", "build"], identity.clientRoot);
+            await buildCandidateClient(identity.serviceRoot, identity.clientRoot);
             await pack(identity.serviceRoot, ["--workspaces"]);
             const { projectTarball } = await import(pathToFileURL(join(identity.serviceRoot, "scripts/package-projection.mjs")).href);
             for (const { file } of packages) await projectTarball(file);
