@@ -113,6 +113,9 @@ and missing-telemetry sections alongside the aggregate scores.
 test image, and evaluator. Pi retains its own system prompt and tools. The
 adapter selects the provider/model/effort, isolates personal context, applies
 benchmark limits, and records requests without rewriting them.
+Both native Chat Completions and Messages transports retain raw wire evidence.
+Reports distinguish complete token accounting from provider-billed cost and
+from an optional reasoning-token breakdown.
 
 A profile JSON supplies these fields:
 

@@ -10,10 +10,10 @@ export function observeFetch(original, directory) {
     mkdirSync(directory, { recursive: true });
     return async (input, init) => {
         const url = new URL(typeof input === "string" || input instanceof URL ? input : input.url);
-        if (!url.pathname.endsWith("/chat/completions")) return original(input, init);
+        if (!url.pathname.endsWith("/chat/completions") && !url.pathname.endsWith("/messages")) return original(input, init);
         const id = String(++sequence).padStart(4, "0");
         const startedAt = new Date().toISOString();
-        // OpenAI's SDK sends a JSON string. Refuse unobserved request shapes before spend.
+        // Both SDKs send JSON strings. Refuse unobserved request shapes before spend.
         if (typeof init?.body !== "string") throw new Error("Pi request observer requires a JSON request body");
         writeFileSync(join(directory, `${id}.request.json`), init.body + "\n");
         try {

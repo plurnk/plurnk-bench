@@ -37,6 +37,23 @@ export function piArguments(profile, sessionDir, prompt, extension = join(direct
         "--extension", extension, "--session-dir", sessionDir, "--", prompt];
 }
 
+function responseUsage(frames) {
+    const start = frames.find((frame) => frame.type === "message_start");
+    if (start) {
+        const deltas = frames.filter((frame) => frame.type === "message_delta");
+        if (!frames.some((frame) => frame.type === "message_stop") || !deltas.some((frame) => Number.isFinite(frame.usage?.output_tokens))) return;
+        const total = Object.assign({}, start.message?.usage, ...deltas.map((frame) => frame.usage));
+        return { total, input: total.input_tokens, output: total.output_tokens,
+            cacheRead: total.cache_read_input_tokens ?? 0, cacheWrite: total.cache_creation_input_tokens ?? 0,
+            reasoning: total.output_tokens_details?.reasoning_tokens };
+    }
+    const total = frames.findLast((frame) => frame.usage?.prompt_tokens !== undefined)?.usage;
+    if (!total) return;
+    const cacheRead = total.prompt_tokens_details?.cached_tokens;
+    return { total, input: total.prompt_tokens - cacheRead, output: total.completion_tokens,
+        cacheRead, cacheWrite: 0, reasoning: total.completion_tokens_details?.reasoning_tokens };
+}
+
 export function summarizePi(agentDir, rates) {
     const events = readFileSync(join(agentDir, "pi.stdout.jsonl"), "utf8").split("\n").filter(Boolean).map((line) => JSON.parse(line));
     const messages = events.filter((e) => e.type === "message_end" && e.message?.role === "assistant").map((e) => e.message);
@@ -48,6 +65,7 @@ export function summarizePi(agentDir, rates) {
     let unpricedRequests = 0;
     let responsesWithUsage = 0;
     let responsesWithTokenBreakdown = 0;
+    let responsesWithReasoningBreakdown = 0;
     const failures = [];
     for (const name of requests) {
         const stem = name.replace(".request.json", "");
@@ -58,29 +76,33 @@ export function summarizePi(agentDir, rates) {
             try { frames.push(JSON.parse(line.slice(6))); }
             catch (error) { failures.push({ request: stem, error: `Incomplete provider frame: ${error.message}` }); }
         }
-        const total = frames.findLast((frame) => frame.usage?.prompt_tokens !== undefined)?.usage;
+        const tokens = responseUsage(frames);
         const httpPath = join(captures, `${stem}.http.json`);
         const status = existsSync(httpPath) ? JSON.parse(readFileSync(httpPath, "utf8")).status : null;
         if (status === null || status >= 400) failures.push({ request: stem, status });
         if (files.includes(`${stem}.capture-error.json`)) failures.push({ request: stem, error: "Response capture interrupted" });
-        if (!total) { unpricedRequests++; continue; }
+        if (!tokens) { unpricedRequests++; continue; }
+        const { total, input, output, cacheRead, cacheWrite, reasoning } = tokens;
         responsesWithUsage++;
-        const cached = total.prompt_tokens_details?.cached_tokens;
-        if ([cached, total.prompt_tokens, total.completion_tokens].every(Number.isFinite)) {
+        if ([input, output, cacheRead, cacheWrite].every((value) => Number.isSafeInteger(value) && value >= 0)) {
             responsesWithTokenBreakdown++;
-            usage.input += total.prompt_tokens - cached;
-            usage.cacheRead += cached;
-            usage.output += total.completion_tokens;
-            usage.reasoning += total.completion_tokens_details?.reasoning_tokens ?? 0;
+            usage.input += input;
+            usage.cacheRead += cacheRead;
+            usage.cacheWrite += cacheWrite;
+            usage.output += output;
+            if (Number.isSafeInteger(reasoning) && reasoning >= 0) {
+                responsesWithReasoningBreakdown++;
+                usage.reasoning += reasoning;
+            }
         }
         const upstream = total.cost_details?.upstream_inference_cost;
         if (typeof total.cost === "number" && (total.is_byok === false || (total.is_byok === true && typeof upstream === "number"))) {
             chargedUsd += total.cost + (total.is_byok ? upstream : 0);
         } else unpricedRequests++;
     }
-    const repricedUsd = (usage.input * rates.input + usage.cacheRead * rates.cacheRead + usage.output * rates.output) / 1e6;
+    const repricedUsd = (usage.input * rates.input + usage.cacheRead * rates.cacheRead + usage.cacheWrite * rates.cacheWrite + usage.output * rates.output) / 1e6;
     const limits = join(agentDir, "limits.jsonl");
-    return { requests: requests.length, responsesWithUsage, responsesWithTokenBreakdown, chargedUsd, unpricedRequests, repricedUsd, usage, failures,
+    return { requests: requests.length, responsesWithUsage, responsesWithTokenBreakdown, responsesWithReasoningBreakdown, chargedUsd, unpricedRequests, repricedUsd, usage, failures,
         assistantMessages: messages.length, errors: messages.filter((m) => m.stopReason === "error" || m.stopReason === "aborted").map((m) => ({ stopReason: m.stopReason, error: m.errorMessage })),
         limits: existsSync(limits) ? readFileSync(limits, "utf8").trim().split("\n").map((line) => JSON.parse(line)) : [],
     };

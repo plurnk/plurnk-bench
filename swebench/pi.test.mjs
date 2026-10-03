@@ -31,6 +31,7 @@ test("{§swebench-pi} wire observation preserves streaming content and authorita
     const summary = summarizePi(agent, rates);
     assert.equal(summary.chargedUsd, 0.003);
     assert.equal(summary.unpricedRequests, 0);
+    assert.equal(summary.responsesWithReasoningBreakdown, 1);
     assert.deepEqual(summary.usage, { input: 20, cacheRead: 5, cacheWrite: 0, output: 10, reasoning: 4 });
     assert.equal(summary.repricedUsd, 0.00000815);
     writeFileSync(join(wire, "0001.response.txt"), raw.replace(',"upstream_inference_cost":0.002', '').replace('"upstream_inference_cost":0.002', ''));
@@ -49,6 +50,55 @@ test("{§swebench-pi} absent and interrupted responses remain explicitly unprice
     assert.equal(summary.unpricedRequests, 1);
     assert.equal(summary.responsesWithUsage, 0);
     assert.match(summary.failures[0].error, /Incomplete provider frame/);
+});
+
+test("{§swebench-pi} Messages capture preserves bytes and merges final cumulative usage without double counting", async () => {
+    const agent = mkdtempSync(join(root, "messages-"));
+    const wire = join(agent, "wire");
+    const frames = [
+        { type: "message_start", message: { usage: { input_tokens: 20, output_tokens: 1,
+            cache_read_input_tokens: 5, cache_creation_input_tokens: 3 } } },
+        { type: "content_block_delta", index: 0, delta: { type: "thinking_delta", thinking: "Inspect the file." } },
+        { type: "message_delta", delta: { stop_reason: null }, usage: { output_tokens: 7 } },
+        { type: "message_delta", delta: { stop_reason: "end_turn" }, usage: { input_tokens: 22, output_tokens: 10 } },
+        { type: "message_stop" },
+    ];
+    const raw = frames.map((frame) => `event: ${frame.type}\ndata: ${JSON.stringify(frame)}\n\n`).join("");
+    const request = '{"model":"example","output_config":{"effort":"xhigh"}}';
+    const fetch = observeFetch(async (_url, init) => {
+        assert.equal(init.body, request);
+        return new Response(raw, { headers: { "content-type": "text/event-stream" } });
+    }, wire);
+    assert.equal(await (await fetch("https://example.invalid/v1/messages", { body: request })).text(), raw);
+    await drainCaptures();
+    assert.equal(readFileSync(join(wire, "0001.request.json"), "utf8"), request + "\n");
+    assert.equal(readFileSync(join(wire, "0001.response.txt"), "utf8"), raw);
+    writeFileSync(join(agent, "pi.stdout.jsonl"), "");
+    const summary = summarizePi(agent, { input: 2, cacheRead: 0.25, cacheWrite: 2, output: 6 });
+    assert.equal(summary.requests, 1);
+    assert.equal(summary.responsesWithUsage, 1);
+    assert.equal(summary.responsesWithTokenBreakdown, 1);
+    assert.equal(summary.responsesWithReasoningBreakdown, 0);
+    assert.deepEqual(summary.usage, { input: 22, cacheRead: 5, cacheWrite: 3, output: 10, reasoning: 0 });
+    assert.equal(summary.repricedUsd, 0.00011125);
+    assert.equal(summary.chargedUsd, 0);
+    assert.equal(summary.unpricedRequests, 1);
+    assert.deepEqual(summary.failures, []);
+});
+
+test("{§swebench-pi} unfinished Messages usage is not reported as a fully priced response", () => {
+    const agent = mkdtempSync(join(root, "messages-incomplete-"));
+    mkdirSync(join(agent, "wire"));
+    writeFileSync(join(agent, "pi.stdout.jsonl"), "");
+    json(join(agent, "wire/0001.request.json"), { model: "example" });
+    json(join(agent, "wire/0001.http.json"), { status: 200 });
+    writeFileSync(join(agent, "wire/0001.response.txt"), `data: ${JSON.stringify({ type: "message_start",
+        message: { usage: { input_tokens: 20, output_tokens: 1 } } })}\n\n`);
+    const summary = summarizePi(agent, rates);
+    assert.equal(summary.requests, 1);
+    assert.equal(summary.responsesWithUsage, 0);
+    assert.equal(summary.responsesWithTokenBreakdown, 0);
+    assert.equal(summary.unpricedRequests, 1);
 });
 
 test("{§swebench-pi} profiles require explicit route, version, limits and rates", () => {
@@ -163,11 +213,12 @@ for (const { name, limits, errors, failures = [], pause } of [
     });
 }
 
-for (const { provider, effort, credential } of [
-    { provider: "openrouter", effort: "low", credential: "OPENROUTER_API_KEY" },
-    { provider: "fireworks", effort: "medium", credential: "FIREWORKS_API_KEY" },
+for (const { provider, api, effort, credential } of [
+    { provider: "openrouter", api: "openai-completions", effort: "low", credential: "OPENROUTER_API_KEY" },
+    { provider: "fireworks", api: "openai-completions", effort: "medium", credential: "FIREWORKS_API_KEY" },
+    { provider: "fireworks", api: "anthropic-messages", effort: "xhigh", credential: "FIREWORKS_API_KEY" },
 ]) for (const turnCap of [1, 100]) {
-    test(`{§swebench-pi} installed native Pi ${provider}: isolated context, tools, wire effort and ${turnCap}-turn bound`, {
+    test(`{§swebench-pi} installed native Pi ${provider}/${api}: isolated context, tools, wire effort and ${turnCap}-turn bound`, {
         skip: !process.env.PLURNK_BENCH_PI, timeout: 60000,
     }, async () => {
         const agent = mkdtempSync(join(root, "native-"));
@@ -192,6 +243,26 @@ for (const { provider, effort, credential } of [
                 choices: [{ index: 0, delta: { role: "assistant", ...(first ? { tool_calls: tools } : { content: "Verified." }) }, finish_reason: first ? "tool_calls" : "stop" }],
                 usage: provider === "fireworks" ? tokenUsage : usage };
             response.writeHead(200, { "content-type": "text/event-stream" });
+            if (api === "anthropic-messages") {
+                const blocks = first ? tools.flatMap((tool) => [
+                    { type: "content_block_start", index: tool.index, content_block: { type: "tool_use", id: tool.id, name: tool.function.name, input: {} } },
+                    { type: "content_block_delta", index: tool.index, delta: { type: "input_json_delta", partial_json: tool.function.arguments } },
+                    { type: "content_block_stop", index: tool.index },
+                ]) : [
+                    { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+                    { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Verified." } },
+                    { type: "content_block_stop", index: 0 },
+                ];
+                const frames = [
+                    { type: "message_start", message: { id: "fixture", type: "message", role: "assistant", model: "fixture", content: [],
+                        stop_reason: null, stop_sequence: null, usage: { input_tokens: 20, cache_read_input_tokens: 5, output_tokens: 0 } } },
+                    ...blocks,
+                    { type: "message_delta", delta: { stop_reason: first ? "tool_use" : "end_turn", stop_sequence: null }, usage: { output_tokens: 10 } },
+                    { type: "message_stop" },
+                ];
+                response.end(frames.map((value) => `event: ${value.type}\ndata: ${JSON.stringify(value)}\n\n`).join(""));
+                return;
+            }
             response.end(`data: ${JSON.stringify(frame)}\n\ndata: [DONE]\n\n`);
         });
         server.listen(0, "127.0.0.1");
@@ -202,8 +273,9 @@ for (const { provider, effort, credential } of [
                 timeoutSeconds: 30, contextWindow: 1000000, rates };
             json(join(configDir, "settings.json"), piConfiguration(shellPath));
             json(join(configDir, "models.json"), { providers: { [provider]: {
-                baseUrl: profile.baseUrl, api: "openai-completions", apiKey: `$${credential}`,
-                models: [{ id: "fixture", reasoning: true, input: ["text"], contextWindow: 1000000, maxTokens: 32768, cost: rates }],
+                baseUrl: profile.baseUrl, api, apiKey: `$${credential}`,
+                models: [{ id: "fixture", reasoning: true, input: ["text"], contextWindow: 1000000, maxTokens: 32768, cost: rates,
+                    ...(api === "anthropic-messages" ? { compat: { forceAdaptiveThinking: true }, thinkingLevelMap: { xhigh: "xhigh" } } : {}) }],
             } } });
             json(join(agent, "profile.json"), profile);
             const launch = piLaunch(profile.executable, piArguments(profile, join(agent, "sessions"), "Run the tool check."));
@@ -215,11 +287,15 @@ for (const { provider, effort, credential } of [
             });
             assert.equal(result.status, 0, readFileSync(join(agent, "pi.stderr.log"), "utf8"));
             assert.equal(requests.length, turnCap === 1 ? 1 : 2, readFileSync(join(agent, "pi.stdout.jsonl"), "utf8") + readFileSync(join(agent, "pi.stderr.log"), "utf8"));
-            assert.deepEqual(requests[0].tools.map((tool) => tool.function.name).sort(), ["bash", "edit", "read", "write"]);
+            assert.deepEqual(requests[0].tools.map((tool) => api === "anthropic-messages" ? tool.name : tool.function.name).sort(), ["bash", "edit", "read", "write"]);
             for (const request of requests) {
-                assert.equal(request.max_tokens, undefined);
-                if (provider === "openrouter") assert.equal(request.reasoning.effort, effort);
+                if (api === "anthropic-messages") {
+                    assert.equal(request.max_tokens, 32768);
+                    assert.equal(request.thinking.type, "adaptive");
+                    assert.equal(request.output_config.effort, effort);
+                } else if (provider === "openrouter") assert.equal(request.reasoning.effort, effort);
                 else assert.equal(request.reasoning_effort, effort);
+                if (api === "openai-completions") assert.equal(request.max_tokens, undefined);
                 assert.equal(request.frequency_penalty, undefined);
                 assert.doesNotMatch(JSON.stringify(request.messages), /FORBIDDEN_PERSONAL_CONTEXT_MARKER|Operation Syntax|plurnk\.md/);
             }
