@@ -514,6 +514,8 @@ to the host LAN IP. Child contracts:
   it alongside the model manifest. Explicit operator values retain normal precedence.
   Enterprise's executor allowlist already excludes question; its independent
   web restriction remains a capability policy.
+  Provider recovery inherits the product defaults unless explicitly overridden
+  through the ordinary operator cascade; the benchmark floor supplies no shorter window.
 - §config-model-default The candidate model uses the product's ordinary
   `PLURNK_MODEL` cascade: an invoking-shell value, then the XDG operator file,
   then the committed benchmark default. Harnesses admit no positional or
