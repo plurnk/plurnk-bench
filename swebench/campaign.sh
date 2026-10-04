@@ -12,8 +12,10 @@
 # Usage: swebench/campaign.sh --corpus <label> [--model <alias>] [--attempts N] [--jobs N] [--limit N] [--only id,id] [--skip id,id] [--halt-on pass|clean] [--preflight]
 #        swebench/campaign.sh --resume <campaign-dir> [--jobs N] [--limit N] [--only id,id] [--skip id,id] [--halt-on pass|clean]
 set -euo pipefail
-# Everything runs inside main() so bash parses the whole file before the fan-out begins: an edit
-# to this script while a campaign runs cannot shift what the running shell reads next.
+# Everything runs inside main(), and the invocation line exits, so bash never reads past the byte it
+# reached when the campaign began: an edit to this script while a campaign runs cannot shift what the
+# running shell reads next (bash reads a script by offset; a longer file once made it parse a fragment
+# after main returned and exit 2 under a complete campaign).
 main() {
     bench_root="$(cd "$(dirname "$0")/.." && pwd)"
     corpus=""; attempts=""; jobs="${PLURNK_BENCH_JOBS:-1}"; model="${PLURNK_MODEL:-}"; limit=0; only=""; skip=""; preflight=""; resume=""; halt_on="pass"
@@ -135,4 +137,4 @@ main() {
     echo "campaign: sheet at $campaign/REPORT.md" >&2
     echo "$campaign"
 }
-main "$@"
+main "$@"; exit "$?"
