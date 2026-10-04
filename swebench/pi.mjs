@@ -17,7 +17,8 @@ const LOCAL_CREDENTIAL = "PLURNK_PI_LOCAL_KEY";
 // The provider definition Pi reads from models.json for a baseUrl profile, as the native test writes it.
 export const providerDefinition = (profile, credential) => ({ providers: { [profile.provider]: {
     baseUrl: profile.baseUrl, api: profile.api, apiKey: `$${credential}`,
-    models: [{ id: profile.model, reasoning: true, input: ["text"], contextWindow: profile.contextWindow, maxTokens: profile.maxOutputTokens, cost: profile.rates }],
+    models: [{ id: profile.model, reasoning: true, input: ["text"], contextWindow: profile.contextWindow, maxTokens: profile.maxOutputTokens, cost: profile.rates,
+        ...(profile.compat ? { compat: profile.compat } : {}), ...(profile.thinkingLevelMap ? { thinkingLevelMap: profile.thinkingLevelMap } : {}) }],
 } } });
 
 export const profileCredential = (profile) =>
@@ -40,6 +41,19 @@ export function validateProfile(profile) {
         if (!["openai-completions", "anthropic-messages"].includes(profile.api)) throw new Error("A baseUrl provider needs api openai-completions or anthropic-messages");
         for (const key of ["contextWindow", "maxOutputTokens"]) if (!Number.isSafeInteger(profile[key]) || profile[key] <= 0) throw new Error(`A baseUrl provider needs a positive ${key}`);
         if (profile.credential !== undefined && (typeof profile.credential !== "string" || !profile.credential)) throw new Error("credential names an environment variable, never a value");
+        // A twin of a built-in preset replicates its compatibility flags and thinking-level map verbatim.
+        for (const key of ["compat", "thinkingLevelMap"]) {
+            if (profile[key] !== undefined && (typeof profile[key] !== "object" || profile[key] === null || Array.isArray(profile[key]))) throw new Error(`${key} must be an object`);
+        }
+    }
+    // A context partition below contextWindow: compaction triggers at contextWindow - reserveTokens and must be able to cut.
+    if (profile.compaction !== undefined) {
+        for (const key of ["reserveTokens", "keepRecentTokens"]) {
+            if (!Number.isSafeInteger(profile.compaction?.[key]) || profile.compaction[key] <= 0) throw new Error(`compaction.${key} must be a positive integer`);
+        }
+        if (!Number.isSafeInteger(profile.contextWindow) || profile.compaction.reserveTokens + profile.compaction.keepRecentTokens >= profile.contextWindow) {
+            throw new Error("compaction must leave room below contextWindow");
+        }
     }
     for (const key of ["executable", "version", "model", "catalogPath", "effort"]) {
         if (typeof profile[key] !== "string" || !profile[key]) throw new Error(`Pi profile requires ${key}`);
@@ -53,7 +67,8 @@ export function validateProfile(profile) {
     return profile;
 }
 
-export const piConfiguration = (shellPath) => ({ shellPath });
+// Stock compaction unless the profile declares a partition; Pi reads these from settings.json.
+export const piConfiguration = (shellPath, compaction) => ({ shellPath, ...(compaction ? { compaction: { enabled: true, ...compaction } } : {}) });
 
 // An explicit Node binary avoids an unrelated shebang selection in installed-CLI tests.
 export const piLaunch = (executable, args) => ({ command: process.execPath, args: [realpathSync(executable), ...args] });
@@ -170,7 +185,7 @@ export async function runPiTrial({ instance, profilePath, preflight = false, sig
         const agentDir = join(trialDir, "agent");
         const configDir = join(agentDir, "config");
         mkdirSync(configDir, { recursive: true });
-        const config = piConfiguration("/bin/bash");
+        const config = piConfiguration("/bin/bash", profile.compaction);
         json(join(configDir, "settings.json"), config);
         copyFileSync(profile.catalogPath, join(configDir, "models-store.json"));
         if (profile.baseUrl) json(join(configDir, "models.json"), providerDefinition(profile, credential));

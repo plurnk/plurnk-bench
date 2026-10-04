@@ -183,6 +183,13 @@ test("{§swebench-pi} profiles require explicit route, version, limits and rates
     assert.equal(validateProfile(local), local, "{§swebench-pi} any OpenAI-compatible endpoint is a provider path: a local llama-server among them");
     assert.deepEqual(providerDefinition(local, "PLURNK_PI_LOCAL_KEY"), { providers: { local: { baseUrl: local.baseUrl, api: "openai-completions", apiKey: "$PLURNK_PI_LOCAL_KEY",
         models: [{ id: "fixture", reasoning: true, input: ["text"], contextWindow: 86016, maxTokens: 24576, cost: local.rates }] } } }, "the comparator writes Pi's own provider definition");
+    const twin = { ...local, compat: { thinkingFormat: "deepseek" }, thinkingLevelMap: { low: "low" }, compaction: { reserveTokens: 5734, keepRecentTokens: 5325 } };
+    assert.equal(validateProfile(twin), twin, "a baseUrl provider may replicate a preset's compat flags and thinking map, and declare a compaction partition");
+    assert.deepEqual(providerDefinition(twin, "PLURNK_PI_LOCAL_KEY").providers.local.models[0].compat, { thinkingFormat: "deepseek" }, "compat and the thinking map reach the model entry");
+    assert.deepEqual(piConfiguration("/bin/bash", twin.compaction), { shellPath: "/bin/bash", compaction: { enabled: true, reserveTokens: 5734, keepRecentTokens: 5325 } }, "the partition becomes Pi's compaction settings");
+    assert.deepEqual(piConfiguration("/bin/bash"), { shellPath: "/bin/bash" }, "stock compaction when no partition is declared");
+    assert.throws(() => validateProfile({ ...twin, compaction: { reserveTokens: 5734, keepRecentTokens: 86016 } }), /room below contextWindow/, "a partition must be able to cut");
+    assert.throws(() => validateProfile({ ...twin, compat: [] }), /compat must be an object/);
     assert.throws(() => validateProfile({ provider: "openrouter" }), /executable/);
     const profile = { provider: "fireworks", executable: "pi", version: "fixture", model: "fixture",
         catalogPath: "catalog.json", effort: "medium", turnCap: 100, timeoutSeconds: 14400, rates };

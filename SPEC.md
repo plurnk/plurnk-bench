@@ -847,7 +847,7 @@ A profile's `provider` is a hosted path (`openrouter`, `deepseek`, `fireworks`, 
 
 | Boundary | Contract |
 |----------|----------|
-| Agent | Stock system prompt, default tools, compaction, sampling, output and retry behavior. Select only provider, model and effort; the version and Pi's refreshed catalog are frozen and retained. No request-payload rewriting. |
+| Agent | Stock system prompt, default tools, sampling, output and retry behavior, and stock compaction unless the profile declares a context partition (`contextWindow` with `compaction.reserveTokens` and `keepRecentTokens`), the comparator's analogue of the service's window cap, retained in the trial's profile. Select only provider, model and effort; the version and Pi's refreshed catalog are frozen and retained. No request-payload rewriting. |
 | Personal context | Fresh Pi configuration per trial; no operator/project extensions, skills, prompt templates or AGENTS/CLAUDE files. No Plurnk teaching. |
 | Environment | Reuse {§swebench-trial}, {§swebench-network} and {§swebench-container-runtime}. Stock Pi and all its native tools run inside the image, on the same provisioned Node runtime as Plurnk. |
 | Limits | A benchmark-only extension aborts before the next model turn beyond the declared cap. The common wall-clock guard still applies. Limits do not add model-facing instructions. |
