@@ -811,7 +811,8 @@ reimplementation of its agent loop or an assertion that the study was reproduced
   ended the loop: a pass from a loop the engine ended is decorated, `pass (turn ceiling exhausted)`,
   so the strict halt stops to read it and the clean halt runs on, and without a verdict an engine
   terminal (turn ceiling, strike threshold, cycle, timeout) is `fail: <cause>`, the model's outcome,
-  never an agent verdict (#46); `--resume` continues past clean passes and `--skip` ids,
+  never an agent verdict (#46); `--resume` continues past the trials its `--halt-on`
+  policy let run on (clean passes; under `clean` every graded trial) and past `--skip` ids,
   which the campaign remembers in its `accepted` file so a read failure is never re-bought,
   and `swebench/report.ts` reads the campaign friction first, including the digest's EDIT
   census (the service's `§digest-edit-census`: EDITs by authored form, refused, revisits — a line under Friction
@@ -838,8 +839,9 @@ reimplementation of its agent loop or an assertion that the study was reproduced
 ### §swebench-pi Native Pi comparison
 
 `swebench/pi.mjs` invokes the installed Pi CLI. `pi-campaign.mjs` schedules separate
-processes from the same corpus/attempt plan; an existing result is never repurchased
-on resume, and a changed profile requires a new campaign directory.
+processes from the same corpus/attempt plan; a graded result is never repurchased on resume,
+a paused pair (an adapter, setup or evaluator failure, not the agent's outcome) runs again, and a
+changed profile requires a new campaign directory.
 
 A profile's `provider` is a hosted path (`openrouter`, `deepseek`, `fireworks`, each with its credential) or any name with a `baseUrl`, an `api` (`openai-completions` or `anthropic-messages`), `contextWindow` and `maxOutputTokens`: the comparator then writes Pi's own provider definition (`models.json`) in the agent's configuration directory, exactly as its native witness does, and a local server without a credential receives a placeholder key. The model-host allowlist admits the endpoint; nothing else changes.
 

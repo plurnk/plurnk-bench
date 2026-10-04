@@ -26,13 +26,16 @@ export async function runCampaign({ corpus, profile, out, attempts, jobs, signal
     mkdirSync(out, { recursive: true });
     const planPath = join(out, "plan.json");
     const plan = { corpus: json(corpus), profile: json(profile), attempts,
-        trials: planTrials({ ids: corpusIds(json(corpus)), attempts, limit: 0, only: [], skip: [], passed: new Set() }) };
+        trials: planTrials({ ids: corpusIds(json(corpus)), attempts, limit: 0, only: [], skip: [], done: new Set() }) };
     if (existsSync(planPath) && JSON.stringify(json(planPath)) !== JSON.stringify(plan)) throw new Error("Pi campaign configuration changed; use a new output directory");
     save(planPath, plan);
     const resultsPath = join(out, "results.jsonl");
-    const completed = existsSync(resultsPath) ? readFileSync(resultsPath, "utf8").trim().split("\n").filter(Boolean).map(JSON.parse) : [];
-    const done = new Set(completed.map(({ id, attempt }) => `${id}/${attempt}`));
-    const remaining = plan.trials.filter(({ id, attempt }) => !done.has(`${id}/${attempt}`));
+    // results.jsonl is append-only: a pair's last row is its record, and a paused row (an adapter, setup or
+    // evaluator failure, not the agent's outcome) runs again on resume while a graded row is never repurchased.
+    const recorded = existsSync(resultsPath) ? readFileSync(resultsPath, "utf8").trim().split("\n").filter(Boolean).map(JSON.parse) : [];
+    const latest = new Map(recorded.map((entry) => [`${entry.id}/${entry.attempt}`, entry]));
+    const completed = [...latest.values()].filter(({ pause }) => !pause);
+    const remaining = plan.trials.filter(({ id, attempt }) => latest.get(`${id}/${attempt}`)?.pause !== false);
     let halted = false;
     const run = async () => {
         while (!halted && !signal?.aborted && remaining.length) {

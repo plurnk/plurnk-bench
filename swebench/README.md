@@ -100,8 +100,11 @@ node swebench/report.ts /path/to/campaign
 
 Campaigns retain each attempt and write `REPORT.md`. The default stops new work
 after a non-pass so it can be inspected. `--halt-on clean` also permits ordinary
-oracle misses. Use `--resume <campaign-directory>` after reviewing a pause;
-`--skip <id>` records an intentional omission rather than replacing a failed trial.
+oracle misses. Use `--resume <campaign-directory> --halt-on <policy>` after reviewing a pause: it
+re-runs whatever that policy would have halted on, so the default re-buys every trial that
+was not a clean pass while `clean` keeps the graded misses and re-runs only agent and
+harness verdicts; `--skip <id>` records an intentional omission rather than replacing a
+failed trial.
 `--limit`, `--only`, and `--jobs` bound the selected work and concurrency.
 
 Add `--json` to the report command for machine-readable results. Read failure
@@ -139,9 +142,9 @@ node swebench/pi-campaign.mjs --corpus swebench/corpora/harnesstax-swe-lite-30.j
   --profile /path/to/profile.json --out /path/to/campaign --attempts 3 --jobs 1
 ```
 
-Reusing a Pi campaign directory resumes unattempted pairs with the unchanged
-profile. Native Pi failures remain scored attempts and do not pause the sweep;
-adapter, setup and evaluator failures do. `agent/summary.json` distinguishes
+Reusing a Pi campaign directory resumes the unattempted and the paused pairs with
+the unchanged profile. Native Pi failures remain scored attempts and do not pause the
+sweep; adapter, setup and evaluator failures do, and run again on resume. `agent/summary.json` distinguishes
 provider charges, fixed-rate estimates, and missing telemetry.
 
 The optional installed-client check uses a local fixture server:

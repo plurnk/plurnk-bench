@@ -247,6 +247,23 @@ test("{§swebench-pi} a setup failure pauses new work without discarding the fai
     assert.equal(completed.exit, 1);
     assert.equal(completed.reward, null);
     assert.equal(completed.pause, true);
+    // The paused pair is the one under review: a resume runs it again, and the record keeps one result per pair.
+    let resumed = 0;
+    await runCampaign(options, async (_command, _args, { stdoutPath }) => {
+        const artifact = join(dir, `trial-${++resumed}`);
+        mkdirSync(join(artifact, "agent"), { recursive: true });
+        mkdirSync(join(artifact, "verifier"));
+        writeFileSync(stdoutPath, `artifact=${artifact}\n`);
+        json(join(artifact, "agent/summary.json"), { requests: 1, chargedUsd: 0.01, unpricedRequests: 0, errors: [], failures: [] });
+        json(join(artifact, "verifier/reward.json"), { reward: 1 });
+        json(join(artifact, "result.json"), { exception_info: null });
+        return { status: 0 };
+    });
+    assert.equal(resumed, 9, "the paused pair and the eight never-run pairs");
+    const rows = readFileSync(join(options.out, "results.jsonl"), "utf8").trim().split("\n").map((line) => JSON.parse(line));
+    assert.equal(rows.length, 10, "results.jsonl is append-only: the paused row stays as history");
+    const summary = JSON.parse(readFileSync(join(options.out, "summary.json"), "utf8"));
+    assert.deepEqual({ finished: summary.finished, passes: summary.passes, paused: summary.paused }, { finished: 9, passes: 9, paused: [] });
 });
 
 for (const { name, limits, errors, failures = [], exception = null, pause } of [
