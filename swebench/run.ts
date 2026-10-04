@@ -16,14 +16,15 @@
 // usage: swebench/run.sh --instance <id> [--model <alias>] [--timeout <s>] [--preflight] [--skip-grading]
 
 import { spawn, spawnSync } from "node:child_process";
-import { createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statfsSync, writeFileSync } from "node:fs";
+import { createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statfsSync, symlinkSync, writeFileSync } from "node:fs";
 import { finished } from "node:stream/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { requiredClientCheckout } from "../src/client-checkout.ts";
 import { benchmarksHome, jobsRoot, loadBenchmarkEnvironment, selectedModel } from "../src/host-paths.ts";
-import { publishTrial } from "../src/publish.ts";
+import { publishTrial, runLabelsFor } from "../src/publish.ts";
+import { allocateRunDirectory } from "../src/run-directory.ts";
 import { modelHosts, runContainer } from "./container.ts";
 import { plurnkEnvironment, prepareRuntime } from "./runtime.ts";
 import { candidateIsolation } from "../src/candidate-isolation.ts";
@@ -290,8 +291,16 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         const sources = assertCleanSources({ bench: benchRoot, service: serviceRoot, client: clientRoot });
         const allowedHosts = modelHosts(process.env, values.preflight === true);
         const runtime = await prepareRuntime({ kind: "plurnk", serviceRoot, clientRoot, sources });
-        const agentDir = join(trialDir, "agent");
-        mkdirSync(agentDir, { recursive: true });
+        // SPEC §publish-launch-folder — the run folder exists from launch and is the daemon's own directory,
+        // so the database is live there from the first turn; the trial dir keeps `agent` as a link to it.
+        // A preflight publishes nothing and keeps its agent directory in the scratch.
+        const runDir = values.preflight ? null : allocateRunDirectory(benchmarksHome(), runLabelsFor("swebench", manifest.instance, model));
+        const agentDir = runDir ?? join(trialDir, "agent");
+        if (runDir === null) mkdirSync(agentDir, { recursive: true });
+        else {
+            symlinkSync(runDir, join(trialDir, "agent"));
+            process.stdout.write(`run=${runDir}\n`);
+        }
         // {§benchlet-isolation} — the candidate reaches no network beyond its model:
         // the operator's MCP/A2A definitions are masked, search credentials blanked,
         // and the daemon's web schemes admit no host.
@@ -362,17 +371,17 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         // The published trial carries its provenance: written before publication, never after (#40).
         writeJson(join(trialDir, "provenance.json"), provenance);
 
-        let runDir: string | null = null;
+        let publishedDir: string | null = null;
         if (values["skip-grading"] !== true) {
             // The verifier half is an ordinary subprocess; it resolves the shared core
             // through the installed package's published (dist) exports, not plurnk-dev.
             const graded = spawnSync(process.execPath, [join(moduleDir, "evaluate.ts"), "--instance", manifest.instance, "--patch", patchPath, "--out", trialDir, "--label", "plurnk"], { cwd: benchRoot, stdio: "inherit", env: process.env });
             if (graded.status !== 0) throw new Error(`the official evaluator exited ${graded.status ?? graded.signal ?? "unknown"}`);
-            runDir = await publishTrial(trialDir, "swebench", benchmarksHome());
+            publishedDir = await publishTrial(trialDir, "swebench", benchmarksHome(), runDir === null ? {} : { runDir });
         }
-        writeJson(join(trialDir, "provenance.json"), { ...provenance, runDir });
+        writeJson(join(trialDir, "provenance.json"), { ...provenance, runDir: publishedDir });
         process.stdout.write(`artifact=${trialDir}\n`);
-        if (runDir !== null) process.stdout.write(`published=${runDir}\n`);
+        if (publishedDir !== null) process.stdout.write(`published=${publishedDir}\n`);
     } finally {
         pruneImage(manifest.environment.image);
     }

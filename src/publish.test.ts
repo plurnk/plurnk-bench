@@ -1,7 +1,7 @@
 import { test, type TestContext } from "node:test";
 import Digest from "@plurnk/plurnk-service/digest";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, rmSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, rmSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -59,6 +59,30 @@ test("[§publish] {§share-snapshot} the published plurnk.db is SQLite's consist
     assert.ok(!readdirSync(output!).some((name) => name.endsWith("-wal") || name.endsWith(".zip")), "a plain folder: consolidated database, no sidecars, no archive");
     assert.equal(rows(source), 5, "the trial's database is read, never moved");
     assert.throws(() => publishRun({ ...record, run: { dbPath: join(root, "missing.db") } }, join(root, "runs")), /share: no database at/);
+});
+
+test("[§publish-launch-folder] a folder allocated at launch is finalized in place: the database consolidated, digest and record beside it, nothing copied", (t) => {
+    const root = mkdtempSync(join(tmpdir(), "bench-pub-launch-"));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    const runDir = allocateRunDirectory(join(root, "runs"), ["swebench", "fixture", "fixture"]);
+    const dbPath = join(runDir, "plurnk.db");
+    const source = walDatabase(dbPath, 5);
+    source.close();
+    const accounting = { requests: [], usage: null, costUsd: "0" };
+    mockDigest(t, { turns: [{ producer: "model" }], workspaces: [{ accounting }], provider_requests: [], turn_attempts: [] });
+    const record: BenchRecord = {
+        harness: "swebench", taskId: "fixture", model: "fixture", durationMs: 1,
+        status: 200, outcome: "fail", reward: 0, turns: 1,
+        run: { dbPath, workspaceId: 1 },
+    };
+    const output = publishRun(record, join(root, "runs"), { runDir });
+    assert.equal(output, runDir, "the folder opened at launch is the published one");
+    assert.deepEqual(readdirSync(join(root, "runs")), [runDir.split("/").at(-1)], "no second folder is allocated");
+    const copy = new DatabaseSync(dbPath, { readOnly: true });
+    t.after(() => copy.close());
+    assert.equal((copy.prepare("SELECT count(*) AS n FROM evidence").get() as { n: number }).n, 5, "every committed row survives consolidation");
+    assert.ok(!readdirSync(runDir).some((name) => name.endsWith("-wal") || name.endsWith("-shm") || name.endsWith(".consolidated")), "a plain folder: no sidecars, no leftovers");
+    assert.ok(existsSync(join(runDir, "record.json")) && existsSync(join(runDir, "digest")), "record and digest sit beside the database");
 });
 
 test("[§publish-task-accounting] publication includes child requests and preserves the primary context", (t) => {

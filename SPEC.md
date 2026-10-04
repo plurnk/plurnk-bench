@@ -177,6 +177,7 @@ layout sits over the service's snapshot and digest, and adds no copy or zip of i
 Covered: `publish.test.ts [§publish] {§share-snapshot}`.
 
 - §publish-numbering `run<N>-<harness>-<task>-<model>`: N continues the tree (max existing + 1,
+- §publish-launch-folder **The run folder is live from launch.** A runner may allocate the run folder before the daemon starts (`allocateRunDirectory`, the same naming rule) and run the daemon with that folder as its own directory, so `plurnk.db` is there from the first turn and the operator watches the run where it will be read; the trial's scratch keeps `agent` as a link to it. Publication then finalizes that folder in place — the database consolidated through {§share-snapshot}, `digest/` and `record.json` written beside it — rather than copying from the scratch. A trial that opened its folder at launch is published nowhere else. The swebench runner does this for every graded trial and prints `run=<folder>` at launch; a preflight opens no run folder.
   else 1; non-run dirs ignored), the task is its last path segment, the model its alias — the
   same shape the benchlets allocate.
 - §publish-turnless-gate A turn-less DB (infra failure — the daemon never looped) is rolled

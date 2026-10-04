@@ -11,8 +11,8 @@
 // while it is still going. A trial that already published is never republished: its
 // marker names the run dir.
 
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { join, resolve } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { parseArgs } from "node:util";
 import Digest from "@plurnk/plurnk-service/digest";
@@ -32,11 +32,20 @@ export const defaultBenchmarksDir = (): string => benchmarksHome();
 
 // SPEC §publish-numbering. run<N>-<harness>-<task>-<model>: the task's last path segment
 // and the model's alias, so the tree reads like the benchlets' own.
-export const runLabels = (record: BenchRecord): string[] => [
-    record.harness,
-    record.taskId.split("/").at(-1) ?? record.taskId,
-    record.model.replace(/^plurnk\//, ""),
+// SPEC §publish-numbering — one naming rule, whether the folder is allocated at launch or at publication.
+export const runLabelsFor = (harness: string, taskId: string, model: string): string[] => [
+    harness,
+    taskId.split("/").at(-1) ?? taskId,
+    model.replace(/^plurnk\//, ""),
 ];
+
+export const runLabels = (record: BenchRecord): string[] => runLabelsFor(record.harness, record.taskId, record.model);
+
+// SPEC §publish-launch-folder — a runner may allocate the run folder at launch and run the daemon in it, so the
+// folder is live from the first turn; publication then finalizes that folder in place instead of copying.
+export interface PublishOptions {
+    readonly runDir?: string;
+}
 
 const digestTurns = (digestDir: string): Array<{ producer?: string }> => {
     const path = join(digestDir, "digest.json");
@@ -77,12 +86,20 @@ export const publishedRecord = (record: BenchRecord, dbPath: string, digest: Dig
 // Snapshot the run's DB + render its digest into the allocated run dir. The digest reads the
 // COPIED DB, so the run dir is self-contained. No run handle → nothing to publish (null).
 // A run without a model turn is rolled back rather than published.
-export const publishRun = (record: BenchRecord, benchmarksDir: string): string | null => {
+export const publishRun = (record: BenchRecord, benchmarksDir: string, options: PublishOptions = {}): string | null => {
     if (record.run === undefined) return null;
-    const runDir = allocateRunDirectory(benchmarksDir, runLabels(record));
+    const runDir = options.runDir ?? allocateRunDirectory(benchmarksDir, runLabels(record));
     const digestDir = join(runDir, "digest");
     const db = join(runDir, "plurnk.db");
-    Share.snapshot(record.run.dbPath, db);
+    if (resolve(record.run.dbPath) === resolve(db)) {
+        // The daemon ran here: consolidate its database in place (committed WAL pages kept, no sidecars).
+        const consolidated = `${db}.consolidated`;
+        Share.snapshot(record.run.dbPath, consolidated);
+        renameSync(consolidated, db);
+        for (const sidecar of ["-wal", "-shm"]) rmSync(`${db}${sidecar}`, { force: true });
+    } else {
+        Share.snapshot(record.run.dbPath, db);
+    }
     // SPEC §publish-digest-provenance: a digest is read by the runtime that wrote the database. The
     // candidate rendered its own beside the database; that copy is the published one. Only a run
     // without one is rendered here, by this checkout's installed service.
@@ -122,7 +139,7 @@ export const foldRequiemAccounting = (dir: string): void => {
 
 // SPEC §publish-live. One finished trial → one published run, exactly once: the marker in
 // the trial dir names the run dir (or is empty when the trial had nothing to publish).
-export const publishTrial = async (trialDir: string, harness: string, benchmarksDir: string): Promise<string | null> => {
+export const publishTrial = async (trialDir: string, harness: string, benchmarksDir: string, options: PublishOptions = {}): Promise<string | null> => {
     const marker = join(trialDir, PUBLISHED_MARKER);
     if (existsSync(marker)) {
         const previous = readFileSync(marker, "utf8").trim();
@@ -130,7 +147,7 @@ export const publishTrial = async (trialDir: string, harness: string, benchmarks
     }
     const record = readTrialDir(trialDir, { harness });
     if (record === null) return null;
-    const dir = publishRun(record, benchmarksDir);
+    const dir = publishRun(record, benchmarksDir, options);
     if (dir === null) {
         writeFileSync(marker, "");
         console.log(`skipped ${record.taskId} (no model turn to publish)`);
