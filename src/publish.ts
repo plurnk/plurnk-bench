@@ -11,8 +11,8 @@
 // while it is still going. A trial that already published is never republished: its
 // marker names the run dir.
 
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { parseArgs } from "node:util";
 import Digest from "@plurnk/plurnk-service/digest";
@@ -91,21 +91,24 @@ export const publishRun = (record: BenchRecord, benchmarksDir: string, options: 
     const runDir = options.runDir ?? allocateRunDirectory(benchmarksDir, runLabels(record));
     const digestDir = join(runDir, "digest");
     const db = join(runDir, "plurnk.db");
-    if (resolve(record.run.dbPath) === resolve(db)) {
-        // The daemon ran here: consolidate its database in place (committed WAL pages kept, no sidecars).
+    if (options.runDir !== undefined) {
+        // The daemon ran here ({§publish-launch-folder}): consolidate its database in place, committed
+        // WAL pages kept and no sidecars left, through the same snapshot a copy would take.
         const consolidated = `${db}.consolidated`;
         Share.snapshot(record.run.dbPath, consolidated);
         renameSync(consolidated, db);
-        for (const sidecar of ["-wal", "-shm"]) rmSync(`${db}${sidecar}`, { force: true });
+        for (const sidecar of ["-wal", "-shm", ".lock"]) rmSync(`${db}${sidecar}`, { force: true });
     } else {
         Share.snapshot(record.run.dbPath, db);
     }
     // SPEC §publish-digest-provenance: a digest is read by the runtime that wrote the database. The
     // candidate rendered its own beside the database; that copy is the published one. Only a run
     // without one is rendered here, by this checkout's installed service.
-    if (record.run.digestDir !== undefined) {
+    // In a launch folder the candidate's own digest already sits where the published one goes.
+    const own = record.run.digestDir !== undefined && existsSync(digestDir) && realpathSync(record.run.digestDir) === realpathSync(digestDir);
+    if (record.run.digestDir !== undefined && !own) {
         cpSync(record.run.digestDir, digestDir, { recursive: true });
-    } else {
+    } else if (record.run.digestDir === undefined) {
         // SPEC §publish-workspace-scope (#450): the digest is the run's FULL workspace —
         // worker narrowing would exclude the vector pump's workspace-owned (turnless)
         // embedding derivations and any child worker's own evidence.
@@ -147,7 +150,10 @@ export const publishTrial = async (trialDir: string, harness: string, benchmarks
     }
     const record = readTrialDir(trialDir, { harness });
     if (record === null) return null;
-    const dir = publishRun(record, benchmarksDir, options);
+    // {§publish-launch-folder} — a trial that opened its run folder at launch recorded it; finalize there.
+    const provenancePath = join(trialDir, "provenance.json");
+    const recorded = existsSync(provenancePath) ? (JSON.parse(readFileSync(provenancePath, "utf8")) as { runDir?: string | null }).runDir ?? undefined : undefined;
+    const dir = publishRun(record, benchmarksDir, options.runDir === undefined && recorded !== undefined ? { ...options, runDir: recorded } : options);
     if (dir === null) {
         writeFileSync(marker, "");
         console.log(`skipped ${record.taskId} (no model turn to publish)`);

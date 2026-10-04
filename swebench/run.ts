@@ -369,7 +369,9 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             candidate: { status: result.status, signal: result.signal, timedOut: result.timedOut },
         };
         // The published trial carries its provenance: written before publication, never after (#40).
-        writeJson(join(trialDir, "provenance.json"), provenance);
+        // {§publish-launch-folder} — the run folder opened at launch is part of it, so a later
+        // publication (the watch path, a re-run) finalizes that folder rather than opening another.
+        writeJson(join(trialDir, "provenance.json"), { ...provenance, runDir });
 
         let publishedDir: string | null = null;
         if (values["skip-grading"] !== true) {
@@ -379,7 +381,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             if (graded.status !== 0) throw new Error(`the official evaluator exited ${graded.status ?? graded.signal ?? "unknown"}`);
             publishedDir = await publishTrial(trialDir, "swebench", benchmarksHome(), runDir === null ? {} : { runDir });
         }
-        writeJson(join(trialDir, "provenance.json"), { ...provenance, runDir: publishedDir });
+        writeJson(join(trialDir, "provenance.json"), { ...provenance, runDir: publishedDir ?? runDir });
         process.stdout.write(`artifact=${trialDir}\n`);
         if (publishedDir !== null) process.stdout.write(`published=${publishedDir}\n`);
     } finally {
