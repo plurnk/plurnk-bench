@@ -20,6 +20,18 @@ export const providerDefinition = (profile, credential) => ({ providers: { [prof
     models: [{ id: profile.model, reasoning: true, input: ["text"], contextWindow: profile.contextWindow, maxTokens: profile.maxOutputTokens, cost: profile.rates }],
 } } });
 
+export const profileCredential = (profile) =>
+    HOSTED_CREDENTIALS[profile.provider] ?? profile.credential ?? (profile.baseUrl ? LOCAL_CREDENTIAL : null);
+
+// A hosted model is its entry in Pi's frozen catalog; a baseUrl provider's model is the profile's own
+// definition, the one the comparator writes for Pi, which the catalog never carries.
+export const selectedModel = (profile, catalog, credential) => {
+    if (profile.baseUrl) return providerDefinition(profile, credential).providers[profile.provider].models[0];
+    const model = catalog[profile.provider]?.models.find((item) => item.id === profile.model);
+    if (!model) throw new Error("The selected model is absent from Pi's frozen catalog; refresh with pi update --models");
+    return model;
+};
+
 export function validateProfile(profile) {
     // {§swebench-pi} A hosted provider path, or any OpenAI-compatible endpoint named by baseUrl and api
     // (a local llama-server among them): the comparator then writes Pi's own provider definition.
@@ -139,9 +151,8 @@ export async function runPiTrial({ instance, profilePath, preflight = false, sig
     const profile = validateProfile(JSON.parse(readFileSync(profilePath, "utf8")));
     const version = shell(profile.executable, ["--version"]).trim();
     if (version !== profile.version) throw new Error(`Pi version changed: expected ${profile.version}, got ${version}`);
-    const catalog = JSON.parse(readFileSync(profile.catalogPath, "utf8"));
-    const model = catalog[profile.provider]?.models.find((item) => item.id === profile.model);
-    if (!model) throw new Error("The selected model is absent from Pi's frozen catalog; refresh with pi update --models");
+    const credential = profileCredential(profile);
+    const model = selectedModel(profile, JSON.parse(readFileSync(profile.catalogPath, "utf8")), credential);
     const manifest = JSON.parse(readFileSync(join(directory, "manifests", `${instance}.json`), "utf8"));
     if (manifest.instance !== instance) throw new Error("Pi specimen identity mismatch");
     const root = jobsRoot("swebench-pi");
@@ -162,7 +173,6 @@ export async function runPiTrial({ instance, profilePath, preflight = false, sig
         const config = piConfiguration("/bin/bash");
         json(join(configDir, "settings.json"), config);
         copyFileSync(profile.catalogPath, join(configDir, "models-store.json"));
-        const credential = HOSTED_CREDENTIALS[profile.provider] ?? profile.credential ?? (profile.baseUrl ? LOCAL_CREDENTIAL : null);
         if (profile.baseUrl) json(join(configDir, "models.json"), providerDefinition(profile, credential));
         json(join(agentDir, "profile.json"), profile);
         const prompt = taskPrompt(manifest.problemStatement);

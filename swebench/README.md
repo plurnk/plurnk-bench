@@ -129,7 +129,8 @@ A profile JSON supplies these fields:
 
 Refresh the catalog with
 `PI_CODING_AGENT_DIR=<catalog-directory> pi update --models`.
-Credentials never go in the profile.
+Credentials never go in the profile. A `baseUrl` provider's model is the profile's own
+definition and needs no catalog entry.
 
 ```sh
 node swebench/pi.mjs --instance django__django-11620 --profile /path/to/profile.json --preflight

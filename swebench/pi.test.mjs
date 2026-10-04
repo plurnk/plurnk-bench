@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { drainCaptures, observeFetch } from "./pi-observer.mjs";
-import { piArguments, piConfiguration, piLaunch, summarizePi, validateProfile, providerDefinition } from "./pi.mjs";
+import { piArguments, piConfiguration, piLaunch, summarizePi, validateProfile, providerDefinition, selectedModel } from "./pi.mjs";
 import { runToFiles } from "./run.ts";
 import { runCampaign } from "./pi-campaign.mjs";
 
@@ -187,6 +187,10 @@ test("{§swebench-pi} profiles require explicit route, version, limits and rates
     const profile = { provider: "fireworks", executable: "pi", version: "fixture", model: "fixture",
         catalogPath: "catalog.json", effort: "medium", turnCap: 100, timeoutSeconds: 14400, rates };
     assert.equal(validateProfile(profile), profile);
+    assert.deepEqual(selectedModel(local, {}, "PLURNK_PI_LOCAL_KEY"), providerDefinition(local, "PLURNK_PI_LOCAL_KEY").providers.local.models[0],
+        "a baseUrl provider's model is the profile's own definition; the frozen catalog never carries it");
+    assert.equal(selectedModel(profile, { fireworks: { models: [{ id: "fixture", name: "Fixture" }] } }, "FIREWORKS_API_KEY").name, "Fixture", "a hosted model is its catalog entry");
+    assert.throws(() => selectedModel(profile, {}, "FIREWORKS_API_KEY"), /frozen catalog/, "a hosted model absent from the frozen catalog is refused");
 });
 
 test("{§swebench-pi} campaigns bound concurrency, retain losses and resume without rebuying attempts", async () => {
