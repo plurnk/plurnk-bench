@@ -841,6 +841,8 @@ reimplementation of its agent loop or an assertion that the study was reproduced
 processes from the same corpus/attempt plan; an existing result is never repurchased
 on resume, and a changed profile requires a new campaign directory.
 
+A profile's `provider` is a hosted path (`openrouter`, `deepseek`, `fireworks`, each with its credential) or any name with a `baseUrl`, an `api` (`openai-completions` or `anthropic-messages`), `contextWindow` and `maxOutputTokens`: the comparator then writes Pi's own provider definition (`models.json`) in the agent's configuration directory, exactly as its native witness does, and a local server without a credential receives a placeholder key. The model-host allowlist admits the endpoint; nothing else changes.
+
 | Boundary | Contract |
 |----------|----------|
 | Agent | Stock system prompt, default tools, compaction, sampling, output and retry behavior. Select only provider, model and effort; the version and Pi's refreshed catalog are frozen and retained. No request-payload rewriting. |

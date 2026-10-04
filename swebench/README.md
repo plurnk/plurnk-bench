@@ -122,7 +122,7 @@ A profile JSON supplies these fields:
 | Fields | Meaning |
 |---|---|
 | `executable`, `version` | Installed Pi executable and its exact expected version. |
-| `provider`, `model`, `effort` | Model selection; supported provider paths are `openrouter`, `deepseek` and `fireworks`. |
+| `provider`, `model`, `effort` | Model selection. `openrouter`, `deepseek` and `fireworks` are the hosted paths with their credentials; any other provider name is an OpenAI-compatible endpoint and also sets `baseUrl`, `api` (`openai-completions` or `anthropic-messages`), `contextWindow` and `maxOutputTokens`. The comparator writes Pi's provider definition (`models.json`) for it; `credential` optionally names the environment variable Pi reads, and a local server gets a placeholder. |
 | `catalogPath` | Frozen `models-store.json` containing the selected model. |
 | `turnCap`, `timeoutSeconds` | Positive run limits. |
 | `rates` | `input`, `output`, `cacheRead`, and `cacheWrite`, in USD per million tokens, for reporting. |

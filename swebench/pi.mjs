@@ -11,8 +11,24 @@ import { capturePatch, dockerImageId, exceptionInfo, prepareRepository, pruneIma
 const directory = dirname(fileURLToPath(import.meta.url));
 const json = (path, value) => writeFileSync(path, JSON.stringify(value, null, 2) + "\n");
 
+const HOSTED_CREDENTIALS = { openrouter: "OPENROUTER_API_KEY", deepseek: "DEEPSEEK_API_KEY", fireworks: "FIREWORKS_API_KEY" };
+const LOCAL_CREDENTIAL = "PLURNK_PI_LOCAL_KEY";
+
+// The provider definition Pi reads from models.json for a baseUrl profile, as the native test writes it.
+export const providerDefinition = (profile, credential) => ({ providers: { [profile.provider]: {
+    baseUrl: profile.baseUrl, api: profile.api, apiKey: `$${credential}`,
+    models: [{ id: profile.model, reasoning: true, input: ["text"], contextWindow: profile.contextWindow, maxTokens: profile.maxOutputTokens, cost: profile.rates }],
+} } });
+
 export function validateProfile(profile) {
-    if (!["openrouter", "deepseek", "fireworks"].includes(profile.provider)) throw new Error("The Pi comparator profile supports the openrouter, deepseek and fireworks providers");
+    // {§swebench-pi} A hosted provider path, or any OpenAI-compatible endpoint named by baseUrl and api
+    // (a local llama-server among them): the comparator then writes Pi's own provider definition.
+    if (!HOSTED_CREDENTIALS[profile.provider]) {
+        if (typeof profile.baseUrl !== "string" || !/^https?:\/\//.test(profile.baseUrl)) throw new Error("The Pi comparator profile supports the openrouter, deepseek and fireworks providers, or any provider with a baseUrl and api");
+        if (!["openai-completions", "anthropic-messages"].includes(profile.api)) throw new Error("A baseUrl provider needs api openai-completions or anthropic-messages");
+        for (const key of ["contextWindow", "maxOutputTokens"]) if (!Number.isSafeInteger(profile[key]) || profile[key] <= 0) throw new Error(`A baseUrl provider needs a positive ${key}`);
+        if (profile.credential !== undefined && (typeof profile.credential !== "string" || !profile.credential)) throw new Error("credential names an environment variable, never a value");
+    }
     for (const key of ["executable", "version", "model", "catalogPath", "effort"]) {
         if (typeof profile[key] !== "string" || !profile[key]) throw new Error(`Pi profile requires ${key}`);
     }
@@ -146,18 +162,20 @@ export async function runPiTrial({ instance, profilePath, preflight = false, sig
         const config = piConfiguration("/bin/bash");
         json(join(configDir, "settings.json"), config);
         copyFileSync(profile.catalogPath, join(configDir, "models-store.json"));
+        const credential = HOSTED_CREDENTIALS[profile.provider] ?? profile.credential ?? (profile.baseUrl ? LOCAL_CREDENTIAL : null);
+        if (profile.baseUrl) json(join(configDir, "models.json"), providerDefinition(profile, credential));
         json(join(agentDir, "profile.json"), profile);
         const prompt = taskPrompt(manifest.problemStatement);
         const argv = piArguments(profile, "/logs/agent/sessions", prompt, "/opt/harness/pi-extension.mjs");
         const provenance = { agent: "pi", version, instance, profile, model, imageId, startHead, datasetRevision: manifest.datasetRevision,
             baseCommit: manifest.baseCommit, repository, taskPrompt: prompt, argv, node: process.version, startedAt: new Date().toISOString() };
         json(join(trialDir, "provenance.json"), provenance);
-        const credential = { openrouter: "OPENROUTER_API_KEY", deepseek: "DEEPSEEK_API_KEY", fireworks: "FIREWORKS_API_KEY" }[profile.provider];
         const result = await runContainer({
             trial: trialDir, runtime: runtime.path, repository, agent: agentDir,
             image: imageId, cpus: manifest.environment.cpus, memoryMb: manifest.environment.memoryMb,
             allowedHosts, preflight, argv: preflight ? ["pi", "--preflight"] : ["pi", ...argv],
-            env: { ...(process.env[credential] ? { [credential]: process.env[credential] } : {}),
+            env: { ...(credential && process.env[credential] ? { [credential]: process.env[credential] } : {}),
+                ...(credential === LOCAL_CREDENTIAL ? { [LOCAL_CREDENTIAL]: "local" } : {}),
                 PI_CODING_AGENT_DIR: "/logs/agent/config", PI_TELEMETRY: "0",
                 PLURNK_PI_PROFILE: "/logs/agent/profile.json", PLURNK_PI_AGENT_DIR: "/logs/agent" },
         }, { signal, timeoutMs: profile.timeoutSeconds * 1000 });

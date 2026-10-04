@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { drainCaptures, observeFetch } from "./pi-observer.mjs";
-import { piArguments, piConfiguration, piLaunch, summarizePi, validateProfile } from "./pi.mjs";
+import { piArguments, piConfiguration, piLaunch, summarizePi, validateProfile, providerDefinition } from "./pi.mjs";
 import { runToFiles } from "./run.ts";
 import { runCampaign } from "./pi-campaign.mjs";
 
@@ -176,6 +176,13 @@ test("{§swebench-pi} unfinished Messages usage is not reported as a fully price
 
 test("{§swebench-pi} profiles require explicit route, version, limits and rates", () => {
     assert.throws(() => validateProfile({}), /openrouter, deepseek and fireworks/);
+    assert.throws(() => validateProfile({ provider: "local", baseUrl: "https://model.example/v1" }), /api openai-completions or anthropic-messages/, "a baseUrl provider names its api");
+    const local = { provider: "local", baseUrl: "https://model.example/v1", api: "openai-completions", contextWindow: 86016, maxOutputTokens: 24576,
+        executable: "pi", version: "fixture", model: "fixture", catalogPath: "/dev/null", effort: "medium", turnCap: 100, timeoutSeconds: 30,
+        rates: { input: 0, cacheRead: 0, cacheWrite: 0, output: 0 } };
+    assert.equal(validateProfile(local), local, "{§swebench-pi} any OpenAI-compatible endpoint is a provider path: a local llama-server among them");
+    assert.deepEqual(providerDefinition(local, "PLURNK_PI_LOCAL_KEY"), { providers: { local: { baseUrl: local.baseUrl, api: "openai-completions", apiKey: "$PLURNK_PI_LOCAL_KEY",
+        models: [{ id: "fixture", reasoning: true, input: ["text"], contextWindow: 86016, maxTokens: 24576, cost: local.rates }] } } }, "the comparator writes Pi's own provider definition");
     assert.throws(() => validateProfile({ provider: "openrouter" }), /executable/);
     const profile = { provider: "fireworks", executable: "pi", version: "fixture", model: "fixture",
         catalogPath: "catalog.json", effort: "medium", turnCap: 100, timeoutSeconds: 14400, rates };
@@ -299,6 +306,7 @@ for (const { provider, api, effort, credential } of [
     { provider: "openrouter", api: "openai-completions", effort: "low", credential: "OPENROUTER_API_KEY" },
     { provider: "fireworks", api: "openai-completions", effort: "medium", credential: "FIREWORKS_API_KEY" },
     { provider: "fireworks", api: "anthropic-messages", effort: "xhigh", credential: "FIREWORKS_API_KEY" },
+    { provider: "local", api: "openai-completions", effort: "medium", credential: "PLURNK_PI_LOCAL_KEY" },
 ]) for (const turnCap of [1, 100]) {
     test(`{§swebench-pi} installed native Pi ${provider}/${api}: isolated context, tools, wire effort and ${turnCap}-turn bound`, {
         skip: !process.env.PLURNK_BENCH_PI, timeout: 60000,
