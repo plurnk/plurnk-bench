@@ -10,6 +10,11 @@ import signal
 import sys
 from pathlib import Path
 
+# {§swebench-model-account} — the account the model's commands run as inside the task container.
+MODEL_ACCOUNT = "plurnk-model"
+MODEL_UID = 60007
+MODEL_HOME = "/tmp/plurnk-model"
+
 
 def redacted(message, env):
     for value in sorted(set(env.values()), key=len, reverse=True):
@@ -105,11 +110,19 @@ async def run(request):
     try:
         await environment.start(force_build=False)
         started = True
-        # This mount is a disposable trial copy. Match the image's agent UID;
+        # {§swebench-model-account} — the model's commands run as an account of their own, so the daemon's
+        # evidence under /logs/agent and the harness bundle under /opt/harness are not theirs to read: the
+        # evidence folder closes to its owner, the bundle is the host's at 0700 already. The trial copy
+        # belongs to that account, group-writable with set-group-id directories, so what the daemon writes
+        # there (umask 002) stays writable to the model's commands and the daemon's git keeps reading it.
         # Harbor restores host ownership of writable mounts during teardown.
-        ownership = await environment.exec(command='chown -R "$(id -u):$(id -g)" /testbed')
+        ownership = await environment.exec(command=(
+            f'useradd --system --uid {MODEL_UID} --user-group --home-dir {MODEL_HOME} --shell /bin/bash {MODEL_ACCOUNT} 2>/dev/null; '
+            f'getent passwd {MODEL_ACCOUNT} >/dev/null && mkdir -p {MODEL_HOME} && chown {MODEL_ACCOUNT}:{MODEL_ACCOUNT} {MODEL_HOME} && chmod 700 {MODEL_HOME} '
+            f'&& chown -R {MODEL_ACCOUNT}:{MODEL_ACCOUNT} /testbed && chmod -R g+w /testbed && find /testbed -type d -exec chmod g+s {{}} + '
+            '&& chmod 700 /logs/agent && git config --system safe.directory "*"'))
         if ownership.return_code != 0:
-            raise RuntimeError(f"Cannot provision candidate repository ownership: {ownership.stdout or ownership.stderr}")
+            raise RuntimeError(f"Cannot provision the model account over the candidate repository: {ownership.stdout or ownership.stderr}")
         record = {
             "adapter": "container-native", "harbor": importlib.metadata.version("harbor"),
             "image": request["image"], "projectRoot": "/testbed", "network": policy,
@@ -123,7 +136,7 @@ async def run(request):
         # Read the image's login files BEFORE assigning the isolated candidate
         # home. Otherwise SWE-bench's conda activation silently disappears.
         command = (
-            "export PATH=/opt/harness/bin:$PATH HOME=/tmp/harness-home "
+            "umask 002; export PATH=/opt/harness/bin:$PATH HOME=/tmp/harness-home "
             "XDG_CONFIG_HOME=/tmp/harness-home/.config "
             "XDG_DATA_HOME=/tmp/harness-home/.local/share "
             "XDG_STATE_HOME=/tmp/harness-home/.local/state "
@@ -132,6 +145,7 @@ async def run(request):
         env = {
             **request["env"], "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
             "NODE_OPTIONS": "", "NODE_USE_ENV_PROXY": "1",
+            "PLURNK_EXECS_SPAWN_USER": MODEL_ACCOUNT,  # {§swebench-model-account}
         }
         result = await environment.exec(command="bash -lc " + shlex.quote(command), cwd="/testbed", env=env)
         (Path(request["agent"]) / "runtime.log").write_text(result.stdout or result.stderr or "")
