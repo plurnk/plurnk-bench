@@ -54,6 +54,7 @@ export const taskPrompt = (problemStatement: string): string => [
     "</issue>",
     "",
     "Implement the fix in the working tree and verify the affected behavior.",
+    "This environment has no network access: the repository and its installed dependencies are all that is available.",
 ].join("\n");
 
 // {§swebench-conditions} {§swebench-profiles} — ordinary client invocation, stated disposition,

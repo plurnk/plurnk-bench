@@ -809,7 +809,9 @@ reimplementation of its agent loop or an assertion that the study was reproduced
 - §swebench-prompt The task prompt asks for an ordinary repository repair: the
   official issue, unchanged except for outer whitespace and delimited by `<issue>`,
   followed by an instruction to implement the fix in the working tree and verify
-  the affected behavior. The wrapper introduces no grading, hidden-test or
+  the affected behavior, and one statement of the environment's bound: no network
+  access, the repository and its installed dependencies are all that is available
+  (both arms, identically; comparisons across this change are void). The wrapper introduces no grading, hidden-test or
   reference-patch framing, brevity constraint, or operation-language teaching
   (`plurnk.md` owns that). The official package supplies no agentic prompt; this
   harness-owned framing is recorded exactly per trial in `provenance.json`.

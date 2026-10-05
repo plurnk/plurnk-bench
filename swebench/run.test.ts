@@ -81,7 +81,7 @@ test("[§swebench-prompt] the task prompt requests a repository fix and verifica
     const statement = "When DEBUG is True, raising Http404 in a path converter does not help.";
     const prompt = taskPrompt(statement);
     assert.match(prompt, /^Fix the following issue in the checked-out repository\./u);
-    assert.ok(prompt.endsWith("Implement the fix in the working tree and verify the affected behavior."));
+    assert.ok(prompt.endsWith("Implement the fix in the working tree and verify the affected behavior.\nThis environment has no network access: the repository and its installed dependencies are all that is available."));
     const wrapper = prompt.replace(statement, "");
     assert.doesNotMatch(wrapper, /grad(?:e|ed|ing)|hidden[- ]tests?|reference[- ]patch/iu);
     assert.doesNotMatch(wrapper, /smallest|minimal|brief|concise/iu);
