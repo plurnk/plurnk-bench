@@ -114,13 +114,13 @@ async def run(request):
         # evidence under /logs/agent and the harness bundle under /opt/harness are not theirs to read: the
         # evidence folder closes to its owner, the bundle is the host's at 0700 already. The trial copy
         # belongs to that account, group-writable with set-group-id directories, so what the daemon writes
-        # there (umask 002) stays writable to the model's commands and the daemon's git keeps reading it.
+        # there (umask 002) stays writable to the model's commands; the daemon's git trusts its own root by path.
         # Harbor restores host ownership of writable mounts during teardown.
         ownership = await environment.exec(command=(
             f'useradd --system --uid {MODEL_UID} --user-group --home-dir {MODEL_HOME} --shell /bin/bash {MODEL_ACCOUNT} 2>/dev/null; '
             f'getent passwd {MODEL_ACCOUNT} >/dev/null && mkdir -p {MODEL_HOME} && chown {MODEL_ACCOUNT}:{MODEL_ACCOUNT} {MODEL_HOME} && chmod 700 {MODEL_HOME} '
             f'&& chown -R {MODEL_ACCOUNT}:{MODEL_ACCOUNT} /testbed && chmod -R g+w /testbed && find /testbed -type d -exec chmod g+s {{}} + '
-            '&& chmod 700 /logs/agent && git config --system safe.directory "*"'))
+            '&& chmod 700 /logs/agent'))
         if ownership.return_code != 0:
             raise RuntimeError(f"Cannot provision the model account over the candidate repository: {ownership.stdout or ownership.stderr}")
         record = {

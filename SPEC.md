@@ -790,8 +790,8 @@ reimplementation of its agent loop or an assertion that the study was reproduced
   closes to its owner and the harness bundle at `/opt/harness` is the host's at 0700, so neither the daemon's
   database nor the bundle's adapter files are readable from the model's shell. The trial copy at `/testbed`
   belongs to the account, group-writable with set-group-id directories, and the daemon writes under umask 002,
-  so what the daemon creates stays writable to the model's commands; `safe.directory` admits the daemon's git
-  over the account's repository. The Pi arm keeps the image's user for its own tools.
+  so what the daemon creates stays writable to the model's commands; the daemon's own git trusts the root it
+  was pointed at by path. The Pi arm keeps the image's user for its own tools.
 - §swebench-executor-encoding Unicode arguments, stdin, and stream output remain
   ordinary in-container process I/O. Model-free preflight verifies Node and the
   task's Python, project cwd, UTF-8 round trips, and file visibility. Integration
