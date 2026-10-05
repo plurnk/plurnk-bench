@@ -788,7 +788,8 @@ reimplementation of its agent loop or an assertion that the study was reproduced
   daemon runs as the image's user; every executor subprocess runs as `plurnk` (uid 60007, home `/home/plurnk`),
   set through the service's `PLURNK_EXECS_SPAWN_USER`. Every name the model can list is an ordinary plurnk
   host's: the state directory `/var/lib/plurnk` closes to its owner and the install at `/opt/plurnk` is the
-  host's at 0700, so neither the daemon's
+  host's at 0700 (its node alone is exposed at `/usr/local/bin/node`, and the bundle stays off PATH, so a
+  missing command is "not found", never "permission denied"), so neither the daemon's
   database nor the bundle's adapter files are readable from the model's shell. The trial copy at `/testbed`
   belongs to the account, group-writable with set-group-id directories, and the daemon writes under umask 002,
   so what the daemon creates stays writable to the model's commands; the daemon's own git trusts the root it

@@ -55,7 +55,7 @@ class ContainerContract(unittest.TestCase):
                 path.mkdir()
                 request[name] = str(path)
             mounts, policy = configuration(request)
-            self.assertEqual([m["target"] for m in mounts], ["/opt/plurnk", "/testbed", "/var/lib/plurnk"])
+            self.assertEqual([m["target"] for m in mounts], ["/opt/plurnk", "/testbed", "/var/lib/plurnk", "/usr/local/bin/node"])
             self.assertEqual([m["read_only"] for m in mounts], [True, False, False])
             self.assertEqual(policy, {"network_mode": "allowlist", "allowed_hosts": ["api.example.com"]})
             request["allowedHosts"] = []

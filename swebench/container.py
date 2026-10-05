@@ -71,6 +71,12 @@ def configuration(request):
         if not source.is_dir():
             raise ValueError(f"{name} is not a directory")
         mounts.append({"type": "bind", "source": str(source), "target": target, "read_only": readonly})
+    # {§swebench-model-account} — the bundle is closed to the model's account; its node alone is exposed at an
+    # ordinary path, so the node runtime and the model's shell find it without the bundle on PATH.
+    node = Path(request["runtime"]).resolve(strict=True) / "bin" / "node"
+    if not node.is_file():
+        raise ValueError("runtime bundle has no bin/node")
+    mounts.append({"type": "bind", "source": str(node), "target": "/usr/local/bin/node", "read_only": True})
     return mounts, {"network_mode": "allowlist" if hosts else "no-network", "allowed_hosts": hosts}
 
 
@@ -133,12 +139,12 @@ async def run(request):
         }
         (root / "candidate-execution.json").write_text(json.dumps(record, indent=2) + "\n")
         argv = ["/opt/plurnk/bin/node", "/opt/plurnk/runner.mjs", *request["argv"]]
-        # bash -l activates the specimen's own conda environment. Only Node is
-        # added ahead of it, identically for both candidates.
+        # bash -l activates the specimen's own conda environment; node is at /usr/local/bin for both
+        # candidates and the closed bundle stays off PATH ({§swebench-model-account}).
         # Read the image's login files BEFORE assigning the isolated candidate
         # home. Otherwise SWE-bench's conda activation silently disappears.
         command = (
-            "umask 002; export PATH=/opt/plurnk/bin:$PATH HOME=/root/.plurnk "
+            "umask 002; export HOME=/root/.plurnk "
             "XDG_CONFIG_HOME=/root/.plurnk/.config "
             "XDG_DATA_HOME=/root/.plurnk/.local/share "
             "XDG_STATE_HOME=/root/.plurnk/.local/state "
