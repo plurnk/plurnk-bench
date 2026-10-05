@@ -4,7 +4,7 @@ import { closeSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } f
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const evidence = "/logs/agent";
+const evidence = "/var/lib/plurnk";
 const dbPath = join(evidence, "plurnk.db");
 const pidPath = join(evidence, "runner.pid");
 mkdirSync(process.env.HOME, { recursive: true });

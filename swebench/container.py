@@ -10,10 +10,12 @@ import signal
 import sys
 from pathlib import Path
 
-# {§swebench-model-account} — the account the model's commands run as inside the task container.
-MODEL_ACCOUNT = "plurnk-model"
+# {§swebench-model-account} — the account the model's commands run as inside the task container. Every name the
+# model can list is an ordinary plurnk host's: the account, its home, the install at /opt/plurnk, the state at
+# /var/lib/plurnk; nothing says harness, agent or model.
+MODEL_ACCOUNT = "plurnk"
 MODEL_UID = 60007
-MODEL_HOME = "/tmp/plurnk-model"
+MODEL_HOME = "/home/plurnk"
 
 
 def redacted(message, env):
@@ -61,9 +63,9 @@ def configuration(request):
         raise ValueError("a model run requires an explicit model-host allowlist")
     mounts = []
     for name, target, readonly in [
-        ("runtime", "/opt/harness", True),
+        ("runtime", "/opt/plurnk", True),
         ("repository", "/testbed", False),
-        ("agent", "/logs/agent", False),
+        ("agent", "/var/lib/plurnk", False),
     ]:
         source = Path(request[name]).resolve(strict=True)
         if not source.is_dir():
@@ -111,7 +113,7 @@ async def run(request):
         await environment.start(force_build=False)
         started = True
         # {§swebench-model-account} — the model's commands run as an account of their own, so the daemon's
-        # evidence under /logs/agent and the harness bundle under /opt/harness are not theirs to read: the
+        # state under /var/lib/plurnk and the install under /opt/plurnk are not theirs to read: the
         # evidence folder closes to its owner, the bundle is the host's at 0700 already. The trial copy
         # belongs to that account, group-writable with set-group-id directories, so what the daemon writes
         # there (umask 002) stays writable to the model's commands; the daemon's git trusts its own root by path.
@@ -120,7 +122,7 @@ async def run(request):
             f'useradd --system --uid {MODEL_UID} --user-group --home-dir {MODEL_HOME} --shell /bin/bash {MODEL_ACCOUNT} 2>/dev/null; '
             f'getent passwd {MODEL_ACCOUNT} >/dev/null && mkdir -p {MODEL_HOME} && chown {MODEL_ACCOUNT}:{MODEL_ACCOUNT} {MODEL_HOME} && chmod 700 {MODEL_HOME} '
             f'&& chown -R {MODEL_ACCOUNT}:{MODEL_ACCOUNT} /testbed && chmod -R g+w /testbed && find /testbed -type d -exec chmod g+s {{}} + '
-            '&& chmod 700 /logs/agent'))
+            '&& chmod 700 /var/lib/plurnk'))
         if ownership.return_code != 0:
             raise RuntimeError(f"Cannot provision the model account over the candidate repository: {ownership.stdout or ownership.stderr}")
         record = {
@@ -130,17 +132,17 @@ async def run(request):
             **({"resolver": resolver} if resolver else {}),
         }
         (root / "candidate-execution.json").write_text(json.dumps(record, indent=2) + "\n")
-        argv = ["/opt/harness/bin/node", "/opt/harness/runner.mjs", *request["argv"]]
+        argv = ["/opt/plurnk/bin/node", "/opt/plurnk/runner.mjs", *request["argv"]]
         # bash -l activates the specimen's own conda environment. Only Node is
         # added ahead of it, identically for both candidates.
         # Read the image's login files BEFORE assigning the isolated candidate
         # home. Otherwise SWE-bench's conda activation silently disappears.
         command = (
-            "umask 002; export PATH=/opt/harness/bin:$PATH HOME=/tmp/harness-home "
-            "XDG_CONFIG_HOME=/tmp/harness-home/.config "
-            "XDG_DATA_HOME=/tmp/harness-home/.local/share "
-            "XDG_STATE_HOME=/tmp/harness-home/.local/state "
-            "XDG_CACHE_HOME=/tmp/harness-home/.cache; exec " + shlex.join(argv)
+            "umask 002; export PATH=/opt/plurnk/bin:$PATH HOME=/root/.plurnk "
+            "XDG_CONFIG_HOME=/root/.plurnk/.config "
+            "XDG_DATA_HOME=/root/.plurnk/.local/share "
+            "XDG_STATE_HOME=/root/.plurnk/.local/state "
+            "XDG_CACHE_HOME=/root/.plurnk/.cache; exec " + shlex.join(argv)
         )
         env = {
             **request["env"], "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
@@ -158,9 +160,9 @@ async def run(request):
             # Signal the supervisor, not every process by a shared name. Its
             # finally block stops the daemon and writes a consistent digest.
             await environment.exec(command=(
-                "if test -f /logs/agent/runner.pid; then "
-                "kill -TERM $(cat /logs/agent/runner.pid); "
-                "for i in $(seq 1 60); do test ! -f /logs/agent/runner.pid && exit 0; sleep 1; done; fi"
+                "if test -f /var/lib/plurnk/runner.pid; then "
+                "kill -TERM $(cat /var/lib/plurnk/runner.pid); "
+                "for i in $(seq 1 60); do test ! -f /var/lib/plurnk/runner.pid && exit 0; sleep 1; done; fi"
             ), timeout_sec=65)
         return 143
     finally:

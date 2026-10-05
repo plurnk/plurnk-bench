@@ -29,8 +29,8 @@ async function fixture(kind) {
     return { trial, runtime, repository, agent, image: dockerImageId(image), cpus: 2, memoryMb: 4096,
         allowedHosts: ["example.com"], preflight: false, env: {},
         argv: kind === "plurnk" ? candidateArgv("/testbed", 60, "Run the deterministic adapter check.", 8)
-            : ["pi", ...piArguments({ provider: "openrouter", model: "fixture", effort: "high" }, "/logs/agent/sessions",
-                "Run the deterministic adapter check.", "/opt/harness/pi-extension.mjs")],
+            : ["pi", ...piArguments({ provider: "openrouter", model: "fixture", effort: "high" }, "/var/lib/plurnk/sessions",
+                "Run the deterministic adapter check.", "/opt/plurnk/pi-extension.mjs")],
     };
 }
 
@@ -122,7 +122,7 @@ test("{§swebench-container-runtime} cancellation drains only its candidate and 
     assert.notEqual(peers[0].network, peers[1].network, "trials own different networks");
     for (const [index, peer] of peers.entries()) {
         const other = peers[1 - index];
-        shell("docker", ["exec", peer.main, "/opt/harness/bin/node", "--input-type=module", "-e", `
+        shell("docker", ["exec", peer.main, "/opt/plurnk/bin/node", "--input-type=module", "-e", `
             import assert from "node:assert/strict";
             assert.equal(await (await fetch("http://127.0.0.1:${peer.port}/isolation-check")).text(), "trial-listener");
             for (const headers of [{}, { host: "example.com" }]) {

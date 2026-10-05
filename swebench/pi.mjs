@@ -191,7 +191,7 @@ export async function runPiTrial({ instance, profilePath, preflight = false, sig
         if (profile.baseUrl) json(join(configDir, "models.json"), providerDefinition(profile, credential));
         json(join(agentDir, "profile.json"), profile);
         const prompt = taskPrompt(manifest.problemStatement);
-        const argv = piArguments(profile, "/logs/agent/sessions", prompt, "/opt/harness/pi-extension.mjs");
+        const argv = piArguments(profile, "/var/lib/plurnk/sessions", prompt, "/opt/plurnk/pi-extension.mjs");
         const provenance = { agent: "pi", version, instance, profile, model, imageId, startHead, datasetRevision: manifest.datasetRevision,
             baseCommit: manifest.baseCommit, repository, taskPrompt: prompt, argv, node: process.version, startedAt: new Date().toISOString() };
         json(join(trialDir, "provenance.json"), provenance);
@@ -201,8 +201,8 @@ export async function runPiTrial({ instance, profilePath, preflight = false, sig
             allowedHosts, preflight, argv: preflight ? ["pi", "--preflight"] : ["pi", ...argv],
             env: { ...(credential && process.env[credential] ? { [credential]: process.env[credential] } : {}),
                 ...(credential === LOCAL_CREDENTIAL ? { [LOCAL_CREDENTIAL]: "local" } : {}),
-                PI_CODING_AGENT_DIR: "/logs/agent/config", PI_TELEMETRY: "0",
-                PLURNK_PI_PROFILE: "/logs/agent/profile.json", PLURNK_PI_AGENT_DIR: "/logs/agent" },
+                PI_CODING_AGENT_DIR: "/var/lib/plurnk/config", PI_TELEMETRY: "0",
+                PLURNK_PI_PROFILE: "/var/lib/plurnk/profile.json", PLURNK_PI_AGENT_DIR: "/var/lib/plurnk" },
         }, { signal, timeoutMs: profile.timeoutSeconds * 1000 });
         if (preflight) {
             if (result.status !== 0) throw new Error(`Pi preflight failed; see ${trialDir}/container.stderr.log`);

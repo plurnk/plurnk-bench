@@ -6,7 +6,7 @@ import { once } from "node:events";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
-const evidence = "/logs/agent";
+const evidence = "/var/lib/plurnk";
 const requests = [];
 const op = (header, body = "") => `\`\`\`\`${header}\n${body}\n\`\`\`\``;
 const programs = [

@@ -785,9 +785,10 @@ reimplementation of its agent loop or an assertion that the study was reproduced
   Harbor restores host ownership before teardown. Cancellation drains the
   candidate before container teardown.
 - §swebench-model-account The model's commands run as an account of their own. Inside the task container the
-  daemon runs as the image's user; every executor subprocess runs as `plurnk-model` (uid 60007, home
-  `/tmp/plurnk-model`), set through the service's `PLURNK_EXECS_SPAWN_USER`. The evidence folder `/logs/agent`
-  closes to its owner and the harness bundle at `/opt/harness` is the host's at 0700, so neither the daemon's
+  daemon runs as the image's user; every executor subprocess runs as `plurnk` (uid 60007, home `/home/plurnk`),
+  set through the service's `PLURNK_EXECS_SPAWN_USER`. Every name the model can list is an ordinary plurnk
+  host's: the state directory `/var/lib/plurnk` closes to its owner and the install at `/opt/plurnk` is the
+  host's at 0700, so neither the daemon's
   database nor the bundle's adapter files are readable from the model's shell. The trial copy at `/testbed`
   belongs to the account, group-writable with set-group-id directories, and the daemon writes under umask 002,
   so what the daemon creates stays writable to the model's commands; the daemon's own git trusts the root it
