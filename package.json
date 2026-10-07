@@ -1,6 +1,6 @@
 {
     "name": "@plurnk/plurnk-bench",
-    "version": "0.1.1",
+    "version": "2.0.0",
     "description": "Benchmarking harnesses for the plurnk agent service — drive real benchmark task sets through @plurnk/plurnk, store/score/report the runs.",
     "type": "module",
     "private": true,
@@ -15,10 +15,11 @@
         "test": "npm run test:lint && npm run test:driver && npm run test:unit"
     },
     "dependencies": {
-        "@modelcontextprotocol/client": "2.0.0",
+        "@modelcontextprotocol/client": "2.2.0",
         "@modelcontextprotocol/server": "2.0.0",
-        "@plurnk/plurnk-contracts": "^1.4.0",
-        "@plurnk/plurnk-service": "^1.11.0",
+        "@plurnk/plurnk-contracts": "^2.0.0",
+        "@plurnk/plurnk-digest": "^2.0.0",
+        "@plurnk/plurnk-service": "^2.0.0",
         "@streamparser/json": "^0.0.26"
     },
     "devDependencies": {

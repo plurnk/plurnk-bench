@@ -1,5 +1,5 @@
 import { test, type TestContext } from "node:test";
-import Digest from "@plurnk/plurnk-service/digest";
+import { Digest } from "@plurnk/plurnk-digest";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, mkdirSync, rmSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -230,8 +230,9 @@ test("[§results-canon] the one benchmarks home is ~/benchmarks unless PLURNK_BE
 
 test("[§publish-requiem] the requiem is banked only on PLURNK_BENCH_REQUIEM=1", () => {
     const source = readFileSync(new URL("./publish.ts", import.meta.url), "utf8");
-    assert.match(source, /if \(process\.env\.PLURNK_BENCH_REQUIEM === "1"\) \{\s*try \{\s*await Digest\.requiem\(/);
-    assert.equal((source.match(/Digest\.requiem\(/g) ?? []).length, 1);
+    assert.match(source, /if \(process\.env\.PLURNK_BENCH_REQUIEM === "1"\) \{\s*try \{[\s\S]*?manifest\.bin\["plurnk-service"\]\), "requiem",/);
+    assert.equal((source.match(/"requiem", join\(dir/g) ?? []).length, 1);
+    assert.doesNotMatch(source, /loadActiveProvider|Digest\.requiem\(/, "the service CLI owns witness selection and configuration");
 });
 
 test("[§publish-requiem-accounting] a banked interview's spend folds into record.json under requiem", () => {

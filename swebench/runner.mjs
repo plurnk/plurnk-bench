@@ -63,8 +63,9 @@ try {
     try {
         if (daemon) {
             await daemon.stop();
-            const { default: Share } = await import("@plurnk/plurnk-service/share");
-            await Share.write({ dbPath, folder: join(evidence, "digest") });
+            const { Share } = await import("@plurnk/plurnk-digest");
+            const { default: EvidenceReader } = await import("@plurnk/plurnk-service/evidence");
+            await Share.write({ openEvidence: EvidenceReader.open, dbPath, folder: join(evidence, "digest") });
         }
     } finally { rmSync(pidPath); }
 }

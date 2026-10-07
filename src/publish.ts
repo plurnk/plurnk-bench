@@ -1,8 +1,8 @@
 // SPEC §publish / §results-canon. Publish a bench run to the one shared, human-referenceable
 // tree so anyone can inspect it by name: <home>/run<N>-<harness>-<task>-<model>/{plurnk.db,
-// digest/, record.json}. Copies the run's DB through the daemon's own Share.snapshot
+// digest/, record.json}. Copies the run's DB through the report package's Share.snapshot
 // ({§share-snapshot}: SQLite, never the filesystem, so committed WAL pages are kept), renders
-// its digest (reusing the daemon's Digest — bench builds no forensics), and writes the joined
+// its digest (reusing the report package's Digest — bench builds no forensics), and writes the joined
 // BenchRecord (the oracle side:
 // reward/outcome, which the DB+digest do NOT carry) so the run dir is a COMPLETE,
 // self-sufficient results source — read it here, never the jobs/ scratch.
@@ -12,11 +12,13 @@
 // marker names the run dir.
 
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { execFile } from "node:child_process";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { setTimeout as sleep } from "node:timers/promises";
-import { parseArgs } from "node:util";
-import Digest from "@plurnk/plurnk-service/digest";
-import Share from "@plurnk/plurnk-service/share";
+import { parseArgs, promisify } from "node:util";
+import { Digest, Share } from "@plurnk/plurnk-digest";
+import EvidenceReader from "@plurnk/plurnk-service/evidence";
 import { summarizeDigestAccounting, summarizeRequiemAccounting } from "./accounting.ts";
 import type { DigestAccountingInput, RequiemAccountingInput } from "./accounting.ts";
 import { isTrialDir, readTrialDir } from "./ingest.ts";
@@ -109,10 +111,9 @@ export const publishRun = (record: BenchRecord, benchmarksDir: string, options: 
     if (record.run.digestDir !== undefined && !own) {
         cpSync(record.run.digestDir, digestDir, { recursive: true });
     } else if (record.run.digestDir === undefined) {
-        // SPEC §publish-workspace-scope (#450): the digest is the run's FULL workspace —
-        // worker narrowing would exclude the vector pump's workspace-owned (turnless)
-        // embedding derivations and any child worker's own evidence.
+        // {§publish-workspace-scope}: retain workspace and child-worker evidence.
         Digest.run({
+            openEvidence: EvidenceReader.open,
             dbPath: db,
             digestDir,
             ...(record.run.workspaceId !== undefined ? { workspaceId: record.run.workspaceId } : {}),
@@ -166,7 +167,11 @@ export const publishTrial = async (trialDir: string, harness: string, benchmarks
     let note = "";
     if (process.env.PLURNK_BENCH_REQUIEM === "1") {
         try {
-            await Digest.requiem({ dbPath: join(dir, "plurnk.db"), digestDir: join(dir, "digest") });
+            const manifestPath = fileURLToPath(import.meta.resolve("@plurnk/plurnk-service/package.json"));
+            const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as { bin: { "plurnk-service": string } };
+            await promisify(execFile)(process.execPath, [
+                resolve(dirname(manifestPath), manifest.bin["plurnk-service"]), "requiem", join(dir, "plurnk.db"), join(dir, "digest"),
+            ]);
             note = " + requiem";
         } catch (e) {
             note = ` (requiem skipped: ${(e as Error).message.slice(0, 70)})`;

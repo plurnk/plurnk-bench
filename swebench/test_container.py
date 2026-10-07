@@ -54,9 +54,15 @@ class ContainerContract(unittest.TestCase):
                 path = Path(root) / name
                 path.mkdir()
                 request[name] = str(path)
+            with self.assertRaisesRegex(ValueError, "runtime bundle has no bin/node"):
+                configuration(request)
+            node = Path(request["runtime"]) / "bin" / "node"
+            node.parent.mkdir()
+            node.write_text("node fixture\n")
             mounts, policy = configuration(request)
             self.assertEqual([m["target"] for m in mounts], ["/opt/plurnk", "/testbed", "/var/lib/plurnk", "/usr/local/bin/node"])
-            self.assertEqual([m["read_only"] for m in mounts], [True, False, False])
+            self.assertEqual([m["read_only"] for m in mounts], [True, False, False, True])
+            self.assertEqual(mounts[-1]["source"], str(node))
             self.assertEqual(policy, {"network_mode": "allowlist", "allowed_hosts": ["api.example.com"]})
             request["allowedHosts"] = []
             with self.assertRaisesRegex(ValueError, "explicit model-host"):

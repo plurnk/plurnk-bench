@@ -107,8 +107,8 @@ never zero; gross-token metrics require both complete input and output counts.
 
 ## §digest-boundary Bench never reads the daemon DB
 
-DB→forensics belongs to the daemon's own digest (reused via
-`@plurnk/plurnk-service/digest`), backed by the SqlRite ORM — bench holds a **pointer**
+DB interpretation belongs to the service's public `EvidenceReader`; report and snapshot
+generation belong to `@plurnk/plurnk-digest`. Bench holds a **pointer**
 (`RunRef.dbPath`), renders through `Digest.run` when it publishes a run, and issues zero raw SQL. The handle rules:
 loop doc carried `workspace`+`workerId` -> scoped handle; crash/error doc but a DB was copied ->
 `dbPath`-only handle (digest renders the whole DB); no DB copied → no handle, honestly
@@ -123,7 +123,8 @@ Covered: `ingest.test.ts [§digest-boundary]` ×2, `digest.test.ts [§digest-bou
 
 The bench imports runtime-neutral Problems, operation-result validation, and their types
 directly from the independently published `@plurnk/plurnk-contracts` package. It imports
-daemon-owned digest behavior from `@plurnk/plurnk-service/digest`. Both dependencies resolve
+report generation from `@plurnk/plurnk-digest` and supplies the service's public
+`EvidenceReader.open` from `@plurnk/plurnk-service/evidence`. These dependencies resolve
 from the public npm registry and the committed lockfile; a sibling checkout, workspace link,
 local path, or unpublished package is never part of the bench's install contract.
 
@@ -169,11 +170,11 @@ Covered: `ingest.test.ts [§provenance]`.
 ## §publish The published run is the complete, canonical result
 
 `publishRun` writes `<plurnk>/benchmarks/run<N>/` containing **`plurnk.db`** (the daemon DB,
-copied through the service's `Share.snapshot` — SQLite's consistent copy, so committed pages
+copied through `@plurnk/plurnk-digest`'s `Share.snapshot` — SQLite's consistent copy, so committed pages
 still in the trial's `-wal` file arrive, {§share-snapshot}), **`digest/`** (rendered from the
 COPY — the dir is self-contained), and **`record.json`** (the joined landing: the oracle side
 the DB+digest cannot carry). The run dir is a plain folder, never an archive; the bench's own
-layout sits over the service's snapshot and digest, and adds no copy or zip of its own.
+layout sits over the report package's snapshot and digest, and adds no copy or zip of its own.
 Covered: `publish.test.ts [§publish] {§share-snapshot}`.
 
 - §publish-numbering `run<N>-<harness>-<task>-<model>`: N continues the tree (max existing + 1,
@@ -198,7 +199,8 @@ Covered: `publish.test.ts [§publish] {§share-snapshot}`.
 - §publish-requiem The requiem (`digest/requiem.md` — the model's exit interview, which
   re-invokes the model once per published run) is an investigation instrument, banked only
   when the operator asks: `PLURNK_BENCH_REQUIEM=1` (SPEC §config-bench-namespace). When
-  requested it is BEST-EFFORT under the carried provider config: a missing witness is a
+  requested it invokes the installed service's `requiem` command, which owns provider
+  selection and configuration. It is BEST-EFFORT: a missing witness is a
   skip, never a publish failure. Covered: `src/publish.test.ts [§publish-requiem]` (the
   opt-in gate); the live requiem itself is validated against real runs only.
 - §publish-digest-provenance A digest is read by the runtime that wrote the database. A trial whose
