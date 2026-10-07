@@ -113,7 +113,7 @@ class DriverContractTest(unittest.TestCase):
 
         asyncio.run(agent.run("- List the accounts.", environment, object()))
 
-        self.assertIn("plurnk --json --auto ", environment.command)
+        self.assertIn("plurnk --json --yolo ", environment.command)
         self.assertIn('--capabilities \'{"deny": [{"traits": ["web"]}]}\'', environment.command)
         self.assertNotIn("--flags", environment.command)
         self.assertIn("--project-root '' ", environment.command)
