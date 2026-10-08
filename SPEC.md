@@ -804,10 +804,9 @@ reimplementation of its agent loop or an assertion that the study was reproduced
 - §swebench-conditions The candidate uses the ordinary cascade
   ({§config-model-default}); the study's effort setting is
   `PLURNK_PROVIDERS_EFFORT_<alias>`. No positional or family-specific
-  candidate selector. The invocation states a proposal **disposition**: `--auto` is
-  attendance only, so an unattended loop with none stated falls to the shipped
-  `PLURNK_SERVICE_UNATTENDED_PROPOSALS=reject` and every EDIT is refused
-  `no_review_channel` — the candidate cannot change one file (plurnk-bench#42).
+  candidate selector. The client uses `--yolo`; the benchmark environment declares
+  `PLURNK_SERVICE_PROPOSALS=accept` for all workers. Messages and schedules carry no
+  approval policy.
 - §swebench-prompt The task prompt asks for an ordinary repository repair: the
   official issue, unchanged except for outer whitespace and delimited by `<issue>`,
   followed by an instruction to implement the fix in the working tree and verify

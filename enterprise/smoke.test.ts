@@ -40,9 +40,8 @@ test("[§config-package-version] the runner pins resolved service and client pub
 test("[§config-carry] the minimal manifest carries the alias layer and its credentials only", () => {
     assert.match(smoke, /providers\.json/);
     assert.match(smoke, /flags=\(--agent-env "PLURNK_MODEL=\$MODEL"\)/);
-    // Unattended posture rides alongside the manifest, never inside it: the driver runs --auto and
-    // the product ships `reject`, so a candidate without this refuses every host effect.
-    assert.match(smoke, /flags\+=\(--agent-env "PLURNK_SERVICE_UNATTENDED_PROPOSALS=\$PLURNK_SERVICE_UNATTENDED_PROPOSALS"\)/);
+    // Server approval is benchmark configuration, not a per-message grant.
+    assert.match(smoke, /flags\+=\(--agent-env "PLURNK_SERVICE_PROPOSALS=\$PLURNK_SERVICE_PROPOSALS"\)/);
     assert.doesNotMatch(smoke, /_BASE_URL\$\|_API_KEY\$/);
     assert.match(smoke, /PLURNK_BENCH_HARNESS=enterprise node src\/publish\.ts/);
 });
