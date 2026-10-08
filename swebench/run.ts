@@ -57,7 +57,7 @@ export const taskPrompt = (problemStatement: string): string => [
     "This environment has no network access: the repository and its installed dependencies are all that is available.",
 ].join("\n");
 
-// {§swebench-conditions} {§swebench-profiles} — ordinary client invocation, local approval,
+// {§swebench-conditions} {§swebench-profiles} — ordinary client invocation, stated disposition,
 // and the study's turn cap as the bound.
 export const candidateArgv = (
     repository: string,
@@ -67,7 +67,8 @@ export const candidateArgv = (
 ): string[] => [
     "plurnk",
     "--json",
-    "--yolo",
+    "--auto",
+    "--proposals", "accept",
     "--max-turns", String(turnCap),
     "--project-root", repository,
     ...(timeout === -1 ? [] : ["--timeout", String(timeout)]),

@@ -1,18 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { parseEnv } from "node:util";
 import { plurnkEnvironment } from "./runtime.ts";
 
 const root = resolve(import.meta.dirname, "..");
-
-test("{§swebench-conditions} the benchmark's server approval policy reaches every candidate worker", async () => {
-    const defaults = parseEnv(readFileSync(resolve(root, ".env.defaults"), "utf8"));
-    assert.equal(defaults.PLURNK_SERVICE_PROPOSALS, "accept");
-    const env = await plurnkEnvironment(root, "deepseek/deepseek-chat", defaults);
-    assert.equal(env.PLURNK_SERVICE_PROPOSALS, "accept");
-});
 
 test("{§swebench-network} the candidate inherits route tuning and only its provider's credentials", async () => {
     const env = {

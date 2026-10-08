@@ -6,11 +6,12 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { candidateArgv, exceptionInfo, extractPlurnkDoc, runToFiles, taskPrompt } from "./run.ts";
 
-test("[§swebench] the candidate runs the ordinary client: --json, --yolo, the task prompt after --", () => {
+test("[§swebench] the candidate runs the ordinary client: --json, --auto, the task prompt after --", () => {
     assert.deepEqual(candidateArgv("/runs/run1/repo", 1680, "Fix the missing-data crash", 100), [
         "plurnk",
         "--json",
-        "--yolo",
+        "--auto",
+        "--proposals", "accept",
         "--max-turns", "100",
         "--project-root", "/runs/run1/repo",
         "--timeout", "1680",
@@ -18,16 +19,18 @@ test("[§swebench] the candidate runs the ordinary client: --json, --yolo, the t
     ]);
 });
 
-test("{§swebench-conditions} the candidate approves locally without retired per-loop policy flags", () => {
+test("[§swebench-conditions] the candidate states a proposal disposition, or it cannot edit at all", () => {
     const argv = candidateArgv("/runs/run1/repo", -1, "task", 100);
-    assert.ok(argv.includes("--yolo"), "the benchmark explicitly enables client approval");
-    assert.ok(!argv.includes("--auto"));
-    assert.ok(!argv.includes("--proposals"));
+    // --auto is attendance, not disposition. Without an explicit accept the loop is unattended
+    // and every EDIT is refused no_review_channel against the shipped reject (plurnk-bench#42).
+    const disposition = argv[argv.indexOf("--proposals") + 1];
+    assert.equal(disposition, "accept", "an unattended loop with no stated disposition cannot change a file");
+    assert.ok(argv.includes("--auto"), "attendance is still stated");
 });
 
 test("[§swebench] -1 is the no-limit idiom: no --timeout flag is emitted", () => {
     assert.deepEqual(candidateArgv("/r", -1, "p", 100), [
-        "plurnk", "--json", "--yolo",
+        "plurnk", "--json", "--auto", "--proposals", "accept",
         "--max-turns", "100", "--project-root", "/r", "--", "p",
     ]);
 });
