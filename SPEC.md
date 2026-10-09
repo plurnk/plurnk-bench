@@ -836,6 +836,23 @@ reimplementation of its agent loop or an assertion that the study was reproduced
   by the manifest and by the corpus citation; the wall clock is a runaway guard set
   far above any plausible rollout. A rollout truncated on seconds records a timeout
   where the study would have recorded a turn count.
+- §swebench-friction Friction reporting projects durable engine outcomes, not a second
+  parser. These views overlap and must not be summed as independent failures:
+
+  | View | Evidence and meaning |
+  | --- | --- |
+  | Model turns | Distinct `turn_attempts.turn_id`; copied history and runtime turns are not new model work. |
+  | Fence-free content | Raw `turn.program` has no backtick fence opener. This is a format observation, not failed admission. Missing source is unknown. |
+  | Admitted fence-free content | That turn has an engine emission receipt (`attrs.kind=emission`); exact native-call recovery may produce one. Reasoning-only operations need not. |
+  | No-operation turns | Distinct attempted turns with the engine's own `error` receipt for `engine/rail/no-operation`, regardless of their raw syntax; reading or observing someone else's failure is not such an outcome. |
+  | Failed receipts | Status ≥400, grouped by family and provenance: authored model work, automatic runtime observations, ambient observations, inherited history, or unknown. Inheritance takes precedence over origin; an original model row may itself carry an ambient event ID. |
+  | Failed execution streams | READ receipts carrying an `executor/*` Problem, grouped by resource URI without its channel fragment, within one trial. Repeated reads, stdout/stderr and observer copies remain receipts of one execution. Other READ failures are not producer failures. |
+
+  Missing digest sections remain unknown, and aggregate reports show their coverage.
+  Missing provenance fields in older exports are unclassified, never assumed to be
+  fresh authored work. Stream failures are execution evidence (for example, a red
+  test command), not automatically harness defects. Original receipts remain available
+  in the digest; grouping never alters their evidence or the oracle verdict.
 - §swebench-cost The study's fixed direct-API price list is a declared confound
   against `plurnk-models` catalog rates; spend evidence is the daemon's own
   accounting ({§record-serial}, {§digest-boundary}).

@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { frictionOf } from "./friction.ts";
 import test from "node:test";
 import { baselinesFor, compare, compareBaselines, perTask, renderComparison } from "./comparison.ts";
 import type { TrialRow } from "./report.ts";
@@ -8,7 +9,7 @@ const row = (over: Partial<TrialRow>): TrialRow => ({
     turns: 12, requests: 14, rejectedEmissions: 0, tokens: { input: 400_000, cached: 100_000, output: 20_000, reasoning: 5_000 },
     costUsd: 0.12, knownCostUsd: over.costUsd === undefined ? 0.12 : over.costUsd,
     pricedRequests: over.costUsd === null ? 0 : 14, costEvidence: { charged: 14, estimated: 0, unknown: 0 },
-    wallMs: 600_000, emptyTurns: 0, webReferences: 0, webAttempts: 0, webReads: 0, mcpCalls: 0, refused: {}, edits: null, evidence: "/tmp/x", ...over,
+    wallMs: 600_000, friction: frictionOf({ turns: [], turn_attempts: [], log_entries: [] }), webReferences: 0, webAttempts: 0, webReads: 0, mcpCalls: 0, edits: null, evidence: "/tmp/x", ...over,
 });
 
 const fixture = (): TrialRow[] => [

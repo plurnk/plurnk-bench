@@ -13,6 +13,7 @@ import { summarizeDigestAccounting, type CostEvidence, type DigestAccountingInpu
 import { median } from "../src/statistics.ts";
 import { readDigest } from "../src/digest.ts";
 import { baselinesFor, compareBaselines, renderComparison, type Comparison } from "./comparison.ts";
+import { frictionOf, receiptOrigin, summarizeFriction, type DigestTurn, type Friction, type FrictionInput, type FrictionSummary } from "./friction.ts";
 
 export interface TrialRow {
     readonly instance: string;
@@ -32,12 +33,11 @@ export interface TrialRow {
     readonly pricedRequests: number | null;
     readonly costEvidence: CostEvidence | null;
     readonly wallMs: number | null;
-    readonly emptyTurns: number;    // emissions with no fence at all: prose, or a foreign tool-call grammar (plurnk-service#840)
+    readonly friction: Friction;
     readonly webReferences: number; // web scheme references the first packet taught: doors the model was shown
-    readonly webAttempts: number;   // model-issued http(s) operations, whatever the receipt said
-    readonly webReads: number;      // the ones that were served (status < 400): a real leak
-    readonly mcpCalls: number;
-    readonly refused: Readonly<Record<string, number>>;
+    readonly webAttempts: number | null;   // model-issued http(s) operations, whatever the receipt said
+    readonly webReads: number | null;      // the ones that were served (status < 400): a real leak
+    readonly mcpCalls: number | null;
     // the service's `§digest-edit-census` (service): every model EDIT by authored form, refusals, and revisits.
     readonly edits: EditCensus | null;
     readonly evidence: string;
@@ -52,13 +52,12 @@ export interface EditCensus {
 
 export interface CampaignSummary {
     readonly trials: number;
-    readonly refusedByOp: Readonly<Record<string, number>>;
+    readonly friction: FrictionSummary;
     readonly rejectedEmissions: number;
     readonly emptyPatches: number;
     readonly exceptions: Readonly<Record<string, number>>;
-    readonly emptyTurns: number;
     readonly edits: EditCensus;
-    readonly isolation: { readonly webReferences: number; readonly webAttempts: number; readonly webReads: number; readonly mcpCalls: number; readonly trialsTouched: number };
+    readonly isolation: { readonly webReferences: number; readonly webAttempts: number; readonly webReads: number; readonly mcpCalls: number; readonly trialsTouched: number; readonly classifiedTrials: number };
     readonly loopsEnded: Readonly<Record<string, number>>;   // loops the daemon ended (status ≥ 400), by status
     readonly graded: number;
     readonly resolved: number;
@@ -74,12 +73,8 @@ export interface CampaignSummary {
     };
 }
 
-interface LogEntry { origin?: string; op?: string | null; target?: string | null; status_rx?: number | null }
-// {§share-packet-names}: a turn's packet files share the stem digest.json records as `artifact`
-// (null when the turn wrote none); the array is the digest's own turn order.
-export interface DigestTurn { artifact?: string | null }
 interface DigestWorker { edit_census?: { edits: number; refused: number; revisits: number; forms: Record<string, number> } | null }
-interface Digest extends DigestAccountingInput { log_entries?: LogEntry[]; turns?: DigestTurn[]; workers?: DigestWorker[] }
+type Digest = DigestAccountingInput & FrictionInput & { workers?: DigestWorker[] };
 
 // The trial's EDIT census is the sum over its workers of what the digest counted; a digest
 // without the census (an older service) leaves it null rather than zero.
@@ -124,14 +119,9 @@ const digestDir = (trialDir: string): string => {
 const WEB_SCHEMES: ReadonlySet<string> = new Set(["https", "wss"]);
 // The packet files of the given kind, in the digest's turn order: the stems digest.json names,
 // kept when the turn wrote that file.
-const packetFiles = (digest: string, turns: readonly DigestTurn[], kind: "assistant" | "user"): string[] => turns
+const packetFiles = (digest: string, turns: readonly DigestTurn[], kind: "user"): string[] => turns
     .flatMap(({ artifact }) => (typeof artifact === "string" ? [join(digest, `${artifact}.${kind}.md`)] : []))
     .filter((path) => existsSync(path));
-
-// An emission the parser could admit nothing from: no line opens a fence. Counted from the raw
-// assistant packets, so a model's native tool-call markup and plain prose both show as friction.
-export const emptyTurnsOf = (digest: string, turns: readonly DigestTurn[]): number => packetFiles(digest, turns, "assistant")
-    .filter((path) => !/^ {0,3}```/mu.test(readFileSync(path, "utf8"))).length;
 
 export const webReferencesTaught = (digest: string, turns: readonly DigestTurn[]): number => {
     const [first] = packetFiles(digest, turns, "user");
@@ -150,9 +140,8 @@ export const readTrialRow = (trialDir: string, attempt: number): TrialRow | null
     const accounting = digest === null ? null : summarizeDigestAccounting(digest);
     const usage = accounting?.usage ?? null;
     const aliases = maskedAliases(trialDir);
-    const entries = (digest?.log_entries ?? []).filter((entry) => entry.origin !== "_plurnk");
-    const refused: Record<string, number> = {};
-    for (const entry of entries) if (typeof entry.status_rx === "number" && entry.status_rx >= 400) count(refused, entry.op ?? "?");
+    const entries = (digest?.log_entries ?? []).filter((entry) => receiptOrigin(entry) === "authored");
+    const classified = digest?.log_entries !== undefined && !digest.log_entries.some((entry) => entry.origin === "model" && receiptOrigin(entry) === "unknown");
     const ex = result?.exception_info ?? null;
     return {
         instance: record.taskId,
@@ -177,24 +166,21 @@ export const readTrialRow = (trialDir: string, attempt: number): TrialRow | null
         pricedRequests: accounting?.pricedRequests ?? null,
         costEvidence: accounting?.costEvidence ?? null,
         wallMs: record.durationMs > 0 ? record.durationMs : null,
-        emptyTurns: emptyTurnsOf(digestDir(trialDir), digest?.turns ?? []),
+        friction: frictionOf(digest),
         webReferences: webReferencesTaught(digestDir(trialDir), digest?.turns ?? []),
-        webAttempts: entries.filter((entry) => typeof entry.target === "string" && /^https?:\/\//u.test(entry.target)).length,
-        webReads: entries.filter((entry) => typeof entry.target === "string" && /^https?:\/\//u.test(entry.target) && typeof entry.status_rx === "number" && entry.status_rx < 400).length,
-        mcpCalls: entries.filter((entry) => typeof entry.op === "string" && aliases.has(entry.op.toLowerCase())).length,
-        refused,
+        webAttempts: classified ? entries.filter((entry) => typeof entry.target === "string" && /^https?:\/\//u.test(entry.target)).length : null,
+        webReads: classified ? entries.filter((entry) => typeof entry.target === "string" && /^https?:\/\//u.test(entry.target) && typeof entry.status_rx === "number" && entry.status_rx < 400).length : null,
+        mcpCalls: classified ? entries.filter((entry) => typeof entry.op === "string" && aliases.has(entry.op.toLowerCase())).length : null,
         edits: editsOf(digest),
         evidence: trialDir,
     };
 };
 
 export const summarize = (rows: readonly TrialRow[]): CampaignSummary => {
-    const refusedByOp: Record<string, number> = {};
     const exceptions: Record<string, number> = {};
     const loopsEnded: Record<string, number> = {};
     for (const row of rows) {
         if (row.loopStatus >= 400) count(loopsEnded, String(row.loopStatus));
-        for (const [op, n] of Object.entries(row.refused)) refusedByOp[op] = (refusedByOp[op] ?? 0) + n;
         if (row.exception !== null) count(exceptions, row.exception.split(":")[0]!);
     }
     const graded = rows.filter((row) => row.reward !== null);
@@ -203,11 +189,10 @@ export const summarize = (rows: readonly TrialRow[]): CampaignSummary => {
     const knownCosts = rows.map((row) => row.knownCostUsd).filter((value): value is number => value !== null);
     return {
         trials: rows.length,
-        refusedByOp,
+        friction: summarizeFriction(rows.map((row) => row.friction)),
         rejectedEmissions: sum(rows.map((row) => row.rejectedEmissions ?? 0)),
         emptyPatches: rows.filter((row) => row.emptyPatch).length,
         exceptions,
-        emptyTurns: sum(rows.map((row) => row.emptyTurns)),
         edits: {
             count: sum(rows.map((row) => row.edits?.count ?? 0)),
             refused: sum(rows.map((row) => row.edits?.refused ?? 0)),
@@ -219,10 +204,11 @@ export const summarize = (rows: readonly TrialRow[]): CampaignSummary => {
         },
         isolation: {
             webReferences: sum(rows.map((row) => row.webReferences)),
-            webAttempts: sum(rows.map((row) => row.webAttempts)),
-            webReads: sum(rows.map((row) => row.webReads)),
-            mcpCalls: sum(rows.map((row) => row.mcpCalls)),
-            trialsTouched: rows.filter((row) => row.webReads + row.mcpCalls > 0).length,
+            webAttempts: sum(rows.map((row) => row.webAttempts ?? 0)),
+            webReads: sum(rows.map((row) => row.webReads ?? 0)),
+            mcpCalls: sum(rows.map((row) => row.mcpCalls ?? 0)),
+            trialsTouched: rows.filter((row) => (row.webReads ?? 0) + (row.mcpCalls ?? 0) > 0).length,
+            classifiedTrials: rows.filter((row) => row.webAttempts !== null && row.mcpCalls !== null).length,
         },
         loopsEnded,
         graded: graded.length,
@@ -257,13 +243,17 @@ export const render = (campaign: { corpus?: string; model?: string | null; servi
     "",
     "## Friction",
     "",
-    `- refused or failed operations by family: ${pairs(summary.refusedByOp)}`,
+    `- failed receipt evidence: ${summary.friction.failureTrials}/${summary.trials} trials`,
+    ...(summary.friction.receipts === null ? ["- failed receipts: unknown"] : Object.entries(summary.friction.receipts).map(([origin, counts]) => `- failed ${origin} receipts by family: ${pairs(counts)}`)),
+    `- distinct failed execution streams: ${num(summary.friction.executionStreams)} (${num(summary.friction.executionReceipts)} READ receipts; ${num(summary.friction.unaddressedExecutionReceipts)} without a resource address)`,
+    "- receipt groups and stream counts overlap; command failure alone is not a harness defect",
     `- rejected emissions: ${summary.rejectedEmissions}`,
     `- empty patches: ${summary.emptyPatches}`,
     `- harness exceptions: ${pairs(summary.exceptions)}`,
-    `- indecipherable turns (no fence emitted): ${summary.emptyTurns}`,
+    `- turn evidence: ${summary.friction.turnTrials}/${summary.trials} trials; raw content ${num(summary.friction.turns?.rawEmissions ?? null)}/${num(summary.friction.turns?.modelTurns ?? null)} model turns`,
+    `- fence-free content: ${num(summary.friction.turns?.fenceFree ?? null)}; with admitted content operations: ${num(summary.friction.turns?.fenceFreeAdmitted ?? null)}; engine no-operation outcomes: ${num(summary.friction.turns?.noOperation ?? null)}`,
     `- EDITs: ${summary.edits.count} (${pairs(summary.edits.forms)}) · refused ${summary.edits.refused} · revisits ${summary.edits.revisits}`,
-    `- isolation witness: ${summary.isolation.webReferences} web references taught, ${summary.isolation.webAttempts} model-issued web operations attempted, ${summary.isolation.webReads} served, ${summary.isolation.mcpCalls} MCP calls; ${summary.isolation.trialsTouched} trials leaked`,
+    `- isolation witness: ${summary.isolation.webReferences} web references taught; ${summary.isolation.classifiedTrials}/${summary.trials} trials with classified operations: ${summary.isolation.webAttempts} model-issued web operations attempted, ${summary.isolation.webReads} served, ${summary.isolation.mcpCalls} MCP calls; ${summary.isolation.trialsTouched} trials leaked`,
     `- loops ended by the daemon (status ≥ 400): ${pairs(summary.loopsEnded)}`,
     "",
     "## Verdicts",
@@ -280,9 +270,9 @@ export const render = (campaign: { corpus?: string; model?: string | null; servi
     ...(comparison === null ? [] : renderComparison(comparison, `Plurnk · ${campaign.model ?? "?"}`)),
     "## Trials",
     "",
-    "| instance | att | outcome | loop | reward | empty | turns | req | in | cached | out | reason | cost | wall | web | mcp | refused | edits | exception |",
+    "| instance | att | outcome | loop | reward | empty | turns | req | in | cached | out | reason | cost | wall | web | mcp | failed authored receipts | edits | exception |",
     "| --- | ---: | --- | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- | --- | --- |",
-    ...rows.map((row) => `| ${row.instance} | ${row.attempt} | ${row.outcome} | ${row.loopStatus} | ${row.reward ?? "—"} | ${row.emptyPatch ? "yes" : ""} | ${row.turns} | ${row.requests ?? "—"} | ${row.tokens?.input ?? "—"} | ${row.tokens?.cached ?? "—"} | ${row.tokens?.output ?? "—"} | ${row.tokens?.reasoning ?? "—"} | ${usd(row.costUsd)} | ${minutes(row.wallMs)} | ${row.webAttempts}/${row.webReads} | ${row.mcpCalls} | ${pairs(row.refused)} | ${row.edits === null ? "—" : `${row.edits.count}/${row.edits.refused}/${row.edits.revisits}`} | ${row.exception ?? ""} |`),
+    ...rows.map((row) => `| ${row.instance} | ${row.attempt} | ${row.outcome} | ${row.loopStatus} | ${row.reward ?? "—"} | ${row.emptyPatch ? "yes" : ""} | ${row.turns} | ${row.requests ?? "—"} | ${row.tokens?.input ?? "—"} | ${row.tokens?.cached ?? "—"} | ${row.tokens?.output ?? "—"} | ${row.tokens?.reasoning ?? "—"} | ${usd(row.costUsd)} | ${minutes(row.wallMs)} | ${row.webAttempts ?? "—"}/${row.webReads ?? "—"} | ${row.mcpCalls ?? "—"} | ${row.friction.failures === null ? "—" : pairs(row.friction.failures.receipts.authored)} | ${row.edits === null ? "—" : `${row.edits.count}/${row.edits.refused}/${row.edits.revisits}`} | ${row.exception ?? ""} |`),
     "",
 ].join("\n");
 

@@ -108,7 +108,10 @@ failed trial.
 `--limit`, `--only`, and `--jobs` bound the selected work and concurrency.
 
 Add `--json` to the report command for machine-readable results. Read failure
-and missing-telemetry sections alongside the aggregate scores.
+and missing-telemetry sections alongside the aggregate scores. Friction separates
+raw format, actual no-operation outcomes, failed receipts by provenance, and
+distinct failed execution streams; these overlapping views are not a failure score.
+Older exports without provenance remain explicitly unclassified.
 
 ## Native Pi comparison
 
