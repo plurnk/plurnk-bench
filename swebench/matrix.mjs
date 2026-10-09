@@ -6,12 +6,16 @@ import { parseArgs } from "node:util";
 import { jobsRoot, loadBenchmarkEnvironment } from "../src/host-paths.ts";
 import { runToFiles } from "./run.ts";
 import { readTrialRow, summarize, verdictOf } from "./report.ts";
+import { corpusIds, planTrials } from "./plan.ts";
+import { assertCleanSources } from "../src/source-provenance.ts";
 
 const root = resolve(import.meta.dirname, "..");
 const save = (path, value) => writeFileSync(path, JSON.stringify(value, null, 2) + "\n");
 
-export function planMatrix(profiles, attempts) {
+export function planMatrix(profiles, attempts, instances) {
     if (!Number.isSafeInteger(attempts) || attempts < 1) throw new Error("attempts must be a positive integer");
+    if (!Array.isArray(instances) || !instances.length || instances.some((instance) => typeof instance !== "string" || !instance.trim())
+        || new Set(instances).size !== instances.length) throw new Error("instances must be unique nonempty identifiers");
     if (!Array.isArray(profiles) || profiles.length === 0) throw new Error("profiles must be a nonempty array");
     const names = new Set();
     for (const profile of profiles) {
@@ -22,18 +26,19 @@ export function planMatrix(profiles, attempts) {
             throw new Error("profile env must contain PLURNK_* string values");
         }
     }
-    return Array.from({ length: attempts }, (_, repeat) => profiles.map((_, offset) => ({
-        profile: profiles[(offset + repeat) % profiles.length].name, attempt: repeat + 1,
-    }))).flat();
+    return planTrials({ ids: instances, attempts, limit: 0, only: [], skip: [], done: new Set() })
+        .flatMap(({ id, attempt }) => profiles.map((_, offset) => ({
+            instance: id, profile: profiles[(offset + attempt - 1 + instances.indexOf(id)) % profiles.length].name, attempt,
+        })));
 }
 
-export async function runMatrix({ profiles, instance, model, attempts, jobs, out, env, provenance, stopping = () => false }, execute = runToFiles, inspect = (trial, attempt) => ({
+export async function runMatrix({ profiles, instances, model, attempts, jobs, out, env, provenance, stopping = () => false }, execute = runToFiles, inspect = (trial, attempt) => ({
     verdict: verdictOf(trial), row: readTrialRow(trial, attempt),
 })) {
     if (!Number.isSafeInteger(jobs) || jobs < 1) throw new Error("jobs must be a positive integer");
-    const trials = planMatrix(profiles, attempts);
+    const trials = planMatrix(profiles, attempts, instances);
     mkdirSync(out, { recursive: true });
-    writeFileSync(join(out, "plan.json"), JSON.stringify({ instance, model, profiles, attempts, jobs, provenance, trials }, null, 2) + "\n", { flag: "wx" });
+    writeFileSync(join(out, "plan.json"), JSON.stringify({ instances, model, profiles, attempts, jobs, provenance, trials }, null, 2) + "\n", { flag: "wx" });
     const pending = [...trials];
     const completed = [];
     let halted = false;
@@ -53,7 +58,7 @@ export async function runMatrix({ profiles, instance, model, attempts, jobs, out
         while (!halted && !stopping() && pending.length) {
             const trial = pending.shift();
             const profile = profiles.find(({ name }) => name === trial.profile);
-            const label = `${trial.profile}-${trial.attempt}`;
+            const label = `${encodeURIComponent(trial.instance)}-${trial.profile}-${trial.attempt}`;
             const stdoutPath = join(out, `${label}.stdout.log`);
             const stderrPath = join(out, `${label}.stderr.log`);
             const startedAt = new Date().toISOString();
@@ -61,7 +66,7 @@ export async function runMatrix({ profiles, instance, model, attempts, jobs, out
             console.log(`${startedAt} start ${label}`);
             let record;
             try {
-                const execution = await execute(join(root, "swebench/run.sh"), ["--instance", instance, "--model", model],
+                const execution = await execute(join(root, "swebench/run.sh"), ["--instance", trial.instance, "--model", model],
                     { cwd: root, env: { ...env, ...profile.env }, stdoutPath, stderrPath });
                 const artifact = readFileSync(stdoutPath, "utf8").match(/^(?:artifact|ready)=(.+)$/m)?.[1] ?? null;
                 const evidence = artifact ? inspect(artifact, trial.attempt) : { verdict: "harness: no trial directory", row: null };
@@ -85,27 +90,35 @@ export async function runMatrix({ profiles, instance, model, attempts, jobs, out
 
 if (import.meta.main) {
     const { values } = parseArgs({ options: {
-        profiles: { type: "string" }, instance: { type: "string" }, model: { type: "string" },
+        profiles: { type: "string" }, instance: { type: "string" }, corpus: { type: "string" }, model: { type: "string" },
         attempts: { type: "string" }, jobs: { type: "string" },
     } });
-    if (!values.profiles || !values.instance || !values.model || !values.attempts || !values.jobs) {
-        throw new Error("usage: node swebench/matrix.mjs --profiles <json> --instance <id> --model <alias> --attempts <n> --jobs <n>");
+    if (!values.profiles || Boolean(values.instance) === Boolean(values.corpus) || !values.model || !values.attempts || !values.jobs) {
+        throw new Error("usage: node swebench/matrix.mjs --profiles <json> (--instance <id> | --corpus <json>) --model <alias> --attempts <n> --jobs <n>");
     }
     loadBenchmarkEnvironment(undefined, join(root, ".env.defaults"));
     const profiles = JSON.parse(readFileSync(resolve(values.profiles), "utf8"));
-    planMatrix(profiles, Number(values.attempts));
+    const instances = values.corpus ? corpusIds(JSON.parse(readFileSync(resolve(values.corpus), "utf8"))) : [values.instance];
+    planMatrix(profiles, Number(values.attempts), instances);
     const serviceRoot = resolve(root, process.env.PLURNK_SWEBENCH_SERVICE_ROOT ?? "../plurnk-service");
     const clientRoot = resolve(root, process.env.PLURNK_SWEBENCH_CLIENT_ROOT ?? "../plurnk");
     const head = (cwd) => execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim();
+    const profileSources = Object.fromEntries(profiles.map(({ name, env }) => [name, assertCleanSources({
+        bench: root,
+        service: resolve(root, env.PLURNK_SWEBENCH_SERVICE_ROOT ?? serviceRoot),
+        client: resolve(root, env.PLURNK_SWEBENCH_CLIENT_ROOT ?? clientRoot),
+    })]));
     const directory = jobsRoot("swebench-matrices");
     mkdirSync(directory, { recursive: true });
-    const out = mkdtempSync(join(directory, `${encodeURIComponent(values.instance)}-${encodeURIComponent(values.model)}-`));
+    const out = mkdtempSync(join(directory, `${values.instance ? encodeURIComponent(values.instance) : "corpus"}-${encodeURIComponent(values.model)}-`));
     let stopping = false;
     for (const signal of ["SIGINT", "SIGTERM"]) process.on(signal, () => { stopping = true; });
     console.log(`matrix=${out}`);
-    await runMatrix({ profiles, instance: values.instance, model: values.model, attempts: Number(values.attempts),
+    await runMatrix({ profiles, instances, model: values.model, attempts: Number(values.attempts),
         jobs: Number(values.jobs), out, stopping: () => stopping,
         env: { ...process.env, PLURNK_SWEBENCH_SERVICE_ROOT: serviceRoot, PLURNK_SWEBENCH_CLIENT_ROOT: clientRoot },
-        provenance: { serviceRoot, serviceHead: head(serviceRoot), clientRoot, clientHead: head(clientRoot), benchHead: head(root) },
+        provenance: { serviceRoot, serviceHead: head(serviceRoot), clientRoot, clientHead: head(clientRoot), benchHead: head(root), profileSources,
+            ...(values.corpus ? { corpusPath: resolve(values.corpus), corpus: JSON.parse(readFileSync(resolve(values.corpus), "utf8")) } : {}),
+        },
     });
 }

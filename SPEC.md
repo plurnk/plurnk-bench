@@ -489,11 +489,14 @@ so the next reader checks them first instead of rediscovering them.
 
 ## §bench-relock Frozen lanes move with one command
 
-`deepswe/relock.sh <service-ref> <client-ref>` points the two detached
+`deepswe/relock.sh <service-ref> <client-ref> [<lanes-root>]` points the two detached
 worktrees beside the checkout (`../bench-lanes/plurnk-service`,
 `../bench-lanes/plurnk`) at exact commits, creating them on first use and
 moving them afterwards, runs `npm ci` in each, and prints the two exports a
 lane needs (`PLURNK_BENCHLET_SERVICE_ROOT`, `PLURNK_BENCHLET_CLIENT_ROOT`).
+An explicit lanes root selects another independent pair for simultaneous source
+comparisons; it does not move or rebuild the default pair. Never relock a pair
+while a run uses it.
 The client install defers lifecycle scripts until the selected, built platform's
 projected contracts tarball is installed; then it builds. SWE-bench runtime
 preparation uses the same contract-first client build. Neither preparation
@@ -853,10 +856,11 @@ reimplementation of its agent loop or an assertion that the study was reproduced
   by the manifest and by the corpus citation; the wall clock is a runaway guard set
   far above any plausible rollout. A rollout truncated on seconds records a timeout
   where the study would have recorded a turn count.
-- §swebench-matrix `swebench/matrix.mjs` repeats one pinned instance across explicit,
+- §swebench-matrix `swebench/matrix.mjs` repeats one pinned instance or a pinned corpus across explicit,
   non-secret environment profiles through `swebench/run.sh`. Every repetition visits
-  every profile, rotating their starting order. The immutable plan records profiles,
-  model, repetitions, concurrency and source revisions; append-only launch/results
+  every instance/profile pair, rotating profile order by instance and repetition.
+  The immutable plan records the corpus, profiles, model, repetitions, concurrency
+  and each profile's source revisions; append-only launch/results
   records retain every attempt and its trial path. Ordinary oracle misses continue.
   Missing evidence or infrastructure failure stops new launches, not in-flight work;
   interruption likewise drains existing trials. There is no automatic retry or resume.

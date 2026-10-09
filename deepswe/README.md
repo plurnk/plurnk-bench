@@ -93,10 +93,11 @@ knobs in [.env.defaults](../.env.defaults).
 provenance. `PLURNK_BENCHLET_TIMELESS=1` captures and grades the working tree at
 the deadline as well as after an extended run; those are distinct results.
 
-For repeatable source lanes, `deepswe/relock.sh <service-ref> <client-ref>`
+For repeatable source lanes, `deepswe/relock.sh <service-ref> <client-ref> [<lanes-root>]`
 creates or updates dedicated checkouts and prints their environment exports.
 It builds the client against the selected platform's packed contracts, including
-unpublished changes, without rewriting source manifests or lockfiles.
+unpublished changes, without rewriting source manifests or lockfiles. An optional
+lanes root creates an independent pair for comparing two source revisions.
 Do not relock lanes while they are running. See
 [frozen-lane rules](../SPEC.md#bench-relock-frozen-lanes-move-with-one-command).
 

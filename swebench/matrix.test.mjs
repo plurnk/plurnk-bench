@@ -17,21 +17,57 @@ const row = (over = {}) => ({
 const fixture = (t) => {
     const out = mkdtempSync(join(tmpdir(), "swebench-matrix-"));
     t.after(() => rmSync(out, { recursive: true, force: true }));
-    return { profiles, attempts: 2, jobs: 1, out, instance: "specimen", model: "selected", env: { PRESERVED: "yes" }, provenance: { serviceHead: "exact" } };
+    return { profiles, attempts: 2, jobs: 1, out, instances: ["specimen"], model: "selected", env: { PRESERVED: "yes" }, provenance: { serviceHead: "exact" } };
 };
 
 test("{§swebench-matrix}: every profile runs once per repetition in rotating order, without omissions", () => {
-    assert.deepEqual(planMatrix(profiles, 2), [
+    assert.deepEqual(planMatrix(profiles, 2, ["specimen"]), [
         { profile: "a", attempt: 1 }, { profile: "b", attempt: 1 }, { profile: "c", attempt: 1 },
         { profile: "b", attempt: 2 }, { profile: "c", attempt: 2 }, { profile: "a", attempt: 2 },
-    ]);
-    assert.throws(() => planMatrix([profiles[0], profiles[0]], 1), /unique lowercase/);
-    assert.throws(() => planMatrix(profiles, 0), /positive integer/);
-    assert.throws(() => planMatrix([{ name: "bad", env: { PLURNK_SERVICE_REASONING_ROWS: 0 } }], 1), /string values/);
+    ].map((trial) => ({ instance: "specimen", ...trial })));
+    assert.throws(() => planMatrix([profiles[0], profiles[0]], 1, ["specimen"]), /unique lowercase/);
+    assert.throws(() => planMatrix(profiles, 0, ["specimen"]), /positive integer/);
+    assert.throws(() => planMatrix([{ name: "bad", env: { PLURNK_SERVICE_REASONING_ROWS: 0 } }], 1, ["specimen"]), /string values/);
     const packet = JSON.parse(readFileSync(new URL("./profiles/packet-memory.json", import.meta.url), "utf8"));
-    assert.equal(planMatrix(packet, 3).length, 27);
+    assert.equal(planMatrix(packet, 3, ["specimen"]).length, 27);
     assert.equal(new Set(packet.map(({ env }) => JSON.stringify(env))).size, 9);
     assert.ok(packet.every(({ env }) => Object.keys(env).every((name) => ["PLURNK_SERVICE_REASONING_ROWS", "PLURNK_SERVICE_REASONING_TRAILING_LINES", "PLURNK_SERVICE_EMISSION_HISTORY"].includes(name))));
+});
+
+test("{§swebench-matrix}: a corpus pairs every profile and repetition without duplicate purchases", () => {
+    const { instances } = JSON.parse(readFileSync(new URL("./corpora/harnesstax-swe-lite-30.json", import.meta.url), "utf8"));
+    const plan = planMatrix(profiles.slice(0, 2), 3, instances);
+    assert.equal(plan.length, 180);
+    assert.equal(new Set(plan.map(({ instance, profile, attempt }) => `${instance}/${profile}/${attempt}`)).size, 180);
+    for (const instance of instances) {
+        for (const profile of profiles.slice(0, 2)) {
+            assert.deepEqual(plan.filter((trial) => trial.instance === instance && trial.profile === profile.name).map(({ attempt }) => attempt), [1, 2, 3]);
+        }
+    }
+    assert.deepEqual(plan.slice(0, 4).map(({ instance, profile, attempt }) => [instance, profile, attempt]), [
+        [instances[0], "a", 1], [instances[0], "b", 1], [instances[1], "b", 1], [instances[1], "a", 1],
+    ]);
+    assert.equal(plan[60].profile, "b", "the next repetition reverses the first task's profile order");
+    for (const invalid of [[], ["same", "same"], [null], [" "]]) {
+        assert.throws(() => planMatrix(profiles, 3, invalid), /unique nonempty identifiers/);
+    }
+});
+
+test("{§swebench-matrix}: each corpus trial receives its own instance and frozen source profile", async (t) => {
+    const input = { ...fixture(t), instances: ["one", "two"], attempts: 1,
+        profiles: ["a", "b"].map((name) => ({ name, env: { PLURNK_SWEBENCH_SERVICE_ROOT: `/frozen/${name}` } })),
+    };
+    const calls = [];
+    const results = await runMatrix(input, async (_command, args, options) => {
+        calls.push([args[1], options.env.PLURNK_SWEBENCH_SERVICE_ROOT]);
+        writeFileSync(options.stdoutPath, `artifact=${args[1]}\n`);
+        return { status: 0 };
+    }, (artifact, attempt) => ({ verdict: "pass", row: row({ instance: artifact, attempt }) }));
+    assert.deepEqual(calls, [["one", "/frozen/a"], ["one", "/frozen/b"], ["two", "/frozen/b"], ["two", "/frozen/a"]]);
+    assert.deepEqual(results.map(({ instance }) => instance), ["one", "one", "two", "two"]);
+    const launches = readFileSync(join(input.out, "launches.jsonl"), "utf8").trim().split("\n").map(JSON.parse);
+    assert.equal(launches.length, 4);
+    assert.equal(new Set(launches.map(({ instance, profile, attempt }) => `${instance}/${profile}/${attempt}`)).size, 4);
 });
 
 test("{§swebench-matrix}: the ordinary runner receives exact profiles; misses and their costs remain in reports", async (t) => {

@@ -1,21 +1,22 @@
 #!/usr/bin/env bash
 # {§bench-relock} — one command to point the frozen lanes at exact service and client commits.
-# Usage: deepswe/relock.sh <service-ref> <client-ref>
+# Usage: deepswe/relock.sh <service-ref> <client-ref> [<lanes-root>]
 # The lanes are detached worktrees beside this checkout (../bench-lanes/plurnk-service and
 # ../bench-lanes/plurnk), created on first use, moved on later ones, and installed with
 # `npm ci` and the selected platform contracts; the benchlet runs those trees, never a checkout being
 # edited ({§benchlet-provenance}). Prints the two exports a lane needs.
 set -euo pipefail
 
-if [ "$#" -ne 2 ]; then
-    echo "usage: deepswe/relock.sh <service-ref> <client-ref>" >&2
+if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
+    echo "usage: deepswe/relock.sh <service-ref> <client-ref> [<lanes-root>]" >&2
     exit 2
 fi
 service_ref="$1"
 client_ref="$2"
 bench_root="$(cd "$(dirname "$0")/.." && pwd)"
-lanes="$(cd "$bench_root/.." && pwd)/bench-lanes"
+lanes="${3:-$(cd "$bench_root/.." && pwd)/bench-lanes}"
 mkdir -p "$lanes"
+lanes="$(cd "$lanes" && pwd)"
 
 relock() {
     local repo="$1" lane="$2" ref="$3"; shift 3

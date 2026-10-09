@@ -133,8 +133,13 @@ node swebench/matrix.mjs --profiles swebench/profiles/packet-memory.json \
   --instance django__django-12747 --model deepdumb --attempts 3 --jobs 6
 ```
 
+Replace `--instance <id>` with `--corpus swebench/corpora/harnesstax-swe-lite-30.json`
+to run every task in that pinned corpus. Each task visits every profile on every repetition.
+
 The profile file is an array of `{ "name": "label", "env": { "PLURNK_...": "value" } }`.
-Each repetition rotates profile order. Plans, launches, every trial path, and per-profile
+Profiles may select distinct frozen `PLURNK_SWEBENCH_SERVICE_ROOT` and
+`PLURNK_SWEBENCH_CLIENT_ROOT` checkouts; their exact revisions are recorded separately.
+Instance and repetition order rotate profile order. Plans, launches, every trial path, and per-profile
 accounting/friction summaries land in `~/benchmarks/jobs/swebench-matrices/`.
 Setup failures stop new launches while current trials finish; ordinary oracle misses
 remain results. An interrupt stops launching without cancelling model requests.
