@@ -5,7 +5,7 @@ import { baselinesFor, compare, compareBaselines, perTask, renderComparison } fr
 import type { TrialRow } from "./report.ts";
 
 const row = (over: Partial<TrialRow>): TrialRow => ({
-    instance: "django__django-11620", attempt: 1, model: "deepdumb", outcome: "pass", loopStatus: 200, reward: 1, emptyPatch: false, exception: null,
+    instance: "django__django-11620", attempt: 1, model: "deepdumb", outcome: "pass", loopStatus: 200, reward: 1, emptyPatch: false, exception: null, evaluation: null,
     turns: 12, requests: 14, rejectedEmissions: 0, tokens: { input: 400_000, cached: 100_000, output: 20_000, reasoning: 5_000 },
     costUsd: 0.12, knownCostUsd: over.costUsd === undefined ? 0.12 : over.costUsd,
     pricedRequests: over.costUsd === null ? 0 : 14, costEvidence: { charged: 14, estimated: 0, unknown: 0 },

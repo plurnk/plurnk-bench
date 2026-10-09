@@ -30,6 +30,25 @@ export interface Prediction {
     readonly model_patch: string;
 }
 
+export interface EvaluationAttempt {
+    readonly instance: string;
+    readonly label: string;
+    readonly runId: string;
+    readonly patchSha256: string | null;
+    readonly state: "running" | "finished";
+    readonly exitCode: number | null;
+    readonly signal: string | null;
+    readonly reportPath: string;
+    readonly diagnostics: readonly string[];
+    readonly reward: RewardJson | null;
+}
+
+export const evaluationFailure = (attempt: EvaluationAttempt | null): string | null => {
+    if (attempt === null) return null;
+    if (attempt.state === "running") return "evaluation is running or was interrupted";
+    return attempt.diagnostics.length === 0 ? null : attempt.diagnostics.join("; ");
+};
+
 // The harness writes its AGGREGATE report to <reportDir>/<modelLabel>.<runId>.json and
 // each instance's own report under
 // <reportDir>/logs/run_evaluation/<runId>/<modelLabel>/<instance>/report.json.
@@ -59,7 +78,7 @@ export const evaluationRunId = (instance: string): string =>
 // `null` means NO oracle verdict — the report is absent, or the harness recorded an
 // infrastructure failure — and is preserved as absence, never scored as 0.
 export const rewardFromInstanceReport = (report: SweInstanceReport | null | undefined): RewardJson | null => {
-    if (report === undefined || report === null || report.infra_failure === true) return null;
+    if (report === undefined || report === null || report.infra_failure === true || typeof report.resolved !== "boolean") return null;
     const f2p = tally(report.tests_status?.FAIL_TO_PASS);
     const p2p = tally(report.tests_status?.PASS_TO_PASS);
     const reward: RewardJson = { reward: report.resolved === true ? 1 : 0 };

@@ -279,6 +279,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
     const scratchRoot = jobsRoot("swebench");
     mkdirSync(scratchRoot, { recursive: true });
     const trialDir = mkdtempSync(resolve(scratchRoot, `${instance.replaceAll(/[^A-Za-z0-9_.-]+/g, "-")}-`));
+    process.stdout.write(`artifact=${trialDir}\n`);
     const repository = join(trialDir, "repo");
 
     requireDiskRoom();
@@ -382,7 +383,6 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             publishedDir = await publishTrial(trialDir, "swebench", benchmarksHome(), runDir === null ? {} : { runDir });
         }
         writeJson(join(trialDir, "provenance.json"), { ...provenance, runDir: publishedDir ?? runDir });
-        process.stdout.write(`artifact=${trialDir}\n`);
         if (publishedDir !== null) process.stdout.write(`published=${publishedDir}\n`);
     } finally {
         pruneImage(manifest.environment.image);

@@ -5,10 +5,22 @@ import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { corpusIds, planTrials } from "./plan.ts";
 import { runToFiles } from "./run.ts";
+import { requireSettledEvaluation } from "./report.ts";
+import { evaluationFailure } from "./evaluator.ts";
 
 const directory = dirname(fileURLToPath(import.meta.url));
 const json = (path) => JSON.parse(readFileSync(path, "utf8"));
 const save = (path, value) => writeFileSync(path, JSON.stringify(value, null, 2) + "\n");
+
+const evidenceOf = (artifact) => {
+    const read = (path) => artifact && existsSync(join(artifact, path)) ? json(join(artifact, path)) : null;
+    return { summary: read("agent/summary.json"), reward: read("verifier/reward.json"),
+        exception: read("result.json")?.exception_info ?? null, evaluation: read("verifier/evaluation.json") };
+};
+
+const hasCandidateOutcome = ({ summary, reward, exception, evaluation }) => reward && summary?.requests > 0
+    && (exception === null || ["AgentExitError", "AgentTimeoutError", "AgentCancelledError"].includes(exception.exception_type))
+    && evaluationFailure(evaluation) === null;
 
 const campaignPrice = (summaries, field, knownField, priced) => {
     const totals = summaries.map((summary) => summary && priced(summary) === summary.requests ? summary[field] ?? null : null);
@@ -30,11 +42,33 @@ export async function runCampaign({ corpus, profile, out, attempts, jobs, signal
     if (existsSync(planPath) && JSON.stringify(json(planPath)) !== JSON.stringify(plan)) throw new Error("Pi campaign configuration changed; use a new output directory");
     save(planPath, plan);
     const resultsPath = join(out, "results.jsonl");
-    // results.jsonl is append-only: a pair's last row is its record, and a paused row (an adapter, setup or
-    // evaluator failure, not the agent's outcome) runs again on resume while a graded row is never repurchased.
+    // {§swebench-evaluator}: grading recovery appends a new observation of the same candidate;
+    // setup failures may run again, but retained candidates are never repurchased to repair grading.
     const recorded = existsSync(resultsPath) ? readFileSync(resultsPath, "utf8").trim().split("\n").filter(Boolean).map(JSON.parse) : [];
     const latest = new Map(recorded.map((entry) => [`${entry.id}/${entry.attempt}`, entry]));
+    for (const [key, entry] of latest) {
+        if (!entry.pause || !entry.artifact || !existsSync(join(entry.artifact, "artifacts", "model.patch"))) continue;
+        requireSettledEvaluation(entry.artifact);
+        const evidence = evidenceOf(entry.artifact);
+        if (!hasCandidateOutcome(evidence)) throw new Error(`candidate retained at ${entry.artifact}; inspect its missing trial evidence before resuming`);
+        const recovered = { ...entry, ...evidence, pause: false, regradedAt: new Date().toISOString() };
+        appendFileSync(resultsPath, JSON.stringify(recovered) + "\n");
+        latest.set(key, recovered);
+    }
     const completed = [...latest.values()].filter(({ pause }) => !pause);
+    const writeSummary = () => {
+        const summaries = completed.map(({ summary }) => summary);
+        const charged = campaignPrice(summaries, "chargedUsd", "knownChargedUsd", (s) => s.requests - s.unpricedRequests);
+        const repriced = campaignPrice(summaries, "repricedUsd", "knownRepricedUsd", (s) => s.responsesWithTokenBreakdown);
+        save(join(out, "summary.json"), { planned: plan.trials.length, finished: completed.length,
+            passes: completed.filter(({ reward }) => reward?.reward === 1).length,
+            chargedUsd: charged.total, knownChargedUsd: charged.known,
+            repricedUsd: repriced.total, knownRepricedUsd: repriced.known,
+            unpricedRequests: completed.reduce((n, { summary }) => n + (summary?.unpricedRequests ?? 0), 0),
+            paused: completed.filter(({ pause }) => pause).map(({ id, attempt }) => ({ id, attempt })),
+        });
+    };
+    writeSummary();
     const remaining = plan.trials.filter(({ id, attempt }) => latest.get(`${id}/${attempt}`)?.pause !== false);
     let halted = false;
     const run = async () => {
@@ -47,29 +81,13 @@ export async function runCampaign({ corpus, profile, out, attempts, jobs, signal
             const execution = await execute(process.execPath, [join(directory, "pi.mjs"), "--instance", trial.id, "--profile", profile],
                 { cwd: resolve(directory, ".."), env: process.env, signal, stdoutPath, stderrPath });
             const artifact = readFileSync(stdoutPath, "utf8").match(/^artifact=(.+)$/m)?.[1];
-            const summaryPath = artifact && join(artifact, "agent", "summary.json");
-            const rewardPath = artifact && join(artifact, "verifier", "reward.json");
-            const summary = summaryPath && existsSync(summaryPath) ? json(summaryPath) : null;
-            const reward = rewardPath && existsSync(rewardPath) ? json(rewardPath) : null;
-            const resultPath = artifact && join(artifact, "result.json");
-            const exception = resultPath && existsSync(resultPath) ? json(resultPath).exception_info : null;
-            const agentOutcome = exception === null ||
-                ["AgentExitError", "AgentTimeoutError", "AgentCancelledError"].includes(exception.exception_type);
-            const pause = execution.status !== 0 || !reward || !summary?.requests || !agentOutcome;
-            const entry = { ...trial, artifact, exit: execution.status, reward, exception, summary, pause, finishedAt: new Date().toISOString() };
+            const evidence = evidenceOf(artifact);
+            const pause = execution.status !== 0 || !hasCandidateOutcome(evidence);
+            const entry = { ...trial, artifact, exit: execution.status, ...evidence, pause, finishedAt: new Date().toISOString() };
             appendFileSync(resultsPath, JSON.stringify(entry) + "\n");
             completed.push(entry);
-            const summaries = completed.map(({ summary }) => summary);
-            const charged = campaignPrice(summaries, "chargedUsd", "knownChargedUsd", (s) => s.requests - s.unpricedRequests);
-            const repriced = campaignPrice(summaries, "repricedUsd", "knownRepricedUsd", (s) => s.responsesWithTokenBreakdown);
-            save(join(out, "summary.json"), { planned: plan.trials.length, finished: completed.length,
-                passes: completed.filter(({ reward }) => reward?.reward === 1).length,
-                chargedUsd: charged.total, knownChargedUsd: charged.known,
-                repricedUsd: repriced.total, knownRepricedUsd: repriced.known,
-                unpricedRequests: completed.reduce((n, { summary }) => n + (summary?.unpricedRequests ?? 0), 0),
-                paused: completed.filter(({ pause }) => pause).map(({ id, attempt }) => ({ id, attempt })),
-            });
-            console.log(`${entry.finishedAt} finish ${label} reward=${reward?.reward ?? "ungraded"} charged=${summary?.chargedUsd ?? "unknown"} pause=${pause}`);
+            writeSummary();
+            console.log(`${entry.finishedAt} finish ${label} reward=${entry.reward?.reward ?? "ungraded"} charged=${entry.summary?.chargedUsd ?? "unknown"} pause=${pause}`);
             if (pause) halted = true;
         }
     };

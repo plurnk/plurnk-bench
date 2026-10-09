@@ -8,7 +8,7 @@
 // usage: node swebench/evaluate.ts --instance <id> --patch <file|gold> --out <trialDir> \
 //          [--label <name>] [--timeout <seconds>]
 
-import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,8 +21,10 @@ import {
     rewardFromInstanceReport,
     type Prediction,
     type SweInstanceReport,
+    type EvaluationAttempt,
 } from "./evaluator.ts";
 import type { RewardJson } from "../src/ingest.ts";
+import { runToFiles } from "./run.ts";
 
 const DATASET = "SWE-bench/SWE-bench_Lite";
 const moduleDir = dirname(fileURLToPath(import.meta.url));
@@ -34,7 +36,7 @@ interface Manifest {
     readonly budgetSeconds: number;
 }
 
-const main = (): void => {
+const main = async (): Promise<void> => {
     const { values } = parseArgs({
         args: process.argv.slice(2),
         options: {
@@ -64,8 +66,26 @@ const main = (): void => {
     const runId = evaluationRunId(instance);
 
     const trialDir = resolve(out);
-    const oracleDir = join(trialDir, "oracle");
+    const patch = gold ? null : readFileSync(resolve(values.patch!), "utf8");
+    const patchSha256 = patch === null ? null : createHash("sha256").update(patch).digest("hex");
+    const latestPath = join(trialDir, "verifier", "evaluation.json");
+    const previous = existsSync(latestPath) ? JSON.parse(readFileSync(latestPath, "utf8")) as EvaluationAttempt : null;
+    if (previous !== null && (previous.instance !== instance || previous.label !== label || previous.patchSha256 !== patchSha256)) {
+        throw new Error("a different candidate requires a new trial directory; evaluator-only retry must preserve the instance, label and patch");
+    }
+    const oracleDir = join(trialDir, "oracle", runId);
     mkdirSync(oracleDir, { recursive: true });
+    mkdirSync(dirname(latestPath), { recursive: true });
+    const reportPath = instanceReportPath(oracleDir, runId, label, instance);
+    const attemptPath = join(oracleDir, "evaluation.json");
+    const save = (attempt: EvaluationAttempt): void => {
+        const text = `${JSON.stringify(attempt, null, 2)}\n`;
+        writeFileSync(attemptPath, text);
+        writeFileSync(latestPath, text);
+    };
+    const attempt: EvaluationAttempt = { instance, label, runId, patchSha256, state: "running", exitCode: null,
+        signal: null, reportPath, diagnostics: [], reward: null };
+    save(attempt);
 
     // A candidate patch becomes the harness's predictions file; `gold` grades the dataset's own
     // patch, the preflight that proves the oracle path without a model.
@@ -75,12 +95,12 @@ const main = (): void => {
         mkdirSync(dirname(rewardPath), { recursive: true });
         writeFileSync(rewardPath, `${JSON.stringify(reward)}\n`);
     };
-    if (!gold) {
-        const patch = readFileSync(resolve(values.patch!), "utf8");
+    if (patch !== null) {
         // {§swebench-evaluator}: no patch is a scored zero, not a run of the harness.
         if (patch.trim().length === 0) {
             const reward = emptyPatchReward();
             writeReward(reward);
+            save({ ...attempt, state: "finished", exitCode: 0, reward });
             console.log(JSON.stringify({ instance, label, reward, note: "the candidate produced no patch" }, null, 2));
             return;
         }
@@ -89,7 +109,7 @@ const main = (): void => {
         writeFileSync(predictionsArg, predictionsJsonl(predictions));
     }
 
-    const result = spawnSync(python, [
+    const result = await runToFiles(python, [
         "-m", "swebench.harness.run_evaluation",
         "-d", DATASET, "-s", "test",
         "-i", instance,
@@ -101,20 +121,31 @@ const main = (): void => {
     ], {
         cwd: oracleDir,
         env: { ...process.env, HF_HUB_DISABLE_PROGRESS_BARS: "1" },
-        stdio: "inherit",
+        stdoutPath: join(oracleDir, "stdout.log"),
+        stderrPath: join(oracleDir, "stderr.log"),
+        tee: true,
     });
-    if (result.error !== undefined) throw result.error;
-    if (result.status !== 0) throw new Error(`official evaluator exited ${result.status ?? result.signal ?? "unknown"}`);
-
-    const reportPath = instanceReportPath(oracleDir, runId, label, instance);
-    if (!existsSync(reportPath)) throw new Error(`the official evaluator wrote no per-instance report at ${reportPath}`);
-    const report = JSON.parse(readFileSync(reportPath, "utf8")) as Record<string, SweInstanceReport>;
-    const [instanceReport] = Object.values(report);
-    const reward = rewardFromInstanceReport(instanceReport);
-    if (reward === null) throw new Error(`no oracle verdict in ${reportPath} (infrastructure failure)`);
-
-    writeReward(reward);
-    console.log(JSON.stringify({ instance, label, runId, reportPath, rewardPath, reward }, null, 2));
+    const diagnostics: string[] = [];
+    if (result.error !== undefined) diagnostics.push(result.error.stack ?? result.error.message);
+    else if (result.status !== 0) diagnostics.push(`official evaluator exited ${result.status ?? result.signal ?? "unknown"}`);
+    let reward: RewardJson | null = null;
+    try {
+        if (!existsSync(reportPath)) throw new Error(`the official evaluator wrote no per-instance report at ${reportPath}`);
+        const report = JSON.parse(readFileSync(reportPath, "utf8")) as Record<string, SweInstanceReport>;
+        if (report === null || !Object.hasOwn(report, instance)) throw new Error(`the report at ${reportPath} does not name ${instance}`);
+        reward = rewardFromInstanceReport(report[instance]);
+        if (reward === null) throw new Error(`no oracle verdict in ${reportPath} (incomplete report or infrastructure failure)`);
+        writeReward(reward);
+    } catch (error) {
+        diagnostics.push(error instanceof Error ? error.message : String(error));
+    }
+    const settled: EvaluationAttempt = { ...attempt, state: "finished", exitCode: result.status, signal: result.signal, diagnostics, reward };
+    save(settled);
+    console.log(JSON.stringify({ ...settled, attemptPath, rewardPath }, null, 2));
+    if (diagnostics.length > 0) process.exitCode = 1;
 };
 
-main();
+if (import.meta.main) void main().catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+});

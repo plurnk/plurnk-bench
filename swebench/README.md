@@ -101,10 +101,9 @@ node swebench/report.ts /path/to/campaign
 Campaigns retain each attempt and write `REPORT.md`. The default stops new work
 after a non-pass so it can be inspected. `--halt-on clean` also permits ordinary
 oracle misses. Use `--resume <campaign-directory> --halt-on <policy>` after reviewing a pause: it
-re-runs whatever that policy would have halted on, so the default re-buys every trial that
-was not a clean pass while `clean` keeps the graded misses and re-runs only agent and
-harness verdicts; `--skip <id>` records an intentional omission rather than replacing a
-failed trial.
+re-runs unaccepted agent/setup outcomes, while `clean` keeps graded misses.
+A captured candidate with failed grading must be regraded in place, not generated
+again. `--skip <id>` records an intentional omission rather than replacing a failed trial.
 `--limit`, `--only`, and `--jobs` bound the selected work and concurrency.
 
 Add `--json` to the report command for machine-readable results. Read failure
@@ -112,6 +111,18 @@ and missing-telemetry sections alongside the aggregate scores. Friction separate
 raw format, actual no-operation outcomes, failed receipts by provenance, and
 distinct failed execution streams; these overlapping views are not a failure score.
 Older exports without provenance remain explicitly unclassified.
+
+To retry grading an existing candidate without invoking a model:
+
+```sh
+node swebench/evaluate.ts --instance mwaskom__seaborn-3010 \
+  --patch /path/to/trial/artifacts/model.patch --out /path/to/trial --label plurnk
+```
+
+Use that trial's instance and original label (`pi` for Pi). Each grading attempt
+retains its inputs, logs and official reports under `oracle/<runId>/`; its latest
+status is `verifier/evaluation.json`. A saved verdict can coexist with an evaluator
+error. Resume reads the current grading evidence without erasing earlier launch records.
 
 ## Native Pi comparison
 
@@ -148,7 +159,8 @@ node swebench/pi-campaign.mjs --corpus swebench/corpora/harnesstax-swe-lite-30.j
 
 Reusing a Pi campaign directory resumes the unattempted and the paused pairs with
 the unchanged profile. Native Pi failures remain scored attempts and do not pause the
-sweep; adapter, setup and evaluator failures do, and run again on resume. `agent/summary.json` distinguishes
+sweep; adapter, setup and evaluator failures do. Resume retries setup failures;
+grading recovery reuses the captured candidate as described above. `agent/summary.json` distinguishes
 provider charges, fixed-rate estimates, and missing telemetry.
 
 The optional installed-client check uses a local fixture server:

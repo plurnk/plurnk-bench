@@ -740,8 +740,24 @@ reimplementation of its agent loop or an assertion that the study was reproduced
   the one result the harness cannot report — it filters an empty prediction out of its
   own dataset and writes no report — so the bench scores it `{reward: 0, empty_patch: 1}`
   itself: a graded loss, never an absent oracle.
+  A report must name the requested instance and contain a boolean `resolved`;
+  another instance or an incomplete object is not a verdict.
+
+  | Evidence | Lifetime and effect |
+  | --- | --- |
+  | `oracle/<runId>/` | One grading attempt: exact prediction, subprocess stdout/stderr, official reports, and `evaluation.json` recording running/finished state, exit status, diagnostics and reward. Earlier attempts remain unchanged. |
+  | `verifier/evaluation.json` | Latest attempt, including failure independently of the oracle verdict. An abnormal evaluator exit remains an error even when its saved instance verdict is valid. |
+  | `verifier/reward.json` | Latest valid oracle verdict. A failed reevaluation cannot erase an earlier verdict for the same candidate. |
+
+  Evaluator-only recovery uses the same instance, label and patch SHA-256; a
+  different candidate requires a different trial. It invokes no model. Campaign
+  resume reads current grading evidence, preserves its earlier launch records and
+  requires evaluator-only recovery instead of repurchasing a captured candidate
+  whose grading failed. Reports display evaluator failure alongside any saved
+  verdict; process failure alone never produces a pass or a miss.
 - §swebench-trial One attempt is one trial directory, self-describing before it is
-  published. Each attempt takes its own evaluation run id (the harness names its
+  published. Its `artifact=` identity is announced immediately on allocation,
+  before setup or grading can fail. Each grading attempt takes its own evaluation run id (the harness names its
   container `sweb.eval.<instance>.<run_id>`, so a shared id makes two attempts at one
   instance kill each other under `PLURNK_BENCH_JOBS`). `provenance.json` — instance,
   model, dataset and revision, image and resolved image id, start head, the clean
@@ -827,7 +843,8 @@ reimplementation of its agent loop or an assertion that the study was reproduced
   terminal (turn ceiling, strike threshold, cycle, timeout) is `fail: <cause>`, the model's outcome,
   never an agent verdict (#46); `--resume` continues past the trials its `--halt-on`
   policy let run on (clean passes; under `clean` every graded trial) and past `--skip` ids,
-  which the campaign remembers in its `accepted` file so a read failure is never re-bought,
+  which the campaign remembers in its `accepted` file so a read failure is never re-bought;
+  failed grading follows {§swebench-evaluator} rather than buying another candidate,
   and `swebench/report.ts` reads the campaign friction first, including the digest's EDIT
   census (the service's `§digest-edit-census`: EDITs by authored form, refused, revisits — a line under Friction
   and a `count/refused/revisits` column per trial, `—` when the digest carries no census);
@@ -870,9 +887,9 @@ reimplementation of its agent loop or an assertion that the study was reproduced
 ### §swebench-pi Native Pi comparison
 
 `swebench/pi.mjs` invokes the installed Pi CLI. `pi-campaign.mjs` schedules separate
-processes from the same corpus/attempt plan; a graded result is never repurchased on resume,
-a paused pair (an adapter, setup or evaluator failure, not the agent's outcome) runs again, and a
-changed profile requires a new campaign directory.
+processes from the same corpus/attempt plan. Grading recovery appends a new observation
+of the retained candidate, without another model call ({§swebench-evaluator}); setup
+failures may run again. A changed profile requires a new campaign directory.
 
 A profile's `provider` is a hosted path (`openrouter`, `deepseek`, `fireworks`, each with its credential) or any name with a `baseUrl`, an `api` (`openai-completions` or `anthropic-messages`), `contextWindow` and `maxOutputTokens`: the comparator then writes Pi's own provider definition (`models.json`) in the agent's configuration directory, exactly as its native witness does, and a local server without a credential receives a placeholder key. The model-host allowlist admits the endpoint; nothing else changes.
 
@@ -884,7 +901,7 @@ A profile's `provider` is a hosted path (`openrouter`, `deepseek`, `fireworks`, 
 | Limits | A benchmark-only extension aborts before the next model turn beyond the declared cap. The common wall-clock guard still applies. Limits do not add model-facing instructions. |
 | Evidence | Observe, without changing, each native Chat Completions or Messages request and response. Retain raw streams, Pi JSON events, session files, configuration, errors, patch and official oracle. No synthetic Plurnk database or digest. |
 | Cost | OpenRouter response usage owns charged cost: `cost`, plus explicit `cost_details.upstream_inference_cost` when `is_byok` is true. Messages usage merges cumulative start/delta counters only after a terminal event; its input, cache-read and cache-write counts are disjoint. Missing billing, token breakdowns and reasoning breakdowns retain separate coverage. Native `deepseek` and `fireworks` responses without a charge use fixed-rate repricing, explicitly labeled rather than reported as billed cost. Fixed-rate repricing is separate from native catalog estimates and actual charges. |
-| Failure | Grade available work regardless of agent outcome. Native agent/provider errors, nonzero exits, time limits and incomplete response captures remain scored outcomes and permit the next trial. Pause only when adapter, setup or evaluator failure prevents a valid trial: the adapter fails, no requests or verdict exist, or launch itself fails. Preserve errors, limits and incomplete accounting; an operator cancellation stops admission. |
+| Failure | Grade available work regardless of agent outcome. Native agent/provider errors, nonzero exits, time limits and incomplete response captures remain scored outcomes and permit the next trial. Adapter/setup failures, absent requests/verdicts, and evaluator process failures pause for review; a saved verdict survives an evaluator failure. Preserve errors, limits and incomplete accounting; an operator cancellation stops admission. |
 
 Pi trial and campaign `chargedUsd` and `repricedUsd` are `null` unless every
 request supplies the respective charge or complete rate-card token breakdown.

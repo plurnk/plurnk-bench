@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { watch } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -50,6 +51,23 @@ test("[§swebench-trial] only a clean exit is a clean trial: a timeout, a spawn 
     assert.equal(spawnFailed?.exception_message, "spawn ENOENT");
     assert.equal(exceptionInfo({ status: 1, signal: null, timedOut: false }, 1680)?.exception_message, "the client exited 1");
     assert.equal(exceptionInfo({ status: null, signal: "SIGKILL", timedOut: false }, 1680)?.exception_message, "the client exited SIGKILL");
+});
+
+test("{§swebench-trial} the runner announces its trial before a prerequisite can fail", (t) => {
+    const root = mkdtempSync(join(tmpdir(), "swebench-identity-"));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    const result = spawnSync(process.execPath, [new URL("./run.ts", import.meta.url).pathname,
+        "--instance", "mwaskom__seaborn-3010", "--model", "fixture"], {
+        encoding: "utf8", timeout: 10_000,
+        env: { ...process.env, PLURNK_BENCH_HOME: root, PLURNK_SWEBENCH_OPERATOR_ENV: join(root, "missing.env"),
+            PLURNK_SWEBENCH_MIN_FREE_GB: "invalid" },
+    });
+    assert.equal(result.status, 1, result.stdout);
+    assert.match(result.stderr, /PLURNK_SWEBENCH_MIN_FREE_GB must be a non-negative number/u);
+    const artifact = result.stdout.match(/^artifact=(.+)$/mu)?.[1];
+    assert.ok(artifact, result.stdout);
+    assert.ok(artifact.startsWith(`${root}/`), result.stdout);
+    assert.equal(existsSync(artifact), true);
 });
 
 test("{§swebench-trial} aborting a started process is cancellation, not spawn failure", { timeout: 10000 }, async (t) => {

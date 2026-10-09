@@ -57,7 +57,9 @@ main() {
     # a --skip id is a failure read and accepted as the model's: the campaign remembers it
     if [ -n "$resume" ] && [ -n "$skip" ]; then printf '%s\n' ${skip//,/ } >> "$campaign/accepted"; fi
     accepted_flag=(); [ -n "$resume" ] && [ -f "$campaign/accepted" ] && accepted_flag=(--accepted "$campaign/accepted")
-    mapfile -t pairs < <(node swebench/plan.ts --corpus "$corpus_file" --attempts "$attempts" --limit "$limit" --only "$only" --skip "$skip" --halt-on "$halt_on" "${trials_flag[@]}" "${accepted_flag[@]}")
+    local planned
+    planned="$(node swebench/plan.ts --corpus "$corpus_file" --attempts "$attempts" --limit "$limit" --only "$only" --skip "$skip" --halt-on "$halt_on" "${trials_flag[@]}" "${accepted_flag[@]}")" || exit $?
+    mapfile -t pairs < <(printf '%s' "$planned")
     [ "${#pairs[@]}" -gt 0 ] || { echo "campaign: nothing left to run from $corpus_file" >&2; exit 2; }
     # the same resolution swebench/run.ts applies: absolute, or relative to the bench root
     resolve_root() { node -e 'console.log(require("node:path").resolve(process.argv[1], process.argv[2]))' "$bench_root" "$1"; }

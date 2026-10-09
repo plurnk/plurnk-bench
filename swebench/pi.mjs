@@ -214,8 +214,8 @@ export async function runPiTrial({ instance, profilePath, preflight = false, sig
             config: { agent: { name: "pi", model_name: `${profile.provider}/${profile.model}` } },
             started_at: provenance.startedAt, finished_at: new Date().toISOString(), exception_info: exceptionInfo(result, profile.timeoutSeconds) });
         const patch = capturePatch(repository, startHead, trialDir);
-        shell(process.execPath, [join(directory, "evaluate.ts"), "--instance", instance, "--patch", patch, "--out", trialDir, "--label", "pi"], { cwd: resolve(directory, "..") });
         json(join(agentDir, "summary.json"), summarizePi(agentDir, profile.rates));
+        shell(process.execPath, [join(directory, "evaluate.ts"), "--instance", instance, "--patch", patch, "--out", trialDir, "--label", "pi"], { cwd: resolve(directory, "..") });
         return trialDir;
     } finally {
         pruneImage(manifest.environment.image);

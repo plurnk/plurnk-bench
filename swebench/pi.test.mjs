@@ -273,6 +273,44 @@ test("{§swebench-pi} a setup failure pauses new work without discarding the fai
     assert.deepEqual({ finished: summary.finished, passes: summary.passes, paused: summary.paused }, { finished: 9, passes: 9, paused: [] });
 });
 
+test("{§swebench-evaluator} Pi resume reuses a regraded candidate without another model attempt", async () => {
+    const dir = mkdtempSync(join(root, "regrade-"));
+    const corpus = join(dir, "corpus.json");
+    const profile = join(dir, "profile.json");
+    const artifact = join(dir, "trial");
+    json(corpus, ["a"]);
+    json(profile, {});
+    const options = { corpus, profile, out: join(dir, "campaign"), attempts: 1, jobs: 1 };
+    let calls = 0;
+    const execute = async (_command, _args, { stdoutPath }) => {
+        calls++;
+        for (const folder of ["agent", "verifier", "artifacts"]) mkdirSync(join(artifact, folder), { recursive: true });
+        writeFileSync(stdoutPath, `artifact=${artifact}\n`);
+        writeFileSync(join(artifact, "artifacts/model.patch"), "unchanged candidate");
+        json(join(artifact, "agent/summary.json"), { requests: 1, chargedUsd: 0.01, unpricedRequests: 0, responsesWithTokenBreakdown: 1, repricedUsd: 0.01 });
+        json(join(artifact, "result.json"), { exception_info: null });
+        json(join(artifact, "verifier/evaluation.json"), { state: "finished", exitCode: 1, diagnostics: ["official evaluator exited 1"] });
+        return { status: 1 };
+    };
+    await assert.rejects(runCampaign(options, execute), /paused for review/u);
+    await assert.rejects(runCampaign(options, execute), /retry swebench\/evaluate.ts/u);
+    assert.equal(calls, 1);
+    json(join(artifact, "verifier/evaluation.json"), { state: "finished", exitCode: 0, diagnostics: [] });
+    json(join(artifact, "verifier/reward.json"), { reward: 1 });
+    await runCampaign(options, execute);
+    assert.equal(calls, 1);
+    const records = readFileSync(join(options.out, "results.jsonl"), "utf8").trim().split("\n").map(JSON.parse);
+    assert.equal(records.length, 2);
+    assert.equal(records[0].exit, 1);
+    assert.equal(records[0].pause, true);
+    assert.equal(records[1].pause, false);
+    assert.equal(records[1].reward.reward, 1);
+    assert.ok(records[1].regradedAt);
+    const summary = JSON.parse(readFileSync(join(options.out, "summary.json"), "utf8"));
+    assert.equal(summary.finished, 1);
+    assert.equal(summary.chargedUsd, 0.01);
+});
+
 for (const { name, limits, errors, failures = [], exception = null, pause } of [
     { name: "recorded turn-cap abort", limits: [{ event: "turn-cap", turnCap: 100 }],
         errors: [{ stopReason: "error", error: "This operation was aborted" }], pause: false },

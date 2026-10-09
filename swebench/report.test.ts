@@ -9,7 +9,7 @@ import { compareBaselines } from "./comparison.ts";
 import { readDigest } from "../src/digest.ts";
 
 const row = (over: Partial<TrialRow>): TrialRow => ({
-    instance: "django__django-11620", attempt: 1, model: "deepdumb", outcome: "fail", loopStatus: 200, reward: 0, emptyPatch: false, exception: null,
+    instance: "django__django-11620", attempt: 1, model: "deepdumb", outcome: "fail", loopStatus: 200, reward: 0, emptyPatch: false, exception: null, evaluation: null,
     turns: 12, requests: 12, rejectedEmissions: 0, tokens: { input: 400_000, cached: 100_000, output: 20_000, reasoning: 5_000 },
     costUsd: 0.12, knownCostUsd: over.costUsd === undefined ? 0.12 : over.costUsd,
     pricedRequests: over.costUsd === null ? 0 : 12, costEvidence: { charged: 12, estimated: 0, unknown: 0 },

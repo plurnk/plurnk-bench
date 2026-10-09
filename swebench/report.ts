@@ -14,6 +14,7 @@ import { median } from "../src/statistics.ts";
 import { readDigest } from "../src/digest.ts";
 import { baselinesFor, compareBaselines, renderComparison, type Comparison } from "./comparison.ts";
 import { frictionOf, receiptOrigin, summarizeFriction, type DigestTurn, type Friction, type FrictionInput, type FrictionSummary } from "./friction.ts";
+import { evaluationFailure, type EvaluationAttempt } from "./evaluator.ts";
 
 export interface TrialRow {
     readonly instance: string;
@@ -24,6 +25,7 @@ export interface TrialRow {
     readonly reward: number | null;
     readonly emptyPatch: boolean;
     readonly exception: string | null;
+    readonly evaluation: EvaluationAttempt | null;
     readonly turns: number;
     readonly requests: number | null;
     readonly rejectedEmissions: number | null;
@@ -56,6 +58,7 @@ export interface CampaignSummary {
     readonly rejectedEmissions: number;
     readonly emptyPatches: number;
     readonly exceptions: Readonly<Record<string, number>>;
+    readonly evaluations: { readonly trials: number; readonly problems: number };
     readonly edits: EditCensus;
     readonly isolation: { readonly webReferences: number; readonly webAttempts: number; readonly webReads: number; readonly mcpCalls: number; readonly trialsTouched: number; readonly classifiedTrials: number };
     readonly loopsEnded: Readonly<Record<string, number>>;   // loops the daemon ended (status ≥ 400), by status
@@ -152,6 +155,7 @@ export const readTrialRow = (trialDir: string, attempt: number): TrialRow | null
         reward: typeof reward?.reward === "number" ? reward.reward : record.reward ?? null,
         emptyPatch: reward?.empty_patch === 1,
         exception: ex?.exception_type === undefined ? null : `${ex.exception_type}${ex.exception_message ? `: ${ex.exception_message}` : ""}`,
+        evaluation: json<EvaluationAttempt>(join(trialDir, "verifier", "evaluation.json")),
         turns: record.turns,
         requests: accounting?.providerRequests ?? null,
         rejectedEmissions: accounting?.rejectedEmissions ?? null,
@@ -193,6 +197,7 @@ export const summarize = (rows: readonly TrialRow[]): CampaignSummary => {
         rejectedEmissions: sum(rows.map((row) => row.rejectedEmissions ?? 0)),
         emptyPatches: rows.filter((row) => row.emptyPatch).length,
         exceptions,
+        evaluations: { trials: rows.filter((row) => row.evaluation !== null).length, problems: rows.filter((row) => evaluationFailure(row.evaluation) !== null).length },
         edits: {
             count: sum(rows.map((row) => row.edits?.count ?? 0)),
             refused: sum(rows.map((row) => row.edits?.refused ?? 0)),
@@ -250,6 +255,11 @@ export const render = (campaign: { corpus?: string; model?: string | null; servi
     `- rejected emissions: ${summary.rejectedEmissions}`,
     `- empty patches: ${summary.emptyPatches}`,
     `- harness exceptions: ${pairs(summary.exceptions)}`,
+    `- evaluator evidence: ${summary.evaluations.trials}/${summary.trials} trials; latest attempts with problems: ${summary.evaluations.problems}`,
+    ...rows.flatMap((row) => {
+        const failure = evaluationFailure(row.evaluation);
+        return failure === null ? [] : [`- ${row.instance} attempt ${row.attempt}: evaluator: ${failure}; evidence ${join(row.evidence, "oracle", row.evaluation!.runId)}`];
+    }),
     `- turn evidence: ${summary.friction.turnTrials}/${summary.trials} trials; raw content ${num(summary.friction.turns?.rawEmissions ?? null)}/${num(summary.friction.turns?.modelTurns ?? null)} model turns`,
     `- fence-free content: ${num(summary.friction.turns?.fenceFree ?? null)}; with admitted content operations: ${num(summary.friction.turns?.fenceFreeAdmitted ?? null)}; engine no-operation outcomes: ${num(summary.friction.turns?.noOperation ?? null)}`,
     `- EDITs: ${summary.edits.count} (${pairs(summary.edits.forms)}) · refused ${summary.edits.refused} · revisits ${summary.edits.revisits}`,
@@ -297,15 +307,27 @@ export const verdictOf = (trialDir: string): string => {
     const detail = ex === null ? "" : `${ex.exception_type ?? "?"}${ex.exception_message ? `: ${ex.exception_message}` : ""}`;
     if (ex?.exception_type === "AgentSpawnError") return `harness: ${detail}`;
     const reward = json<{ reward?: number }>(join(trialDir, "verifier", "reward.json"));
+    const evaluation = evaluationFailure(json<EvaluationAttempt>(join(trialDir, "verifier", "evaluation.json")));
     const terminal = engineTerminal(trialDir);
     const decoration = ex?.exception_type === "AgentCancelledError" ? "externally cancelled" : terminal;
-    const decorated = decoration === null ? "" : ` (${decoration})`;
+    const details = [decoration, evaluation === null ? null : `evaluator: ${evaluation}`].filter((value) => value !== null);
+    const decorated = details.length === 0 ? "" : ` (${details.join("; ")})`;
     if (reward !== null && typeof reward.reward === "number") {
         return reward.reward === 1 ? `pass${decorated}` : `fail: reward ${reward.reward}${decorated}`;
     }
+    if (evaluation !== null) return `harness: evaluator: ${evaluation}`;
     if (terminal !== null) return `fail: ${terminal}`;
     if (ex !== null) return `agent: ${detail}`;
     return "harness: no verifier verdict";
+};
+
+// {§swebench-evaluator}: a captured candidate can be regraded, not repurchased to repair its grader.
+export const requireSettledEvaluation = (trialDir: string): void => {
+    if (!existsSync(join(trialDir, "artifacts", "model.patch"))) return;
+    const evaluation = json<EvaluationAttempt>(join(trialDir, "verifier", "evaluation.json"));
+    const reward = json<{ reward?: number }>(join(trialDir, "verifier", "reward.json"));
+    if (evaluationFailure(evaluation) === null && typeof reward?.reward === "number") return;
+    throw new Error(`candidate retained at ${trialDir}; retry swebench/evaluate.ts on its unchanged artifacts/model.patch before resuming, or explicitly skip the specimen`);
 };
 
 if (import.meta.main) {

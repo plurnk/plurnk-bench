@@ -4,8 +4,9 @@
 // graded trial under `clean` — and every id its accepted file names (a failure read and accepted
 // as the model's, remembered so no later launch re-buys it), and --limit bounds what this launch
 // runs.
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { parseArgs } from "node:util";
+import { latestLaunches, requireSettledEvaluation, verdictOf } from "./report.ts";
 
 export interface PlannedTrial { readonly id: string; readonly attempt: number }
 // The campaign's --halt-on policy; what it lets run on is what a resume keeps.
@@ -28,13 +29,23 @@ export const corpusIds = (corpus: unknown): string[] => {
 export const letsRunOn = (policy: HaltPolicy, verdict: string): boolean =>
     policy === "pass" ? verdict === "pass" : !/^(agent|harness):/.test(verdict);
 
-// trials.tsv columns: instance, attempt, rc, trial, published, verdict. A trial is done when its
-// verdict would not have halted the campaign; whatever halted runs again on resume unless its id
-// is skipped.
-export const donePairs = (trialsTsv: string, policy: HaltPolicy): Set<string> => new Set(
-    trialsTsv.split("\n").filter((line) => line.trim() !== "").map((line) => line.split("\t"))
-        .filter((cells) => letsRunOn(policy, cells[5] ?? "")).map((cells) => `${cells[0]}\t${cells[1]}`),
-);
+// trials.tsv columns: instance, attempt, rc, trial, published, verdict. Current grading evidence
+// may supersede the recorded verdict without replacing that launch ({§swebench-evaluator}).
+export const donePairs = (trialsTsv: string, policy: HaltPolicy, selection: { skip?: readonly string[]; only?: readonly string[] } = {}): Set<string> => {
+    const rows = trialsTsv.split("\n").filter((line) => line.trim() !== "").map((line) => {
+        const [instance, attempt, , trial, , verdict] = line.split("\t");
+        return { instance: instance!, attempt: Number(attempt), trial, verdict: verdict ?? "" };
+    });
+    return new Set(latestLaunches(rows).filter((row) => {
+        if (selection.skip?.includes(row.instance)) return true;
+        if (selection.only?.length && !selection.only.includes(row.instance)) return false;
+        const retained = row.trial !== undefined && row.trial !== "" && existsSync(row.trial);
+        const verdict = retained ? verdictOf(row.trial!) : row.verdict;
+        if (letsRunOn(policy, verdict)) return true;
+        if (retained) requireSettledEvaluation(row.trial!);
+        return false;
+    }).map(({ instance, attempt }) => `${instance}\t${attempt}`));
+};
 
 export const planTrials = (input: {
     readonly ids: readonly string[]; readonly attempts: number; readonly limit: number;
@@ -63,7 +74,9 @@ if (import.meta.main) {
     const pairs = planTrials({
         ids: corpusIds(JSON.parse(readFileSync(values.corpus, "utf8"))),
         attempts: Number(values.attempts), limit: Number(values.limit), only: list(values.only), skip: [...list(values.skip), ...accepted],
-        done: values.trials === undefined ? new Set() : donePairs(readFileSync(values.trials, "utf8"), policy),
+        done: values.trials === undefined ? new Set() : donePairs(readFileSync(values.trials, "utf8"), policy, {
+            skip: [...list(values.skip), ...accepted], only: list(values.only),
+        }),
     });
     for (const { id, attempt } of pairs) console.log(`${id} ${attempt}`);
 }
