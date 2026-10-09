@@ -124,6 +124,22 @@ retains its inputs, logs and official reports under `oracle/<runId>/`; its lates
 status is `verifier/evaluation.json`. A saved verdict can coexist with an evaluator
 error. Resume reads the current grading evidence without erasing earlier launch records.
 
+## Configuration matrix
+
+Repeat one specimen across non-secret environment profiles, using the same runner:
+
+```sh
+node swebench/matrix.mjs --profiles swebench/profiles/packet-memory.json \
+  --instance django__django-12747 --model deepdumb --attempts 3 --jobs 6
+```
+
+The profile file is an array of `{ "name": "label", "env": { "PLURNK_...": "value" } }`.
+Each repetition rotates profile order. Plans, launches, every trial path, and per-profile
+accounting/friction summaries land in `~/benchmarks/jobs/swebench-matrices/`.
+Setup failures stop new launches while current trials finish; ordinary oracle misses
+remain results. An interrupt stops launching without cancelling model requests.
+There is no automatic retry or resume; inspect retained failures before another study.
+
 ## Native Pi comparison
 
 [pi.mjs](pi.mjs) runs the installed Pi CLI against the same specimen, prompt,

@@ -853,6 +853,16 @@ reimplementation of its agent loop or an assertion that the study was reproduced
   by the manifest and by the corpus citation; the wall clock is a runaway guard set
   far above any plausible rollout. A rollout truncated on seconds records a timeout
   where the study would have recorded a turn count.
+- §swebench-matrix `swebench/matrix.mjs` repeats one pinned instance across explicit,
+  non-secret environment profiles through `swebench/run.sh`. Every repetition visits
+  every profile, rotating their starting order. The immutable plan records profiles,
+  model, repetitions, concurrency and source revisions; append-only launch/results
+  records retain every attempt and its trial path. Ordinary oracle misses continue.
+  Missing evidence or infrastructure failure stops new launches, not in-flight work;
+  interruption likewise drains existing trials. There is no automatic retry or resume.
+  Reports reuse the trial accounting and friction readers; missing evidence cannot
+  contribute a zero cost or a complete cost total. Profiles do not replace the runner's
+  isolation, candidate invocation, limits or evaluator.
 - §swebench-friction Friction reporting projects durable engine outcomes, not a second
   parser. These views overlap and must not be summed as independent failures:
 
