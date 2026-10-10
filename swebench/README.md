@@ -105,6 +105,11 @@ re-runs unaccepted agent/setup outcomes, while `clean` keeps graded misses.
 A captured candidate with failed grading must be regraded in place, not generated
 again. `--skip <id>` records an intentional omission rather than replacing a failed trial.
 `--limit`, `--only`, and `--jobs` bound the selected work and concurrency.
+A resume restores the corpus, model and attempts from `campaign.json`; `--only`,
+`--limit`, `--jobs`, `--halt-on` and the `PLURNK_SWEBENCH_*_ROOT` checkouts come from
+the resuming invocation, so repeat them. A launch builds its checkouts once; export
+`PLURNK_CANDIDATE_SKIP_BUILD=1` when launching beside a campaign that runs from the
+same checkouts, or the new launch rebuilds `dist` beneath its trials.
 
 Add `--json` to the report command for machine-readable results. Read failure
 and missing-telemetry sections alongside the aggregate scores. Friction separates

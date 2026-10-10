@@ -94,3 +94,9 @@ Keep benchmark-specific aggregation and reporting in `plurnk-bench`. If a
 benchmark exposes missing product telemetry or packaging, record the exact
 product-path failure and identify the owning repository without repairing it
 as part of the benchmark run.
+
+A paid run needs the operator's explicit go naming what runs and against which
+comparator; never infer the comparator. Keep this repository lean: fix what is
+broken, and do not polish it. Once a configuration is superseded, keep its
+summaries (digests, run records, patches, verdicts, campaign tables) and every
+comparator capture, and delete its databases and checkouts.

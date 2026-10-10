@@ -45,15 +45,23 @@ grades, infrastructure errors, and model failures.
 
 Inspect the saved patch, evaluator output, and packet/reasoning digest alongside
 pass rate, cost, tokens, cache use, and elapsed time. Provider charges, estimates,
-and unknown costs remain distinct. The [specification](SPEC.md) defines the
-record and accounting contracts; [src/record.ts](src/record.ts) defines the shared
-`BenchRecord` shape.
+and unknown costs remain distinct. DeepSeek offers no per-request invoice; reconcile
+a campaign against the account balance read before and after it. The
+[specification](SPEC.md) defines the record and accounting contracts;
+[src/record.ts](src/record.ts) defines the shared `BenchRecord` shape.
+
+Compare configurations from interleaved runs on the same tasks (the
+[configuration matrix](swebench/README.md#configuration-matrix)): separate launches
+of one commit drift enough to swamp most configuration effects.
 
 Public reports and evidence bundles belong in this repository's
 [GitHub releases](https://github.com/plurnk/plurnk-bench/releases), not in a separate
 repository per campaign. Include the task selection, revisions, model route and
-settings, limits, and accounting basis with each report. Review artifacts before
-publishing: transcripts and databases can contain private data.
+settings, limits, and accounting basis with each report. Publish verdicts, patches,
+evaluator output and numeric request ledgers, never transcripts, wire captures or
+databases: they can contain private data, and a native comparator's shell inherits
+its provider credential, which a model can print. Before upload, search the bundle
+for the value of every credential in the invoking environment without printing them.
 
 ## Development
 
