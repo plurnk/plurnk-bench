@@ -92,13 +92,14 @@ test("{§swebench-trial} aborting a started process is cancellation, not spawn f
     assert.equal(result.timedOut, false);
 });
 
-test("[§swebench-prompt] the task prompt requests a repository fix and verification without grading or grammar coaching", () => {
+test("[§swebench-prompt] the task prompt requests a repository fix and verification, states the environment's bounds, and coaches neither grading nor grammar", () => {
     const statement = "When DEBUG is True, raising Http404 in a path converter does not help.";
     const prompt = taskPrompt(statement);
     assert.match(prompt, /^Fix the following issue in the checked-out repository\./u);
-    assert.ok(prompt.endsWith("Implement the fix in the working tree and verify the affected behavior.\nThis environment has no network access: the repository and its installed dependencies are all that is available."));
+    assert.ok(prompt.endsWith("Implement the fix in the working tree and verify the affected behavior.\nThis environment has no network access: the repository and its installed dependencies are all that is available.\nNo upstream fix and no grading tests are present anywhere on this machine."), prompt);
     const wrapper = prompt.replace(statement, "");
-    assert.doesNotMatch(wrapper, /grad(?:e|ed|ing)|hidden[- ]tests?|reference[- ]patch/iu);
+    assert.match(wrapper, /No upstream fix and no grading tests are present anywhere on this machine\./u, "the second bound is stated as a fact");
+    assert.doesNotMatch(wrapper, /make .*pass|hidden[- ]tests?|reference[- ]patch|target/iu, "and never as something to aim at");
     assert.doesNotMatch(wrapper, /smallest|minimal|brief|concise/iu);
     for (const op of ["EDIT", "FIND", "READ", "SEND", "NOTE", "KILL", "backtick"]) {
         assert.ok(!wrapper.includes(op), `the task prompt must not teach ${op}`);

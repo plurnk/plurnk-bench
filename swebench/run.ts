@@ -55,6 +55,7 @@ export const taskPrompt = (problemStatement: string): string => [
     "",
     "Implement the fix in the working tree and verify the affected behavior.",
     "This environment has no network access: the repository and its installed dependencies are all that is available.",
+    "No upstream fix and no grading tests are present anywhere on this machine.",
 ].join("\n");
 
 // {§swebench-conditions} {§swebench-profiles} — ordinary client invocation, local approval,
