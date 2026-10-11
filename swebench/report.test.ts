@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { latestLaunches, readTrialRow, render, summarize, verdictOf, webReferencesTaught, type TrialRow } from "./report.ts";
+import { latestLaunches, readTrialRow, render, requireSettledEvaluation, summarize, verdictOf, webReferencesTaught, type TrialRow } from "./report.ts";
 import { frictionOf, type DigestTurn } from "./friction.ts";
 import { compareBaselines } from "./comparison.ts";
 import { readDigest } from "../src/digest.ts";
@@ -133,6 +133,22 @@ test("[§benchlet-isolation] {§share-packet-names} the teaching check reads the
     assert.equal(webReferencesTaught(digest, turns), 2, "https and wss, each once, from worker-1-2 and not worker-1-10");
     assert.equal(webReferencesTaught(digest, []), 0, "no turns, nothing taught");
     assert.equal(webReferencesTaught(digest, [{ artifact: "worker-1-3" }]), 0, "a turn that stored no request has no user packet");
+});
+
+test("{§swebench-evaluator} a candidate with a verdict is settled whatever the evaluator's exit; one without a verdict is not", (t) => {
+    const dir = mkdtempSync(join(tmpdir(), "swebench-settled-"));
+    t.after(() => rmSync(dir, { recursive: true, force: true }));
+    const candidate = (name: string, reward?: unknown): string => {
+        const path = join(dir, name);
+        mkdirSync(join(path, "artifacts"), { recursive: true });
+        mkdirSync(join(path, "verifier"), { recursive: true });
+        writeFileSync(join(path, "artifacts", "model.patch"), "candidate");
+        writeFileSync(join(path, "verifier", "evaluation.json"), JSON.stringify({ state: "finished", exitCode: 1, diagnostics: ["official evaluator exited 1"] }));
+        if (reward !== undefined) writeFileSync(join(path, "verifier", "reward.json"), JSON.stringify(reward));
+        return path;
+    };
+    assert.doesNotThrow(() => requireSettledEvaluation(candidate("graded", { reward: 1 })), "the report is the grading; the evaluator's exit rides it as a diagnostic");
+    assert.throws(() => requireSettledEvaluation(candidate("ungraded")), /retry swebench\/evaluate\.ts/u);
 });
 
 test("[§swebench-trial] the halt rule passes only a clean pass and names what to read otherwise", (t) => {

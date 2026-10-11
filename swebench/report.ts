@@ -322,11 +322,12 @@ export const verdictOf = (trialDir: string): string => {
 };
 
 // {§swebench-evaluator}: a captured candidate can be regraded, not repurchased to repair its grader.
+// The report is the grading: a candidate with a verdict is settled whatever the evaluator's exit,
+// which rides the verdict as its diagnostic (plurnk-bench#78).
 export const requireSettledEvaluation = (trialDir: string): void => {
     if (!existsSync(join(trialDir, "artifacts", "model.patch"))) return;
-    const evaluation = json<EvaluationAttempt>(join(trialDir, "verifier", "evaluation.json"));
     const reward = json<{ reward?: number }>(join(trialDir, "verifier", "reward.json"));
-    if (evaluationFailure(evaluation) === null && typeof reward?.reward === "number") return;
+    if (typeof reward?.reward === "number") return;
     throw new Error(`candidate retained at ${trialDir}; retry swebench/evaluate.ts on its unchanged artifacts/model.patch before resuming, or explicitly skip the specimen`);
 };
 

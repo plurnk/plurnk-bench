@@ -6,7 +6,6 @@ import { parseArgs } from "node:util";
 import { corpusIds, planTrials } from "./plan.ts";
 import { runToFiles } from "./run.ts";
 import { requireSettledEvaluation } from "./report.ts";
-import { evaluationFailure } from "./evaluator.ts";
 
 const directory = dirname(fileURLToPath(import.meta.url));
 const json = (path) => JSON.parse(readFileSync(path, "utf8"));
@@ -18,9 +17,10 @@ const evidenceOf = (artifact) => {
         exception: read("result.json")?.exception_info ?? null, evaluation: read("verifier/evaluation.json") };
 };
 
-const hasCandidateOutcome = ({ summary, reward, exception, evaluation }) => reward && summary?.requests > 0
-    && (exception === null || ["AgentExitError", "AgentTimeoutError", "AgentCancelledError"].includes(exception.exception_type))
-    && evaluationFailure(evaluation) === null;
+// {§swebench-evaluator}: the verifier's report is the grading; the evaluator's exit rides the verdict
+// as its diagnostic (plurnk-bench#78), so a graded candidate is an outcome whatever that exit was.
+const hasCandidateOutcome = ({ summary, reward, exception }) => reward && summary?.requests > 0
+    && (exception === null || ["AgentExitError", "AgentTimeoutError", "AgentCancelledError"].includes(exception.exception_type));
 
 const campaignPrice = (summaries, field, knownField, priced) => {
     const totals = summaries.map((summary) => summary && priced(summary) === summary.requests ? summary[field] ?? null : null);
@@ -82,7 +82,8 @@ export async function runCampaign({ corpus, profile, out, attempts, jobs, signal
                 { cwd: resolve(directory, ".."), env: process.env, signal, stdoutPath, stderrPath });
             const artifact = readFileSync(stdoutPath, "utf8").match(/^artifact=(.+)$/m)?.[1];
             const evidence = evidenceOf(artifact);
-            const pause = execution.status !== 0 || !hasCandidateOutcome(evidence);
+            // A pause is for a trial that bought no graded candidate; the process exit stays on the record.
+            const pause = !hasCandidateOutcome(evidence);
             const entry = { ...trial, artifact, exit: execution.status, ...evidence, pause, finishedAt: new Date().toISOString() };
             appendFileSync(resultsPath, JSON.stringify(entry) + "\n");
             completed.push(entry);
