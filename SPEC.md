@@ -749,7 +749,7 @@ reimplementation of its agent loop or an assertion that the study was reproduced
   | Evidence | Lifetime and effect |
   | --- | --- |
   | `oracle/<runId>/` | One grading attempt: exact prediction, subprocess stdout/stderr, official reports, and `evaluation.json` recording running/finished state, exit status, diagnostics and reward. Earlier attempts remain unchanged. |
-  | `verifier/evaluation.json` | Latest attempt, including failure independently of the oracle verdict. An abnormal evaluator exit remains an error even when its saved instance verdict is valid. |
+  | `verifier/evaluation.json` | Latest attempt, including failure independently of the oracle verdict. An abnormal evaluator exit remains an error even when its saved instance verdict is valid; it rides the verdict as its diagnostic. A trial whose report exists publishes whatever that exit was ({§publish-live}), so the campaign sheet keeps its run; only an absent report leaves the trial ungraded and unpublished, and the runner exits nonzero. |
   | `verifier/reward.json` | Latest valid oracle verdict. A failed reevaluation cannot erase an earlier verdict for the same candidate. |
 
   Evaluator-only recovery uses the same instance, label and patch SHA-256; a

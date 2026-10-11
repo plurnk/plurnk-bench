@@ -102,6 +102,14 @@ export const exceptionInfo = (result: CandidateExit, timeoutSeconds: number): Ex
     return null;
 };
 
+// {§swebench-evaluator}: the verifier's report is the grading. Its process exit is a diagnostic the
+// evaluator already recorded on the verdict (plurnk-bench#78); only an absent report leaves a trial
+// ungraded and unpublished.
+export const gradingOutcome = (status: number | null, signal: string | null, rewardExists: boolean): { graded: true } | { graded: false; reason: string } =>
+    rewardExists
+        ? { graded: true }
+        : { graded: false, reason: `the official evaluator exited ${status ?? signal ?? "unknown"} without a report` };
+
 export const extractPlurnkDoc = (text: string): string | null => {
     const lines = text.split("\n");
     for (let index = lines.length - 1; index >= 0; index -= 1) {
@@ -380,7 +388,8 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             // The verifier half is an ordinary subprocess; it resolves the shared core
             // through the installed package's published (dist) exports, not plurnk-dev.
             const graded = spawnSync(process.execPath, [join(moduleDir, "evaluate.ts"), "--instance", manifest.instance, "--patch", patchPath, "--out", trialDir, "--label", "plurnk"], { cwd: benchRoot, stdio: "inherit", env: process.env });
-            if (graded.status !== 0) throw new Error(`the official evaluator exited ${graded.status ?? graded.signal ?? "unknown"}`);
+            const outcome = gradingOutcome(graded.status, graded.signal, existsSync(join(trialDir, "verifier", "reward.json")));
+            if (!outcome.graded) throw new Error(outcome.reason);
             publishedDir = await publishTrial(trialDir, "swebench", benchmarksHome(), runDir === null ? {} : { runDir });
         }
         writeJson(join(trialDir, "provenance.json"), { ...provenance, runDir: publishedDir ?? runDir });

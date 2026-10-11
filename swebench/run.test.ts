@@ -5,7 +5,15 @@ import { spawnSync } from "node:child_process";
 import { watch } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { candidateArgv, exceptionInfo, extractPlurnkDoc, runToFiles, taskPrompt } from "./run.ts";
+import { candidateArgv, exceptionInfo, extractPlurnkDoc, gradingOutcome, runToFiles, taskPrompt } from "./run.ts";
+
+test("{§swebench-evaluator} a graded trial publishes whatever the evaluator's exit; only an absent report is ungraded", () => {
+    assert.deepEqual(gradingOutcome(1, null, true), { graded: true }, "a cleanup failure after the report is a diagnostic on the verdict, not a lost trial (plurnk-bench#78)");
+    assert.deepEqual(gradingOutcome(0, null, true), { graded: true });
+    assert.deepEqual(gradingOutcome(1, null, false), { graded: false, reason: "the official evaluator exited 1 without a report" });
+    assert.deepEqual(gradingOutcome(null, "SIGKILL", false), { graded: false, reason: "the official evaluator exited SIGKILL without a report" });
+    assert.deepEqual(gradingOutcome(0, null, false), { graded: false, reason: "the official evaluator exited 0 without a report" }, "a clean exit without a report is still no grading");
+});
 
 test("[§swebench] the candidate runs the ordinary client: --json, --yolo, the task prompt after --", () => {
     assert.deepEqual(candidateArgv("/runs/run1/repo", 1680, "Fix the missing-data crash", 100), [
