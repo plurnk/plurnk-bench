@@ -48,7 +48,7 @@ export async function runCampaign({ corpus, profile, out, attempts, jobs, signal
     const latest = new Map(recorded.map((entry) => [`${entry.id}/${entry.attempt}`, entry]));
     for (const [key, entry] of latest) {
         if (!entry.pause || !entry.artifact || !existsSync(join(entry.artifact, "artifacts", "model.patch"))) continue;
-        requireSettledEvaluation(entry.artifact);
+        requireSettledEvaluation(entry.artifact, "clean");
         const evidence = evidenceOf(entry.artifact);
         if (!hasCandidateOutcome(evidence)) throw new Error(`candidate retained at ${entry.artifact}; inspect its missing trial evidence before resuming`);
         const recovered = { ...entry, ...evidence, pause: false, regradedAt: new Date().toISOString() };

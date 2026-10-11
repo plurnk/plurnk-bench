@@ -135,7 +135,7 @@ test("[§benchlet-isolation] {§share-packet-names} the teaching check reads the
     assert.equal(webReferencesTaught(digest, [{ artifact: "worker-1-3" }]), 0, "a turn that stored no request has no user packet");
 });
 
-test("{§swebench-evaluator} a candidate with a verdict is settled whatever the evaluator's exit; one without a verdict is not", (t) => {
+test("{§swebench-evaluator} a saved verdict settles a candidate under clean; under pass an abnormal evaluator exit beside it is the evaluator's to settle; no verdict settles nothing", (t) => {
     const dir = mkdtempSync(join(tmpdir(), "swebench-settled-"));
     t.after(() => rmSync(dir, { recursive: true, force: true }));
     const candidate = (name: string, reward?: unknown): string => {
@@ -147,8 +147,11 @@ test("{§swebench-evaluator} a candidate with a verdict is settled whatever the 
         if (reward !== undefined) writeFileSync(join(path, "verifier", "reward.json"), JSON.stringify(reward));
         return path;
     };
-    assert.doesNotThrow(() => requireSettledEvaluation(candidate("graded", { reward: 1 })), "the report is the grading; the evaluator's exit rides it as a diagnostic");
-    assert.throws(() => requireSettledEvaluation(candidate("ungraded")), /retry swebench\/evaluate\.ts/u);
+    const graded = candidate("graded", { reward: 1 });
+    assert.doesNotThrow(() => requireSettledEvaluation(graded, "clean"), "the report is the grading; the evaluator's exit rides it as a diagnostic");
+    assert.throws(() => requireSettledEvaluation(graded, "pass"), /retry swebench\/evaluate\.ts/u, "the strict policy regrades or skips a blemished pass, never buys it again");
+    const ungraded = candidate("ungraded");
+    for (const policy of ["pass", "clean"] as const) assert.throws(() => requireSettledEvaluation(ungraded, policy), /retry swebench\/evaluate\.ts/u);
 });
 
 test("[§swebench-trial] the halt rule passes only a clean pass and names what to read otherwise", (t) => {

@@ -42,7 +42,7 @@ export const donePairs = (trialsTsv: string, policy: HaltPolicy, selection: { sk
         const retained = row.trial !== undefined && row.trial !== "" && existsSync(row.trial);
         const verdict = retained ? verdictOf(row.trial!) : row.verdict;
         if (letsRunOn(policy, verdict)) return true;
-        if (retained) requireSettledEvaluation(row.trial!);
+        if (retained) requireSettledEvaluation(row.trial!, policy);
         return false;
     }).map(({ instance, attempt }) => `${instance}\t${attempt}`));
 };

@@ -756,8 +756,13 @@ reimplementation of its agent loop or an assertion that the study was reproduced
   different candidate requires a different trial. It invokes no model. Campaign
   resume reads current grading evidence, preserves its earlier launch records and
   requires evaluator-only recovery instead of repurchasing a captured candidate
-  whose grading failed. Reports display evaluator failure alongside any saved
-  verdict; process failure alone never produces a pass or a miss.
+  whose grading failed. A saved verdict is the grading: under `--halt-on clean`, and
+  in the Pi driver, it settles the candidate as it stands whatever the evaluator's
+  exit; under `--halt-on pass`, which counts only a clean pass, an abnormal exit
+  beside the verdict is settled by the evaluator alone before the pair counts, so
+  the candidate is regraded or skipped, never bought again. Reports display
+  evaluator failure alongside any saved verdict; process failure alone never
+  produces a pass or a miss.
 - §swebench-trial One attempt is one trial directory, self-describing before it is
   published. Its `artifact=` identity is announced immediately on allocation,
   before setup or grading can fail. Each grading attempt takes its own evaluation run id (the harness names its
