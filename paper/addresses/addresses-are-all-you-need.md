@@ -436,8 +436,10 @@ cache survived at 80%. One task and one attempt each, so this is a mechanism exh
 The specimens also named what the teaching lacked, which is their job. In all three curation runs the
 model lost turns under pressure to the shape of a journal coordinate: five segments where there are
 four, a bar-separated list of complete coordinates, a bracketed comma list, each drawing either a
-silent no-match 204 or a refusal that named no shape. The harness now accepts the bar list and both
-diagnostics name the coordinate form. Twice the model tried to keep a command's output out of its
+silent no-match 204 or a refusal that named no shape. The harness now reads each of those four shapes
+as the one target it can only have meant, with no new text in the packet, and a target nothing can
+read is refused with the coordinate form; the card is unchanged, since its one KILL example already
+shows the form. Twice the model tried to keep a command's output out of its
 context by inventing a form, a COPY of a command and a `stream` metadata field on a shell statement;
 the card had not told it that unscoped output arrives as a first page. And the over-budget row, being
 durable, stood in later packets as a stale mandate until the model retired it.

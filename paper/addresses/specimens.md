@@ -51,8 +51,11 @@ Side by side at a 16k room, this task, one attempt each: Plurnk 31 calls $0.024 
 uncapped means Plurnk $0.062, Pi $0.021.
 
 ## Recurring
-- Journal coordinate shape: 2/2 specimens lost 1-3 turns to KILL addresses with the wrong segment count; the 204
-  body is `{"status":204,"matched":0}` with no shape. Proposal: the miss names the coordinate shape
-  `log:///<loop>/<turn>/<item>/<op>` (globs in any segment), as a file miss names its key.
+- Journal coordinate shape: 3/3 specimens lost 1-3 turns to KILL addresses with the wrong segment count or a
+  `|`-joined list; the 204 body was `{"status":204,"matched":0}` with no shape. Landed as service `e7f2a975b`
+  (#1094, `|` lists; shape on refusals) and `8b847e71b` (#1095: the three near-miss shapes read as the target
+  meant: `1/3/3/*/READ`→`1/3/3/READ`, `1/*/READ`→`1/*/*/READ`, `[19,24]`→`{19,24}`; the sweep's 204 bare again,
+  Matt 2026-10-12: no more metadata on the uncached tail). The card is unchanged (Matt: no card line for every
+  mistake).
 - Mandate obeyed both times; pressure notice answered within 0-2 turns; the over-budget row outlives its turn.
 - Both passed, both cheaper than their uncapped attempts (n = 2; not a result).
