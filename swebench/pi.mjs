@@ -21,6 +21,17 @@ export const providerDefinition = (profile, credential) => ({ providers: { [prof
         ...(profile.compat ? { compat: profile.compat } : {}), ...(profile.thinkingLevelMap ? { thinkingLevelMap: profile.thinkingLevelMap } : {}) }],
 } } });
 
+// {§swebench-pi} A hosted model keeps its frozen-catalog metadata unless the profile overrides it: models.json
+// `modelOverrides` is the layer Pi documents for changing a built-in model's metadata, its context window among it.
+export const providerConfiguration = (profile, credential) => {
+    if (profile.baseUrl) {
+        const definition = providerDefinition(profile, credential);
+        if (profile.modelOverrides) definition.providers[profile.provider].modelOverrides = profile.modelOverrides;
+        return definition;
+    }
+    return profile.modelOverrides ? { providers: { [profile.provider]: { modelOverrides: profile.modelOverrides } } } : null;
+};
+
 export const profileCredential = (profile) =>
     HOSTED_CREDENTIALS[profile.provider] ?? profile.credential ?? (profile.baseUrl ? LOCAL_CREDENTIAL : null);
 
@@ -53,6 +64,13 @@ export function validateProfile(profile) {
         }
         if (!Number.isSafeInteger(profile.contextWindow) || profile.compaction.reserveTokens + profile.compaction.keepRecentTokens >= profile.contextWindow) {
             throw new Error("compaction must leave room below contextWindow");
+        }
+    }
+    if (profile.modelOverrides !== undefined) {
+        const entries = typeof profile.modelOverrides === "object" && profile.modelOverrides !== null && !Array.isArray(profile.modelOverrides)
+            ? Object.values(profile.modelOverrides) : null;
+        if (entries === null || entries.some((override) => typeof override !== "object" || override === null || Array.isArray(override))) {
+            throw new Error("modelOverrides maps a model id to an object of model metadata");
         }
     }
     for (const key of ["executable", "version", "model", "catalogPath", "effort"]) {
@@ -167,7 +185,7 @@ export async function runPiTrial({ instance, profilePath, preflight = false, sig
     const version = shell(profile.executable, ["--version"]).trim();
     if (version !== profile.version) throw new Error(`Pi version changed: expected ${profile.version}, got ${version}`);
     const credential = profileCredential(profile);
-    const model = selectedModel(profile, JSON.parse(readFileSync(profile.catalogPath, "utf8")), credential);
+    const model = { ...selectedModel(profile, JSON.parse(readFileSync(profile.catalogPath, "utf8")), credential), ...(profile.modelOverrides?.[profile.model] ?? {}) };
     const manifest = JSON.parse(readFileSync(join(directory, "manifests", `${instance}.json`), "utf8"));
     if (manifest.instance !== instance) throw new Error("Pi specimen identity mismatch");
     const root = jobsRoot("swebench-pi");
@@ -188,7 +206,8 @@ export async function runPiTrial({ instance, profilePath, preflight = false, sig
         const config = piConfiguration("/bin/bash", profile.compaction);
         json(join(configDir, "settings.json"), config);
         copyFileSync(profile.catalogPath, join(configDir, "models-store.json"));
-        if (profile.baseUrl) json(join(configDir, "models.json"), providerDefinition(profile, credential));
+        const providerConfig = providerConfiguration(profile, credential);
+        if (providerConfig) json(join(configDir, "models.json"), providerConfig);
         json(join(agentDir, "profile.json"), profile);
         const prompt = taskPrompt(manifest.problemStatement);
         const argv = piArguments(profile, "/var/lib/plurnk/sessions", prompt, "/opt/plurnk/pi-extension.mjs");

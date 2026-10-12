@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { drainCaptures, observeFetch } from "./pi-observer.mjs";
-import { piArguments, piConfiguration, piLaunch, summarizePi, validateProfile, providerDefinition, selectedModel } from "./pi.mjs";
+import { piArguments, piConfiguration, piLaunch, summarizePi, validateProfile, providerConfiguration, providerDefinition, selectedModel } from "./pi.mjs";
 import { runToFiles } from "./run.ts";
 import { runCampaign } from "./pi-campaign.mjs";
 
@@ -198,6 +198,24 @@ test("{§swebench-pi} profiles require explicit route, version, limits and rates
         "a baseUrl provider's model is the profile's own definition; the frozen catalog never carries it");
     assert.equal(selectedModel(profile, { fireworks: { models: [{ id: "fixture", name: "Fixture" }] } }, "FIREWORKS_API_KEY").name, "Fixture", "a hosted model is its catalog entry");
     assert.throws(() => selectedModel(profile, {}, "FIREWORKS_API_KEY"), /frozen catalog/, "a hosted model absent from the frozen catalog is refused");
+});
+
+test("{§swebench-pi} a profile's model overrides reach Pi through models.json and the recorded model, for hosted and baseUrl routes alike", () => {
+    const hosted = { executable: "/usr/bin/pi", version: "0.99.1", provider: "deepseek", model: "deepseek-flash", effort: "low", catalogPath: "/tmp/store.json",
+        turnCap: 1000, timeoutSeconds: 60, rates, contextWindow: 81920, compaction: { reserveTokens: 65536, keepRecentTokens: 8192 },
+        modelOverrides: { "deepseek-flash": { contextWindow: 81920, maxTokens: 65536 } } };
+    assert.deepEqual(validateProfile(hosted), hosted);
+    assert.deepEqual(providerConfiguration(hosted, "DEEPSEEK_API_KEY"), { providers: { deepseek: { modelOverrides: hosted.modelOverrides } } },
+        "a hosted model's metadata changes only through Pi's override layer; the frozen catalog keeps its natural values");
+    assert.equal(providerConfiguration({ ...hosted, modelOverrides: undefined }, "DEEPSEEK_API_KEY"), null, "no overrides, no models.json");
+    const store = { deepseek: { models: [{ id: "deepseek-flash", contextWindow: 1000000, maxTokens: 384000 }] } };
+    assert.deepEqual({ ...selectedModel(hosted, store, "DEEPSEEK_API_KEY"), ...hosted.modelOverrides["deepseek-flash"] },
+        { id: "deepseek-flash", contextWindow: 81920, maxTokens: 65536 }, "the recorded model carries the override");
+    const local = { ...hosted, provider: "local", baseUrl: "http://127.0.0.1:8080/v1", api: "openai-completions", maxOutputTokens: 65536 };
+    assert.deepEqual(providerConfiguration(local, "PLURNK_PI_LOCAL_KEY").providers.local.modelOverrides, hosted.modelOverrides, "a baseUrl definition carries them beside its model");
+    for (const bad of [[], "x", { "deepseek-flash": 5 }, { "deepseek-flash": null }]) {
+        assert.throws(() => validateProfile({ ...hosted, modelOverrides: bad }), /maps a model id to an object/);
+    }
 });
 
 test("{§swebench-pi} campaigns bound concurrency, retain losses and resume without rebuying attempts", async () => {
