@@ -399,6 +399,49 @@ model chose to retire; resolve rate and cost against the uncapped campaign for e
 failure modes at the wall, where the comparator summarizes and the curation harness sheds bodies into
 receipts and, past that, ends the loop.
 
+### 6.1 Three specimens at a 16k room
+
+Before any campaign, four single attempts were run at that partition on 2026-10-12 and read turn by
+turn: three on the curation harness, one on the comparator, same model and prompt, the harness at
+the pushed main after the 3.1.0 release. Their purpose was to find out whether the model executes the
+contract under pressure at all, and what the teaching lacks, before a campaign could measure anything.
+
+| Task | Arm | Calls | Cost | Largest packet | Room events | Verdict |
+|---|---|---:|---:|---:|---|---|
+| matplotlib-25433 | curation | 31 | $0.024 | 102% of budget, once | 10 pressure notices, 1 mandate, 12 KILLs retiring 43 rows | pass |
+| matplotlib-25433 | transcript | 83 | $0.121 | 20.2k tokens | 15 compactions | pass |
+| pytest-5103 | curation | 66, two workers | $0.073 | 115%, in a child | 12 pressure notices, 4 mandates, 53 KILLs retiring 206 rows | pass |
+| django-11564 | curation | 80 | $0.069 | 99%, never over | 36 pressure notices, no mandate, 30 KILLs retiring 148 rows | fail, as all six uncapped attempts in both arms |
+
+For reference the uncapped campaign's mean cost on those tasks was $0.062, $0.102 and $0.059 for the
+curation arm and $0.021 for the comparator on the first.
+
+The contract held in all three curation runs. Every mandate turn carried only KILL and NOTE; every
+pressure notice was answered within three turns by a KILL, usually with a distillation in its body;
+the wall was never reached. In one run the model answered pressure by starting a child worker with a
+written brief and waiting for its result, which is delegation used as curation: a new process is a
+new room. The model also re-read ranges it had just retired when a bulk KILL carried no distillation,
+which is the cost of eviction without notes, and 29 to 30 percent of its turns in each run carried
+only a NOTE.
+
+The comparator's single run shows the compaction mechanism at this scale. Its context grew to the
+trigger by the twenty-second call and compacted fifteen times in the sixty-one calls after, every three
+to five calls. Each compaction is a model-written summary, and the summaries are cumulative: they grew
+from 2.8k to 31k characters, about 72k output tokens in all, so that by the end the summary alone was
+near half the room and every refill was short. Each compaction also rewrote the prompt prefix, and the
+cached share of prompt tokens fell from 98.6% in the uncapped run to 69%. The curation run on the same
+task paid neither: a KILL is a one-line statement, the retired rows stay at their addresses, and the
+cache survived at 80%. One task and one attempt each, so this is a mechanism exhibited, not a rate.
+
+The specimens also named what the teaching lacked, which is their job. In all three curation runs the
+model lost turns under pressure to the shape of a journal coordinate: five segments where there are
+four, a bar-separated list of complete coordinates, a bracketed comma list, each drawing either a
+silent no-match 204 or a refusal that named no shape. The harness now accepts the bar list and both
+diagnostics name the coordinate form. Twice the model tried to keep a command's output out of its
+context by inventing a form, a COPY of a command and a `stream` metadata field on a shell statement;
+the card had not told it that unscoped output arrives as a first page. And the over-budget row, being
+durable, stood in later packets as a stale mandate until the model retired it.
+
 ## 7. Related work
 
 MemGPT framed the language model as an operating system managing its own memory hierarchy through
