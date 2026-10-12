@@ -58,4 +58,7 @@ uncapped means Plurnk $0.062, Pi $0.021.
   Matt 2026-10-12: no more metadata on the uncached tail). The card is unchanged (Matt: no card line for every
   mistake).
 - Mandate obeyed both times; pressure notice answered within 0-2 turns; the over-budget row outlives its turn.
+- Digest health: capped runs read DEGENERATE-WIN because 413 rows (mandate, receipts) counted as errors; fixed in
+  service `f3d34f14e` (#1096): 413s never count. Page default stays 100 (Matt 2026-10-12: million-token windows
+  are the common case; small rooms tune down), recorded on the knob (`f2055b6db`); no page line on the card.
 - Both passed, both cheaper than their uncapped attempts (n = 2; not a result).
