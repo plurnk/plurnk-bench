@@ -1,0 +1,54 @@
+{
+  "plurnk": {
+    "attempts": 90,
+    "calls": {
+      "median": 33,
+      "max": 89,
+      "total": 3044
+    },
+    "maxPrompt": {
+      "median": 27054.5,
+      "q3": 36935.25,
+      "p90": 52914.3,
+      "max": 88073
+    },
+    "meanPromptPerCall": 24009.429697766096,
+    "growthLastOverFirst": {
+      "median": 6.297374652040966,
+      "max": 17.85384147577539
+    },
+    "attemptsWithAnyDrop": 4,
+    "attemptsWithDropOverHalfOfMax": 1,
+    "dropsPerAttempt": 0.044444444444444446,
+    "promptTotal": 73084704,
+    "cacheShare": 0.9507539087795991,
+    "outputTotal": 3478098,
+    "reasoningTotal": 3011024
+  },
+  "pi": {
+    "attempts": 90,
+    "calls": {
+      "median": 42,
+      "max": 133,
+      "total": 4182
+    },
+    "maxPrompt": {
+      "median": 37067,
+      "q3": 75844,
+      "p90": 97125.70000000003,
+      "max": 151338
+    },
+    "meanPromptPerCall": 35339.101147776186,
+    "growthLastOverFirst": {
+      "median": 19.105619587662844,
+      "max": 70.27826564215148
+    },
+    "attemptsWithAnyDrop": 0,
+    "attemptsWithDropOverHalfOfMax": 0,
+    "dropsPerAttempt": 0,
+    "promptTotal": 147788121,
+    "cacheShare": 0.984813116339709,
+    "outputTotal": 2373666,
+    "reasoningTotal": 1775387
+  }
+}
