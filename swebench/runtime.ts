@@ -8,6 +8,7 @@ import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
 import { benchmarksHome } from "../src/host-paths.ts";
 import { buildCandidateClient } from "../src/candidate-client.ts";
+import { packRecords } from "../src/npm-pack.ts";
 
 const execute = promisify(execFile);
 const run = async (command: string, args: string[], cwd: string) => (await execute(command, args, { cwd, maxBuffer: 32 * 1024 * 1024 })).stdout;
@@ -24,7 +25,7 @@ export async function prepareRuntime(input: Input) {
     }
     const identity = {
         ...input, node: process.version, nodeSha256: sha256(await readFile(process.execPath)),
-        adapter: Object.fromEntries(await Promise.all(["runtime.ts", "../src/candidate-client.ts", ...adapterFiles].map(async (name) =>
+        adapter: Object.fromEntries(await Promise.all(["runtime.ts", "../src/candidate-client.ts", "../src/npm-pack.ts", ...adapterFiles].map(async (name) =>
             [name, sha256(await readFile(join(import.meta.dirname, name)))]))),
     };
     const root = join(benchmarksHome(), "cache", "swebench-runtimes");
@@ -47,8 +48,8 @@ async function build(target: string, identity: Identity) {
         await mkdir(archives);
         const packages: { name: string; version: string; file: string }[] = [];
         const pack = async (cwd: string, args: string[] = []) => {
-            const results = JSON.parse(await run("npm", ["pack", ...args, "--ignore-scripts", "--json", "--pack-destination", archives], cwd));
-            packages.push(...results.map((entry: { name: string; version: string; filename: string }) => ({ name: entry.name, version: entry.version, file: join(archives, entry.filename) })));
+            const results = packRecords(await run("npm", ["pack", ...args, "--ignore-scripts", "--json", "--pack-destination", archives], cwd));
+            packages.push(...results.map(({ name, version, filename }) => ({ name, version, file: join(archives, filename) })));
         };
         if (identity.kind === "plurnk") {
             await run("npm", ["run", "build"], identity.serviceRoot);

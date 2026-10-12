@@ -6,21 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
 
-import { packedContracts } from "./candidate-client.ts";
-
 const execute = promisify(execFile);
-
-test("{§bench-relock} npm 11's pack array and npm 12's name-keyed envelope both yield the one contracts record", () => {
-    const record = { name: "@plurnk/plurnk-contracts", version: "1.0.0", filename: "plurnk-plurnk-contracts-1.0.0.tgz" };
-    assert.equal(packedContracts(JSON.stringify([record])).filename, record.filename, "npm 11: an array of records");
-    assert.equal(packedContracts(JSON.stringify({ [record.name]: record })).filename, record.filename, "npm 12: records keyed by package name");
-    const refused = /did not pack its contracts/;
-    assert.throws(() => packedContracts("[]"), refused, "nothing packed");
-    assert.throws(() => packedContracts(JSON.stringify([record, { ...record, name: "@plurnk/plurnk-service" }])), refused, "more than the contracts");
-    assert.throws(() => packedContracts(JSON.stringify({ "@plurnk/plurnk-service": { ...record, name: "@plurnk/plurnk-service" } })), refused, "the wrong package");
-    assert.throws(() => packedContracts(JSON.stringify([{ name: record.name }])), refused, "a record without an archive name");
-    assert.throws(() => packedContracts("null"), refused, "no envelope");
-});
 
 test("{§bench-relock} a fresh client builds against the selected packed contracts without changing source or lockfiles", async (t) => {
     const root = await mkdtemp(join(tmpdir(), "plurnk-candidate-contracts-"));
