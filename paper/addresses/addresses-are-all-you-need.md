@@ -441,8 +441,10 @@ as the one target it can only have meant, with no new text in the packet, and a 
 read is refused with the coordinate form; the card is unchanged, since its one KILL example already
 shows the form. Twice the model tried to keep a command's output out of its
 context by inventing a form, a COPY of a command and a `stream` metadata field on a shell statement;
-the card had not told it that unscoped output arrives as a first page. And the over-budget row, being
-durable, stood in later packets as a stale mandate until the model retired it.
+nothing had told it that unscoped output arrives as a first page, and the first page is the teaching
+it needed, at the cost of one page. And the over-budget row, being durable, stood in later packets as
+a stale mandate until the model retired it; it is now shown once, in the packet it describes, and
+retired from the projection the way a no-match KILL receipt is.
 
 ## 7. Related work
 

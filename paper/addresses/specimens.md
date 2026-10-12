@@ -57,7 +57,10 @@ uncapped means Plurnk $0.062, Pi $0.021.
   meant: `1/3/3/*/READ`→`1/3/3/READ`, `1/*/READ`→`1/*/*/READ`, `[19,24]`→`{19,24}`; the sweep's 204 bare again,
   Matt 2026-10-12: no more metadata on the uncached tail). The card is unchanged (Matt: no card line for every
   mistake).
-- Mandate obeyed both times; pressure notice answered within 0-2 turns; the over-budget row outlives its turn.
+- Mandate obeyed both times; pressure notice answered within 0-2 turns; the over-budget row outlived its turn
+  (22 later packets in specimen 1) — fixed in service `63b0be82e` (#1097): shown once, in its own packet, then
+  retired from the projection like a no-match KILL receipt; durable at its coordinate (Matt 2026-10-12: a
+  regression and bug).
 - Digest health: capped runs read DEGENERATE-WIN because 413 rows (mandate, receipts) counted as errors; fixed in
   service `f3d34f14e` (#1096): 413s never count. Page default stays 100 (Matt 2026-10-12: million-token windows
   are the common case; small rooms tune down), recorded on the knob (`f2055b6db`); no page line on the card.
