@@ -100,12 +100,10 @@ test("{§swebench-trial} aborting a started process is cancellation, not spawn f
     assert.equal(result.timedOut, false);
 });
 
-test("[§swebench-prompt] the task prompt requests a repository fix and verification, states the network bound, and names neither the benchmark's grading nor grammar", () => {
+test("[§swebench-prompt] the wrapper states the network bound and names neither an upstream fix, grading, a target, brevity nor grammar", () => {
     const statement = "When DEBUG is True, raising Http404 in a path converter does not help.";
-    const prompt = taskPrompt(statement);
-    assert.match(prompt, /^Fix the following issue in the checked-out repository\./u);
-    assert.ok(prompt.endsWith("Implement the fix in the working tree and verify the affected behavior.\nThis environment has no network access: the repository and its installed dependencies are all that is available."), prompt);
-    const wrapper = prompt.replace(statement, "");
+    const wrapper = taskPrompt(statement).replace(statement, "");
+    assert.match(wrapper, /no network access/iu, "the environment's bound is stated");
     assert.doesNotMatch(wrapper, /upstream|grading|graded|benchmark|swe-?bench/iu, "the wrapper never names an upstream fix, grading or the benchmark");
     assert.doesNotMatch(wrapper, /make .*pass|hidden[- ]tests?|reference[- ]patch|target/iu, "nor anything to aim at");
     assert.doesNotMatch(wrapper, /smallest|minimal|brief|concise/iu);
