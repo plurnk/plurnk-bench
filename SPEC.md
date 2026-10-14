@@ -834,12 +834,11 @@ reimplementation of its agent loop or an assertion that the study was reproduced
 - §swebench-prompt The task prompt asks for an ordinary repository repair: the
   official issue, unchanged except for outer whitespace and delimited by `<issue>`,
   followed by an instruction to implement the fix in the working tree and verify
-  the affected behavior, and two statements of the environment's bounds: no network
-  access, the repository and its installed dependencies are all that is available;
-  and no upstream fix and no grading tests are present anywhere on the machine, so
-  a search for them finds nothing (both arms, identically; comparisons across this
-  change are void). The wrapper asks for nothing about grading, imposes no brevity
-  constraint, and teaches no operation language (`plurnk.md` owns that). The
+  the affected behavior, and one statement of the environment's bound: no network
+  access, the repository and its installed dependencies are all that is available
+  (both arms, identically). The wrapper names neither an upstream fix nor grading,
+  imposes no brevity constraint, and teaches no operation language (`plurnk.md`
+  owns that). The
   official package supplies no agentic prompt; this harness-owned framing is
   recorded exactly per trial in `provenance.json`. Prompt changes do not alter the
   specimen or its official evaluator.
