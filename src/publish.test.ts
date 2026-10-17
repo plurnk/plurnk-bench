@@ -58,7 +58,9 @@ test("[§publish] {§share-snapshot} the published plurnk.db is SQLite's consist
     assert.equal(rows(copy), 5, "every committed row, including the WAL-resident ones");
     assert.ok(!readdirSync(output!).some((name) => name.endsWith("-wal") || name.endsWith(".zip")), "a plain folder: consolidated database, no sidecars, no archive");
     assert.equal(rows(source), 5, "the trial's database is read, never moved");
-    assert.throws(() => publishRun({ ...record, run: { dbPath: join(root, "missing.db") } }, join(root, "runs")), /share: no database at/);
+    assert.throws(() => publishRun({ ...record, run: { dbPath: join(root, "missing.db") } }, join(root, "runs")), {
+        name: "Error", message: `no database at ${join(root, "missing.db")}`,
+    });
 });
 
 test("[§publish-launch-folder] a folder allocated at launch is finalized in place: the database consolidated, digest and record beside it, nothing copied", (t) => {
