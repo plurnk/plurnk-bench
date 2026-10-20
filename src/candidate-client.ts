@@ -1,5 +1,6 @@
 // {§bench-relock} The client consumes the selected platform's public contract projection.
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -15,7 +16,10 @@ export async function buildCandidateClient(serviceRoot: string, clientRoot: stri
     try {
         const packed = packedContracts(await run(["pack", "--workspace=@plurnk/plurnk-contracts", "--ignore-scripts", "--json", "--pack-destination", archives], serviceRoot));
         const archive = join(archives, packed.filename);
-        const { projectTarball } = await import(pathToFileURL(join(serviceRoot, "scripts/package-projection.mjs")).href);
+        const projectionScript = existsSync(join(serviceRoot, "scripts/lib/package-projection.mjs"))
+            ? join(serviceRoot, "scripts/lib/package-projection.mjs")
+            : join(serviceRoot, "scripts/package-projection.mjs");
+        const { projectTarball } = await import(pathToFileURL(projectionScript).href);
         await projectTarball(archive);
         await run(["install", "--ignore-scripts", "--no-audit", "--no-fund", "--package-lock=false", "--no-save", archive], clientRoot);
         await run(["run", "build"], clientRoot);

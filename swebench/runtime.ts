@@ -1,6 +1,7 @@
 // {§swebench-container-runtime} Immutable, installed artifacts, never a source-tree mount.
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
+import { existsSync } from "node:fs";
 import { cp, copyFile, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
@@ -55,7 +56,10 @@ async function build(target: string, identity: Identity) {
             await run("npm", ["run", "build"], identity.serviceRoot);
             await buildCandidateClient(identity.serviceRoot, identity.clientRoot);
             await pack(identity.serviceRoot, ["--workspaces"]);
-            const { projectTarball } = await import(pathToFileURL(join(identity.serviceRoot, "scripts/package-projection.mjs")).href);
+            const projectionScript = existsSync(join(identity.serviceRoot, "scripts/lib/package-projection.mjs"))
+                ? join(identity.serviceRoot, "scripts/lib/package-projection.mjs")
+                : join(identity.serviceRoot, "scripts/package-projection.mjs");
+            const { projectTarball } = await import(pathToFileURL(projectionScript).href);
             for (const { file } of packages) await projectTarball(file);
             await pack(identity.clientRoot);
             await copyFile(join(identity.serviceRoot, "plurnk-core/.env.test"), join(stage, ".env.test"));
