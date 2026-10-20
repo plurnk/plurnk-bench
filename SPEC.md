@@ -935,3 +935,35 @@ Coverage: `swebench/pi.test.mjs`; native installed-CLI checks require
 `PLURNK_BENCH_PI` and use a local fixture endpoint with no paid inference.
 
 Covered: `swebench/evaluator.test.ts [§swebench-evaluator]`, `swebench/run.test.ts [§swebench] [§swebench-trial] [§swebench-conditions] [§swebench-prompt] [§swebench-profiles]`, `swebench/sample.test.ts [§swebench-corpus]`, `swebench/plan.test.ts [§swebench-profiles]`, `swebench/report.test.ts [§swebench-profiles] [§swebench-trial] [§swebench-comparison] [§benchlet-isolation]`, `swebench/comparison.test.ts [§swebench-comparison] [§swebench-corpus]`, `src/statistics.test.ts [§swebench-comparison]`, `src/candidate-isolation.test.ts [§benchlet-isolation]`.
+
+## §bughunt Bug Hunt Bench evaluation
+
+`bughunt/` drives Pawel Huryn's Bug Hunt Bench evaluation tasks through the ordinary plurnk
+client/service boundary, capturing patches and finding reports, evaluating repository health
+and scoring fixes against planted bugs, and publishing runs to the canon ({§results-canon}).
+
+- §bughunt-prompts Verbatim task prompts are pinned under `bughunt/prompts/`: `repo1.md` (VS Code extension
+  Grok ACP client, 45 planted bugs) and `repo2.md` (React/Supabase LMS application, 60 planted bugs).
+  Prompts state the offline and no-git-history constraints, green-baseline preservation requirement,
+  and the instruction to emit `BUGS_FOUND.md` at repository root.
+- §bughunt-candidate The candidate executes standard `plurnk` CLI invocations: `--json`, `--yolo`,
+  `--max-turns <cap>` (default 1000), `--project-root <repo>`, and `-- <prompt>`. No positional or
+  family-specific candidate selector is introduced.
+- §bughunt-isolation Candidate runs isolate their environment: ambient MCP, A2A, web schemes, and search
+  credentials are masked via `{§benchlet-isolation}` (`candidateIsolation`). Network access to external hosts
+  is disabled.
+- §bughunt-evaluator The evaluator maps Bug Hunt scoring breakdowns (`fixed_of_105`, `fixed_repo1`,
+  `fixed_repo2`, `partial`, `claimed_only`, `extras`, `brokenBuild`) into canonical `RewardJson` ({§record-serial})
+  and `verifier/evaluation.json`. `f2p_total` holds the target bug count (45 for repo1, 60 for repo2, 105 for all),
+  `f2p_passed` holds the fixed bug count, `partial` holds the pass fraction, and `p2p_passed` reflects repository
+  build and test health. A patch that breaks existing tests or compilation sets `brokenBuild: true` (`p2p_passed: 0`).
+- §bughunt-trial One attempt is one trial directory under `jobs/bughunt/`, self-describing via `result.json`
+  (schemaVersion 2) and `provenance.json` (schemaVersion 1). The patch is captured as `artifacts/model.patch`
+  against the pristine start HEAD using an isolated alternate git index, and `artifacts/BUGS_FOUND.md` is captured
+  when produced.
+- §bughunt-accounting Telemetry and spend are tracked via the daemon's own accounting projection and
+  published with the run ({§publish}). DeepSeek Flash (`deepdumb`) serves as the cost-efficient baseline
+  at low reasoning effort ($0.46–$1.28 per 105-bug run).
+
+Covered: `bughunt/candidate.test.ts [§bughunt-prompts] [§bughunt-candidate] [§bughunt-trial]`, `bughunt/evaluator.test.ts [§bughunt-evaluator]`, `bughunt/run.test.ts [§bughunt-trial]`.
+
