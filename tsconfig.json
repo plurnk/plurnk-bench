@@ -15,6 +15,6 @@
         "types": ["node"],
         "lib": ["ESNext"]
     },
-    "include": ["src/**/*.ts", "bughunt/**/*.ts", "deepswe/**/*.ts", "swebench/**/*.ts"],
+    "include": ["src/**/*.ts", "deepswe/**/*.ts", "swebench/**/*.ts"],
     "exclude": ["node_modules"]
 }
