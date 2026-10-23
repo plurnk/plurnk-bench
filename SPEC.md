@@ -103,7 +103,8 @@ own request ledger. Original request evidence is never rewritten by a report.
 Current daemon projections supply separate complete and known quantities. For
 historical digests whose `costUsd` is a subtotal, reporting still verifies every
 request before accepting a complete cost. Missing token fields remain unknown,
-never zero; gross-token metrics require both complete input and output counts.
+never zero; gross-token metrics require both complete input and output counts,
+and their coverage is shown as cost's is.
 
 ## §digest-boundary Bench never reads the daemon DB
 

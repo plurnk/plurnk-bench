@@ -71,6 +71,8 @@ export interface CampaignSummary {
         readonly pricedTrials: number;
         readonly medianCostUsd: number | null;
         readonly medianGrossTokens: number | null;
+        // {§accounting-cost-completeness} The trials the gross-token median covers.
+        readonly usageTrials: number;
         readonly medianTurns: number | null;
         readonly medianWallMs: number | null;
     };
@@ -96,6 +98,9 @@ const editsOf = (digest: Digest | null): EditCensus | null => {
 
 const json = <T>(path: string): T | null => existsSync(path) ? JSON.parse(readFileSync(path, "utf8")) as T : null;
 const sum = (values: number[]): number => values.reduce((total, value) => total + value, 0);
+
+// {§accounting-cost-completeness} Gross tokens need both complete input and output counts.
+const grossTokens = ({ tokens }: TrialRow): number | null => tokens?.input == null || tokens.output === null ? null : tokens.input + tokens.output;
 const count = (target: Record<string, number>, key: string): void => { target[key] = (target[key] ?? 0) + 1; };
 const metric = (values: Array<number | null | undefined>): number | null => {
     const present = values.filter((value): value is number => typeof value === "number" && Number.isFinite(value));
@@ -224,7 +229,8 @@ export const summarize = (rows: readonly TrialRow[]): CampaignSummary => {
             knownUsd: knownCosts.length === 0 ? null : sum(knownCosts),
             pricedTrials: costs.length,
             medianCostUsd: metric(rows.map((row) => row.costUsd)),
-            medianGrossTokens: metric(rows.map(({ tokens }) => tokens?.input == null || tokens.output === null ? null : tokens.input + tokens.output)),
+            medianGrossTokens: metric(rows.map(grossTokens)),
+            usageTrials: rows.filter((row) => grossTokens(row) !== null).length,
             medianTurns: metric(rows.map((row) => row.turns)),
             medianWallMs: metric(rows.map((row) => row.wallMs)),
         },
@@ -273,7 +279,7 @@ export const render = (campaign: { corpus?: string; model?: string | null; servi
     "## Spend",
     "",
     `- total ${usd(summary.spend.totalUsd)} · median per rollout ${usd(summary.spend.medianCostUsd)} · median gross tokens ${num(summary.spend.medianGrossTokens)} · median turns ${num(summary.spend.medianTurns)} · median wall ${minutes(summary.spend.medianWallMs)}`,
-    `- known subtotal ${usd(summary.spend.knownUsd)} · complete costs ${summary.spend.pricedTrials}/${summary.trials} trials; medians exclude incomplete costs`,
+    `- known subtotal ${usd(summary.spend.knownUsd)} · complete costs ${summary.spend.pricedTrials}/${summary.trials} trials · complete usage ${summary.spend.usageTrials}/${summary.trials} trials; medians exclude incomplete costs and usage`,
     ...rows.map((row) => `- ${row.instance} attempt ${row.attempt}: priced requests ${row.pricedRequests ?? "—"}/${row.requests ?? "—"}; ${row.costEvidence === null ? "cost evidence unavailable" : pairs(row.costEvidence)}; known subtotal ${usd(row.knownCostUsd)}`),
     "",
     // {§swebench-comparison} — the study's statistics, after friction, verdicts and spend, before the rows.

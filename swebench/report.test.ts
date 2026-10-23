@@ -31,7 +31,7 @@ test("{§accounting-cost-completeness} incomplete trials retain known spend but 
     assert.equal(comparison.costPerSolve, null);
     const sheet = render({}, rows, summary, comparison);
     assert.match(sheet, /known subtotal \$0\.210/u);
-    assert.match(sheet, /complete costs 1\/2 trials/u);
+    assert.match(sheet, /complete costs 1\/2 trials · complete usage 2\/2 trials/u);
     assert.match(sheet, /11\/12/u);
 });
 
@@ -72,6 +72,8 @@ test("{§accounting-cost-completeness} saved SWE-bench trials keep incomplete re
     assert.equal(incomplete.knownCostUsd, 0.01);
     assert.deepEqual(incomplete.tokens, { input: 10, output: null, cached: null, reasoning: null });
     assert.equal(summarize([incomplete]).spend.medianGrossTokens, null);
+    assert.equal(summarize([incomplete]).spend.usageTrials, 0, "a trial without both complete counts is outside the token median's coverage");
+    assert.match(render({}, [incomplete], summarize([incomplete])), /complete usage 0\/1 trials/u);
     assert.equal(compareBaselines([incomplete], new Map(), { resamples: 10 }).medianGrossTokens, null);
     assert.match(render({}, [incomplete], summarize([incomplete])), /\| 10 \| — \| — \| — \|/u);
 });
@@ -101,6 +103,7 @@ test("[§swebench-profiles] the campaign sheet counts friction before verdicts, 
     assert.equal(summary.spend.knownUsd, 0.4);
     assert.equal(summary.spend.medianCostUsd, 0.2);
     assert.equal(summary.spend.medianGrossTokens, 420_000);
+    assert.equal(summary.spend.usageTrials, 2, "the median covers the two trials with complete usage");
     assert.equal(summary.spend.medianTurns, 12);
     const sheet = render({ corpus: "harnesstax-swe-lite-30", model: "deepdumb", ids: ["a", "b", "c"] }, rows, summary);
     assert.match(sheet, /## Friction[\s\S]*## Verdicts[\s\S]*## Spend[\s\S]*## Trials/, "friction first, then verdicts, then spend");
