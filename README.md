@@ -8,6 +8,7 @@ result with the benchmark's evaluator, and retain the evidence needed to explain
 
 | Guide | What it runs |
 |---|---|
+| [Live & Demo Tiers](tiers/README.md) | The real-model `live` and `demo` specimen corpora against a candidate service and client checkout. |
 | [SWE-bench Lite](swebench/README.md) | Pinned repository issues, the official evaluator, repeatable campaigns, and native Pi comparisons. |
 | [DeepSWE](deepswe/README.md) | Tasks through Pier, plus a host-side diagnostic benchlet and mini-swe-agent comparisons. |
 | [Terminal-Bench / FrontierHarness](terminal_bench/README.md) | Tasks through Harbor and the checked-in FrontierHarness selection. |

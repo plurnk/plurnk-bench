@@ -13,8 +13,20 @@
         "verbatimModuleSyntax": true,
         "erasableSyntaxOnly": true,
         "types": ["node"],
-        "lib": ["ESNext"]
+        "lib": ["ESNext"],
+        "paths": {
+            "@plurnk/plurnk-service/harness": ["./tiers/harness.d.ts"],
+            "@plurnk/plurnk-contracts": ["../plurnk-service/plurnk-contracts/src/index.ts"],
+            "@plurnk/plurnk-providers": ["../plurnk-service/plurnk-providers/src/index.ts"],
+            "@plurnk/plurnk-digest": ["../plurnk-service/plurnk-digest/src/index.ts"],
+            "@plurnk/plurnk-parser": ["../plurnk-service/plurnk-parser/src/index.ts"],
+            "@plurnk/plurnk-mcp": ["../plurnk-service/plurnk-mcp/src/index.ts"],
+            "@agentclientprotocol/sdk/experimental/v2/unstable": ["../plurnk-service/node_modules/@agentclientprotocol/sdk/dist/v2/unstable/acp.d.ts"],
+            "@agentclientprotocol/sdk/experimental/ws-client": ["../plurnk-service/node_modules/@agentclientprotocol/sdk/dist/transports/ws-stream.d.ts"],
+            "@modelcontextprotocol/server": ["../plurnk-service/node_modules/@modelcontextprotocol/server/dist/index.d.mts"],
+            "ws": ["../plurnk-service/node_modules/@types/ws/index.d.ts"]
+        }
     },
-    "include": ["src/**/*.ts", "deepswe/**/*.ts", "swebench/**/*.ts"],
+    "include": ["src/**/*.ts", "deepswe/**/*.ts", "swebench/**/*.ts", "tiers/**/*.ts"],
     "exclude": ["node_modules"]
 }

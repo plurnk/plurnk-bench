@@ -1,0 +1,671 @@
+import { Policy as RuntimePolicy, RuntimeInvocation, RuntimeTag } from "@plurnk/plurnk-execs";
+import type { ClientInteractionProjection, ClientInteractionResolution, CapabilityProjection, PlurnkStatement, ParsedPath, MessageEvidence, ProposalResolution, Notice } from "@plurnk/plurnk-contracts";
+import type SchemeRegistry from "./SchemeRegistry.ts";
+import { Mimetypes, emptyRegistry } from "@plurnk/plurnk-mimetypes";
+import Meta from "@plurnk/plurnk-meta";
+import type { Db } from "./Db.ts";
+import SearchIndex from "../schemes/_search-index.ts";
+import GitMembership from "./git-membership.ts";
+import type { WriterTier, PlurnkSchemeContext } from "./scheme-types.ts";
+import type ExecutorRegistry from "./ExecutorRegistry.ts";
+import type { RegistryEntry, RuntimeRegistryRegistration } from "./ExecutorRegistry.ts";
+import type { EngineNotifications } from "./notifications.ts";
+import { contentWeight } from "./content-weight.ts";
+import LiveSubscriptions from "./LiveSubscriptions.ts";
+import LoopLifecycle from "./LoopLifecycle.ts";
+
+// The engine's collaborators — each owns one machine; Engine owns the loop/turn
+// lifecycle and wires them together as the public facade.
+import NoticeChannel from "./NoticeChannel.ts";
+import ProblemLog from "./ProblemLog.ts";
+import StrikeRail from "./StrikeRail.ts";
+import PacketBuilder from "./PacketBuilder.ts";
+import ProposalLifecycle from "./ProposalLifecycle.ts";
+import type { ProposalPendingEvent } from "./ProposalLifecycle.ts";
+import ClientInteractions, { type ClientInteractionPendingEvent } from "./ClientInteractions.ts";
+import type { ProposalProjection } from "@plurnk/plurnk-contracts";
+import Dispatcher from "./Dispatcher.ts";
+import EntryAddressBinding from "./EntryAddressBinding.ts";
+import type { DispatchContext, DispatchResult, ResolvedClientEntryAddress } from "./Dispatcher.ts";
+import TurnRunner from "./TurnRunner.ts";
+import { observed } from "../observe/spans.ts";
+import { providerRequestFromStorageRow, type ProviderRequestStorageRow } from "./provider-accounting.ts";
+
+// Proposal types are part of Engine's public API (resolveProposal/onProposalPending);
+// their definitions live with the lifecycle.
+export type { ProposalPendingEvent } from "./ProposalLifecycle.ts";
+export type WorkspaceDerivationStatus = {
+    phase: "preparing" | "indexing" | "complete" | "failed";
+    completed: number;
+    total: number;
+    percent: number;
+    message: string;
+    level: "info" | "warn" | "error";
+};
+export type AcquireWorkspaceTurn = (workspaceId: number, sessionId: number, signal?: AbortSignal) => Promise<() => void>;
+export type WorkspaceTurnStarting = (args: {
+    workspaceId: number;
+    sessionId: number;
+    loopId: number;
+}) => Promise<readonly Notice[] | void>;
+
+
+
+// Provider contract owned by @plurnk/plurnk-providers; engine is the consumer.
+import type { ProviderAccounting } from "@plurnk/plurnk-providers";
+import { aggregateProviderAccounting } from "@plurnk/plurnk-providers";
+import type { RuntimeSchemeFacet } from "@plurnk/plurnk-schemes";
+import LoopDriver from "./LoopDriver.ts";
+
+type ModuleRuntimeRegistration = RuntimeRegistryRegistration & {
+    readonly scheme?: RuntimeSchemeFacet;
+};
+
+export type LoopUsage = {
+    accounting: ProviderAccounting;
+    curationWeight: number | null;
+    curationBudget: number | null;
+    contextTokens: number | null;
+    contextCapacity: number | null;
+    meta: Record<string, unknown>;
+};
+
+
+
+// The wall's abort reason — runLoop branches a mid-turn teardown to the 504 terminal on it.
+export default class Engine {
+    static fingerprintTurn(ops: ReadonlyArray<PlurnkStatement>): string {
+        return StrikeRail.fingerprintTurn(ops);
+    }
+
+    static detectCycle(
+        history: ReadonlyArray<string>,
+        minCycles: number,
+        maxCyclePeriod: number,
+    ): { detected: false } | { detected: true; period: number; cycles: number } {
+        return StrikeRail.detectCycle(history, minCycles, maxCyclePeriod);
+    }
+
+    #db: Db;
+    #lifecycle: LoopLifecycle;
+    #schemes: SchemeRegistry;
+    #mimetypes: Mimetypes;
+    // {§tokenomics-agnostic-ruler} — the stable model-independent ruler used
+    // for write-time, catalog, receipt, and packet weights.
+    #weighContent: (text: string) => number;
+    // Boot-discovered runtime executors. Daemon builds + sets via
+    // setExecutors at start(); undefined until then (and in bare tests).
+    #executors: ExecutorRegistry | undefined;
+    // Per-turn running-session READ obligations. {§join-blocking-collect}
+
+    // The collaborators. Engine constructs them (they share its deps via
+    // thunks where the value is late-injected — executors, loop signals)
+    // and fronts their public surface.
+    #notices: NoticeChannel;
+    #problems: ProblemLog;
+    #strikes: StrikeRail;
+    #packets: PacketBuilder;
+    #proposals: ProposalLifecycle;
+    #interactions: ClientInteractions;
+    #dispatcher: Dispatcher;
+    #turnRunner: TurnRunner;
+    readonly #liveSubscriptions = new LiveSubscriptions();
+
+    // Per-loop AbortController for cancellation propagation into scheme
+    // ctx.signal. runLoop creates one at entry, cleans up at end. Engine
+    // cancellation paths (strikes, max_turns, external) abort it.
+    // Streaming schemes (exec) chain their per-spawn controllers off
+    // ctx.signal so cancelled loops tear down their background spawns.
+    #loopSignals = new Map<number, AbortSignal>();
+    // {§message-loop-containment}: one loop's message allocation and
+    // persistence is a serial critical section. A completed later write can
+    // therefore never overtake or replace an earlier concurrent arrival.
+    #messageWriteLocks = new Map<number, Promise<unknown>>();
+    // One coalesced warm per workspace. Explicit membership changes may start it as soon
+    // as content exists; the first model turn always joins it, so no operation observes
+    // partial graph/FTS coverage. A request arriving mid-pass marks the workspace
+    // dirty and guarantees one final exhaustive rescan.
+    #workspaceWarms = new Map<number, {
+        dirty: boolean;
+        materialize: boolean;
+        ctx: PlurnkSchemeContext;
+        abort: AbortController;
+        promise: Promise<void>;
+    }>();
+    #workspaceWarmStatus = new Map<number, WorkspaceDerivationStatus>();
+    #queueWorkspaceWarm(ctx: PlurnkSchemeContext, invalidate = true, materialize = true): Promise<void> {
+        const workspaceId = ctx.workspaceId;
+        const existing = this.#workspaceWarms.get(workspaceId);
+        if (existing !== undefined) {
+            if (invalidate) existing.dirty = true;
+            if (materialize) existing.materialize = true;
+            existing.ctx = ctx;
+            return existing.promise;
+        }
+        if (!invalidate && this.#workspaceWarmStatus.get(workspaceId)?.phase === "complete") {
+            return Promise.resolve();
+        }
+
+        const state = {
+            dirty: false,
+            materialize,
+            ctx,
+            abort: new AbortController(),
+            promise: Promise.resolve() };
+        // Register before publishing the first synchronous Notice. A
+        // listener may request another warm from that callback; it must join
+        // this state rather than opening a second pump in the re-entrant gap.
+        this.#workspaceWarms.set(workspaceId, state);
+        const publish = (current: PlurnkSchemeContext, status: WorkspaceDerivationStatus): void => {
+            this.#workspaceWarmStatus.set(workspaceId, status);
+            current.pushNotice?.({
+                source: "engine:derivation", kind: "search_progress", ...status });
+        };
+        const promise = (async () => {
+            do {
+                state.dirty = false;
+                const shouldMaterialize = state.materialize;
+                state.materialize = false;
+                const current = state.ctx;
+                let terminalPublished = false;
+                try {
+                    const signal = current.signal === undefined
+                        ? state.abort.signal
+                        : AbortSignal.any([current.signal, state.abort.signal]);
+                    const cancellable = { ...current, signal };
+                    if (shouldMaterialize) await GitMembership.indexGitMembership(cancellable);
+                    await SearchIndex.maintain({
+                        ...cancellable,
+                        pushNotice: (notice) => {
+                            if (notice.kind === "search_progress"
+                                && (notice.phase === "preparing"
+                                    || notice.phase === "indexing"
+                                    || notice.phase === "complete"
+                                    || notice.phase === "failed")
+                                && typeof notice.completed === "number"
+                                && typeof notice.total === "number"
+                                && typeof notice.percent === "number") {
+                                this.#workspaceWarmStatus.set(workspaceId, {
+                                    phase: notice.phase,
+                                    completed: notice.completed,
+                                    total: notice.total,
+                                    percent: notice.percent,
+                                    message: notice.message ?? "Indexing repository search",
+                                    level: notice.level });
+                                terminalPublished = notice.phase === "complete" || notice.phase === "failed";
+                            }
+                            current.pushNotice?.(notice);
+                        } });
+                } catch (error) {
+                    if (!terminalPublished) {
+                        publish(current, {
+                            phase: "failed",
+                            message: `Search indexing failed: ${error instanceof Error ? error.message : String(error)}`,
+                            completed: 0, total: 1, percent: 0, level: "error" });
+                    }
+                    throw error;
+                }
+            } while (state.dirty);
+        })().finally(() => {
+            if (this.#workspaceWarms.get(workspaceId) === state) this.#workspaceWarms.delete(workspaceId);
+        });
+        state.promise = promise;
+        return promise;
+    }
+
+    workspaceDerivationStatus(workspaceId: number): WorkspaceDerivationStatus | null {
+        return this.#workspaceWarmStatus.get(workspaceId) ?? null;
+    }
+
+    evictWorkspaceCaches(workspaceId: number): void {
+        if (!this.#workspaceWarms.has(workspaceId)) {
+            this.#workspaceWarmStatus.delete(workspaceId);
+        }
+        this.#dispatcher.evictWorkspaceCache(workspaceId);
+    }
+
+    cancelDerivations(reason: unknown = new DOMException("derivations cancelled", "AbortError")): void {
+        for (const state of this.#workspaceWarms.values()) {
+            if (!state.abort.signal.aborted) state.abort.abort(reason);
+        }
+    }
+
+    // Awaited by Daemon.stop before the db closes. Shutdown supplies the exact
+    // cancellation reason it owns; every unrelated failure remains visible.
+    async drainDerivations(ignoredReason?: unknown): Promise<void> {
+        const results = await Promise.allSettled(
+            [...this.#workspaceWarms.values()].map((state) => state.promise),
+        );
+        const errors = results
+            .filter((result): result is PromiseRejectedResult => result.status === "rejected")
+            .flatMap((result) => result.reason instanceof AggregateError
+                ? [...result.reason.errors]
+                : [result.reason])
+            .filter((error) => error !== ignoredReason);
+        if (errors.length === 1) throw errors[0];
+        if (errors.length > 1) throw new AggregateError(errors, "derivation drain failed");
+    }
+
+    async drainWorkspaceDerivations(workspaceId: number): Promise<void> {
+        await this.#workspaceWarms.get(workspaceId)?.promise;
+    }
+    readonly #notify: EngineNotifications;
+    readonly #acquireWorkspaceTurn: AcquireWorkspaceTurn;
+    readonly #workspaceTurnStarting: WorkspaceTurnStarting | undefined;
+    readonly #loopDriver: LoopDriver;
+
+    // The daemon's callbacks arrive flat and travel as one bundle ({§engine-notifications}).
+    constructor({ db, lifecycle, schemes, mimetypes, acquireWorkspaceTurn, workspaceTurnStarting, weigh, ...notify }: {
+        db: Db;
+        lifecycle?: LoopLifecycle;
+        schemes: SchemeRegistry;
+        mimetypes?: Mimetypes;
+        acquireWorkspaceTurn?: AcquireWorkspaceTurn;
+        workspaceTurnStarting?: WorkspaceTurnStarting;
+        weigh?: (text: string) => number;
+    } & EngineNotifications) {
+        this.#db = db;
+        this.#lifecycle = lifecycle ?? new LoopLifecycle(db);
+        this.#schemes = schemes;
+        this.#notify = notify;
+        this.#acquireWorkspaceTurn = acquireWorkspaceTurn ?? (async () => () => {});
+        this.#workspaceTurnStarting = workspaceTurnStarting;
+        // Default to empty discovery — standalone Engine construction (in
+        // tests) gets no handlers, and content flows through the framework's
+        // raw-content fitContent fallback. Daemon-managed Engine receives a
+        // production-configured Mimetypes via the constructor arg.
+        this.#mimetypes = mimetypes ?? new Mimetypes({
+            discovery: { registry: emptyRegistry(), handlers: new Map(), packageAttributions: new Map(), skipped: [] } });
+        // {§tokenomics-agnostic-ruler} — standalone construction and the daemon
+        // use the same default; provider request counting remains confined to
+        // provider-owned capacity assessment.
+        this.#weighContent = weigh ?? contentWeight;
+
+        const executors = (): ExecutorRegistry | undefined => this.#executors;
+        const loopSignal = (loopId: number): AbortSignal | undefined => this.#loopSignals.get(loopId);
+        this.#notices = new NoticeChannel({ notify: notify.noticeNotify });
+        this.#problems = new ProblemLog(db, this.#weighContent);
+        this.#strikes = new StrikeRail(db);
+        this.#packets = new PacketBuilder({
+            db,
+            schemes,
+            executors });
+        this.#interactions = new ClientInteractions(db);
+        const entryAddresses = new EntryAddressBinding();
+        this.#proposals = new ProposalLifecycle({
+            db, schemes, notices: this.#notices, notify,
+            weigh: this.#weighContent, mimetypes: this.#mimetypes, executors, loopSignal,
+            liveSubscriptions: this.#liveSubscriptions,
+            interactions: this.#interactions,
+            entryAddresses });
+        this.#dispatcher = new Dispatcher({
+            db, lifecycle: this.#lifecycle, schemes, mimetypes: this.#mimetypes,
+            weigh: this.#weighContent,
+            notices: this.#notices, proposals: this.#proposals,
+            interactions: this.#interactions,
+            executors, loopSignal,
+            settleDerivations: (context) => this.#queueWorkspaceWarm(context, true, false),
+            notify,
+            liveSubscriptions: this.#liveSubscriptions,
+            entryAddresses });
+        this.#turnRunner = new TurnRunner({
+            db,
+            schemes,
+            mimetypes: this.#mimetypes,
+            weigh: this.#weighContent,
+            notices: this.#notices,
+            problems: this.#problems,
+            strikes: this.#strikes,
+            packets: this.#packets,
+            dispatcher: this.#dispatcher,
+            liveSubscriptions: this.#liveSubscriptions,
+            notify,
+            executors,
+            loopSignal,
+            interactions: this.#interactions,
+            warmWorkspace: (context, invalidate, materialize) =>
+                this.#queueWorkspaceWarm(context, invalidate, materialize),
+            dispatch: (context) => this.dispatch(context),
+            resolveSessionProviderIdentity: (sessionId) => this.resolveSessionProviderIdentity(sessionId) });
+        schemes.bindCore({
+            db,
+            mimetypes: this.#mimetypes,
+            executors,
+            weigh: this.#weighContent,
+            streamEventNotify: notify.streamEventNotify,
+            wakeSessionNotify: notify.wakeSessionNotify,
+            injectSession: notify.injectSession,
+            pushNotice: (workspaceId, sessionId, loopId, notice) => this.#notices.push(workspaceId, sessionId, loopId, notice),
+            defaultChannelFor: (scheme, workspaceId) => schemes.defaultChannelFor(scheme, workspaceId),
+            settleDerivations: (context) => this.#queueWorkspaceWarm(context, true, false),
+            resolveEntryAddress: (target, ctx) => this.#dispatcher.bindEntryAddress(target, ctx),
+            readExecSource: (statement, ctx) => this.#dispatcher.readExecSource(statement, ctx),
+            capabilityDenial: (statement, ctx) => this.#dispatcher.capabilityDenial(statement, ctx),
+            referenceVisibility: (ctx) => this.#dispatcher.referenceVisibility(ctx),
+            requestInteraction: (request, ids, signal) => this.#interactions.request(request, ids, signal),
+            liveSubscriptions: this.#liveSubscriptions });
+        this.#loopDriver = new LoopDriver({ loopSignals: this.#loopSignals, db: this.#db, lifecycle: this.#lifecycle, schemes: this.#schemes, notices: this.#notices, strikes: this.#strikes, acquireWorkspaceTurn: this.#acquireWorkspaceTurn, workspaceTurnStarting: this.#workspaceTurnStarting, runTurn: this.runTurn.bind(this) });
+    }
+
+    // Late injection: the executor registry is async-built at daemon start()
+    // (discover + probe), after Engine construction.
+    // {§fence-heading-in-body} — the tags the parser must know for a workspace's executors.
+    executorTags(workspaceId?: number): readonly string[] {
+        return this.#executors?.availableRuntimes(workspaceId) ?? [];
+    }
+
+    setExecutors(executors: ExecutorRegistry): void {
+        this.#executors = executors;
+    }
+
+    // {§functionality-documents} — the coordinator's per-Session generated
+    // documents join the Session's reference entries.
+    setFunctionalityDocuments(documents: (workspaceId: number) => Array<{ family: string; pathname: string; content: string }>): void {
+        this.#packets.setFunctionalityDocuments(documents);
+    }
+
+    static #enabledRuntimes(registrations: readonly ModuleRuntimeRegistration[]): ModuleRuntimeRegistration[] {
+        return registrations.map(({ tag, entry, scheme }) => {
+            RuntimeTag.assert(tag, "module runtime");
+            return {
+                tag,
+                entry: {
+                    ...entry,
+                    invocation: RuntimeInvocation.assert(entry.invocation, entry.namespaceOwner.name, tag),
+                },
+                scheme,
+            };
+        }).filter(({ tag }) => RuntimePolicy.isEnabled(tag));
+    }
+
+    // {§extension-namespace-arbitration} Both registries prepare before either publishes.
+    registerRuntimes(registrations: readonly ModuleRuntimeRegistration[]): void {
+        if (this.#executors === undefined) throw new Error("registerRuntimes: executor registry not wired yet");
+        const normalized = Engine.#enabledRuntimes(registrations);
+        const commitExecutors = this.#executors.prepareRegistrations(normalized);
+        const commitSchemes = this.#schemes.prepareRuntimeSchemes(
+            normalized.map(({ tag, entry, scheme }) => ({
+                tag,
+                executor: entry.executor,
+                owner: entry.namespaceOwner,
+                facet: scheme })),
+        );
+        commitSchemes();
+        commitExecutors();
+    }
+
+    registerRuntime(tag: string, entry: RegistryEntry, scheme?: RuntimeSchemeFacet): void {
+        this.registerRuntimes([{ tag, entry, scheme }]);
+    }
+
+    async prepareWorkspaceRuntimes(
+        workspaceId: number,
+        namespaceOwner: string,
+        registrations: readonly ModuleRuntimeRegistration[],
+    ): Promise<() => () => void> {
+        if (this.#executors === undefined) {
+            throw new Error("prepareWorkspaceRuntimes: executor registry not wired yet");
+        }
+        const normalized = Engine.#enabledRuntimes(registrations);
+        const commitExecutors = this.#executors.prepareWorkspaceRegistrations(
+            workspaceId,
+            namespaceOwner,
+            normalized,
+        );
+        const commitSchemes = await this.#schemes.prepareWorkspaceRuntimeSchemes(
+            workspaceId,
+            namespaceOwner,
+            normalized.map(({ tag, entry, scheme }) => ({
+                tag,
+                executor: entry.executor,
+                owner: entry.namespaceOwner,
+                facet: scheme })),
+        );
+        return () => {
+            const rollbackSchemes = commitSchemes();
+            const rollbackExecutors = commitExecutors();
+            let pending = true;
+            return () => {
+                if (!pending) return;
+                pending = false;
+                rollbackExecutors();
+                rollbackSchemes();
+            };
+        };
+    }
+
+    // The session's durable opaque identity for provider calls; fail hard when a
+    // session has none. {§session-provider-identity}
+    async resolveSessionProviderIdentity(sessionId: number): Promise<{ sessionId: string }> {
+        const identity = await this.#db.engine_session_provider_identity.get<{
+            session_id: string;
+        }>({ session_id: sessionId });
+        if (identity === undefined) {
+            throw new Error(`resolveSessionProviderIdentity: session ${sessionId} has no provider identity`);
+        }
+        return { sessionId: identity.session_id };
+    }
+
+    // {§attribution} — reporting derives from exact provider-request evidence;
+    // malformed durable tags fail here instead of being silently filtered.
+    async loopAttributions(loopId: number): Promise<string[]> {
+        const rows = await this.#db.engine_loop_attributions.all<{ attribution: unknown }>({ loop_id: loopId });
+        const tags = rows.map(({ attribution }, index) => {
+            if (typeof attribution !== "string" || attribution.length === 0) {
+                throw new TypeError(`loop ${loopId} attribution row ${index} is not a non-empty string`);
+            }
+            return attribution;
+        });
+        return [...Meta.composeAttributions(tags)];
+    }
+
+    // The request ledger is cardinal evidence; its aggregate and the latest-turn
+    // occupancy gauge are derived projections. {§tokenomics-client-gauge},
+    // {§notifications-loop-terminated}, {§provider-accounting}
+    async loopUsage(loopId: number): Promise<LoopUsage> {
+        const row = await this.#db.engine_loop_usage.get<{
+            context_tokens: number | null;
+            curation_weight: number | null;
+            curation_budget: number | null;
+            context_capacity: number | null;
+            meta: string | null;
+        }>({ loop_id: loopId });
+        if (row === undefined) throw new Error(`loopUsage: loop ${loopId} does not exist`);
+        const requests = await this.#db.engine_loop_provider_requests.all<ProviderRequestStorageRow>({ loop_id: loopId });
+        return {
+            accounting: aggregateProviderAccounting(requests.map(providerRequestFromStorageRow)),
+            // Latest assembled request's stable model-independent weight.
+            curationWeight: row.curation_weight,
+            // Latest provider-derived calibration used only for curation.
+            curationBudget: row.curation_budget,
+            // Latest emission call's last physical request, not the billed total.
+            contextTokens: row.context_tokens,
+            // Request-shaped physical capacity from that same latest emission call.
+            contextCapacity: row.context_capacity,
+            // Latest turn's opaque provider metadata. {§meta-passthrough}
+            meta: JSON.parse(row.meta ?? "{}") as Record<string, unknown> };
+    }
+
+    // {§methods-session-accounting} — the spend of a session's descendants on loops begun
+    // after its loop; no loop, no delegation, and the empty set projects explicit zero
+    // ({§provider-accounting}). Never the session's own loop: that stays its own accounting.
+    async descendantAccounting(sessionId: number, loopId: number | null): Promise<ProviderAccounting> {
+        const requests = loopId === null
+            ? []
+            : await this.#db.engine_descendant_provider_requests.all<ProviderRequestStorageRow>({ session_id: sessionId, loop_id: loopId });
+        return aggregateProviderAccounting(requests.map(providerRequestFromStorageRow));
+    }
+
+    runTurn(args: Parameters<TurnRunner["runTurn"]>[0]): ReturnType<TurnRunner["runTurn"]> {
+        return this.#turnRunner.runTurn(args);
+    }
+    executeAdmittedTurn(
+        args: Parameters<TurnRunner["executeAdmittedTurn"]>[0],
+    ): ReturnType<TurnRunner["executeAdmittedTurn"]> {
+        return this.#turnRunner.executeAdmittedTurn(args);
+    }
+    referenceEntries(workspaceId: number): Promise<Array<{ pathname: string; content: string }>> {
+        return this.#packets.referenceEntries(workspaceId);
+    }
+
+    // {§env-delta-log-pull} — materialize one closed interval of the ambient
+    // occurrence journal into this session's self-contained log. #67 owns only
+    // the remaining model-facing actor-name projection.
+    cancelSubscription(subscriptionId: number): Promise<boolean> {
+        return this.#liveSubscriptions.cancel(subscriptionId);
+    }
+
+    discardLoopNotices(loopId: number): void {
+        this.#notices.delete(loopId);
+    }
+
+    // {§env-delta} — exec streams as an instance of the ambient-observe machine:
+    // each turn, emit each owned channel's next publishable content as a foisted READ row. It is
+    // 200 while the channel streams and preserves the exact terminal result when closed. Intermediate
+    // observations stay out of the log; the terminal observation becomes visible. The cursor is the
+    // streamEnd recorded on the channel's prior observation. {§exec-stream}
+    async dispatch(context: DispatchContext): Promise<DispatchResult> {
+        return observed( // {§observability-boundary}
+            "op.dispatch",
+            { op: context.statement.op },
+            async (span) => {
+                const { result } = await this.#dispatcher.dispatch(context);
+                span.setAttribute("status", result.status);
+                return result;
+            },
+        );
+    }
+
+    // Resolve a READ without writing a log_entries row.
+    async look(context: {
+        statement: PlurnkStatement;
+        workspaceId: number; sessionId: number; loopId: number;
+        origin?: WriterTier;
+    }): Promise<DispatchResult> {
+        return this.#dispatcher.look(context);
+    }
+
+    capabilityProjection(workspaceId: number): Promise<CapabilityProjection> {
+        return this.#dispatcher.capabilityProjection(workspaceId);
+    }
+
+    async resolveEntryAddress(context: {
+        target: ParsedPath;
+        workspaceId: number;
+        sessionId: number;
+    }): Promise<ResolvedClientEntryAddress | null> {
+        return this.#dispatcher.resolveEntryAddress(context);
+    }
+
+    cancelAllProposals(outcome: string): void {
+        this.#proposals.cancelAll(outcome);
+    }
+
+    resolveProposal(logEntryId: number, resolution: ProposalResolution, resolver: string = "_plurnk"): Promise<void> {
+        return this.#proposals.resolve(logEntryId, resolution, resolver);
+    }
+
+    // Snapshot of pending proposals for client-interface discovery.
+    pendingProposalIds(): number[] {
+        return this.#proposals.pendingIds();
+    }
+
+    // Subscribe to proposal-pending observations. Automatic settlement is
+    // core-owned and happens before observers run.
+    onProposalPending(listener: (event: ProposalPendingEvent) => void): void {
+        this.#proposals.onPending(listener);
+    }
+
+    async pendingProposals(workspaceId: number): Promise<ProposalProjection[]> {
+        return this.#proposals.list(workspaceId);
+    }
+
+    onClientInteractionPending(listener: (event: ClientInteractionPendingEvent) => void): void {
+        this.#interactions.onPending(listener);
+    }
+
+    async pendingClientInteractions(workspaceId: number): Promise<ClientInteractionProjection[]> {
+        return this.#interactions.list(workspaceId);
+    }
+
+    async resolveClientInteraction(
+        interactionId: number,
+        resolution: ClientInteractionResolution,
+        respondent: import("@plurnk/plurnk-contracts").ApplicationOwnerIdentity,
+        message?: { readonly body: string; readonly source: string; readonly envelope: Readonly<Record<string, unknown>> },
+    ): Promise<void> {
+        await this.#interactions.resolve(interactionId, resolution, respondent, message);
+    }
+
+    // Used by wake-on-completion (daemon side): "is there any loop in this
+    // session still accepting turns?" If yes, skip the wake — the active loop
+    // will pick up the channel transition at its next turn boundary. If no,
+    // the daemon opens a fresh loop with the wake prompt.
+    async hasActiveLoopForSession(sessionId: number): Promise<boolean> {
+        const row = await this.#db.engine_count_active_loops_for_session.get<{ n: number }>({ session_id: sessionId });
+        return (row?.n ?? 0) > 0;
+    }
+
+    // Workspace-scope eager warm for explicit membership changes. The seam call returns
+    // while progress live-fans-out at loopId 0; a model turn joins this same coalesced
+    // promise and cannot reach its provider until coverage is complete.
+    async warmWorkspaceDerivations(workspaceId: number): Promise<void> {
+        const ctx: PlurnkSchemeContext = {
+            db: this.#db, workspaceId, sessionId: 0, loopId: 0, turnId: 0,
+            writer: "_plurnk",
+            signal: undefined,
+            streamEventNotify: this.#notify.streamEventNotify,
+            wakeSessionNotify: this.#notify.wakeSessionNotify,
+            weigh: this.#weighContent,
+            mimetypes: this.#mimetypes,
+            defaultChannelFor: (s) => this.#schemes.defaultChannelFor(s),
+            pushNotice: (notice) => this.#notices.notify(workspaceId, null, 0, notice) };
+        await this.#queueWorkspaceWarm(ctx); // materialize first; overlapping requests coalesce and rescan
+    }
+
+    // Inject a prompt into the admitted non-terminal loop. Writes the
+    // next inbox row; the next turn boundary publishes it
+    // as one inbound SEND row. Message writes serialize per loop,
+    // so concurrent arrivals retain distinct ordered ordinals.
+    //
+    // The admission owner selects the exact loop before checking its policy.
+    // This writer never reselects a recipient across an asynchronous boundary.
+    injectIntoLoop(loopId: number, prompt: string, openPaths: readonly string[] = [], source?: string, evidence: MessageEvidence = {}, messageAddress?: string): Promise<
+        { loopId: number; turnSeq: number } | null
+    > {
+        if (source !== undefined && source.length === 0) {
+            throw new TypeError("Engine.injectIntoLoop: source must be a non-empty string when present");
+        }
+        return this.#withPromptWriteLock(loopId, () => this.#injectPrompt(loopId, prompt, openPaths, source, evidence, messageAddress));
+    }
+
+    #withPromptWriteLock<T>(loopId: number, write: () => Promise<T>): Promise<T> {
+        const previous = this.#messageWriteLocks.get(loopId) ?? Promise.resolve();
+        const run = previous.then(write, write);
+        const tail = run.catch(() => {});
+        this.#messageWriteLocks.set(loopId, tail);
+        void tail.then(() => {
+            if (this.#messageWriteLocks.get(loopId) === tail) this.#messageWriteLocks.delete(loopId);
+        });
+        return run;
+    }
+
+    async #injectPrompt(loopId: number, prompt: string, openPaths: readonly string[], source?: string, evidence: MessageEvidence = {}, messageAddress?: string): Promise<
+        { loopId: number; turnSeq: number } | null
+    > {
+        const turnRow = await this.#db.drain_next_turn_seq_for_loop.get<{ next: number }>({ loop_id: loopId });
+        const turnSeq = turnRow?.next ?? 1;
+        // {§message-loop-containment}: the inbox keeps arrival order; the next turn boundary publishes.
+        const appended = await this.#db.drain_enqueue_message.get<{ id: number; ordinal: number }>({
+            loop_id: loopId, source: source ?? null, body: prompt, open_paths: JSON.stringify(openPaths),
+            evidence: JSON.stringify(evidence),
+            address: messageAddress ?? null,
+        });
+        if (appended === undefined) return null;
+        return { loopId, turnSeq };
+    }
+
+    async runLoop(...args: Parameters<LoopDriver["runLoop"]>): ReturnType<LoopDriver["runLoop"]> {
+        return this.#loopDriver.runLoop(...args);
+    }
+}

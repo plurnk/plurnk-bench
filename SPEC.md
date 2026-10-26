@@ -936,3 +936,28 @@ Coverage: `swebench/pi.test.mjs`; native installed-CLI checks require
 `PLURNK_BENCH_PI` and use a local fixture endpoint with no paid inference.
 
 Covered: `swebench/evaluator.test.ts [§swebench-evaluator]`, `swebench/run.test.ts [§swebench] [§swebench-trial] [§swebench-conditions] [§swebench-prompt] [§swebench-profiles]`, `swebench/sample.test.ts [§swebench-corpus]`, `swebench/plan.test.ts [§swebench-profiles]`, `swebench/report.test.ts [§swebench-profiles] [§swebench-trial] [§swebench-comparison] [§benchlet-isolation]`, `swebench/comparison.test.ts [§swebench-comparison] [§swebench-corpus]`, `src/statistics.test.ts [§swebench-comparison]`, `src/candidate-isolation.test.ts [§benchlet-isolation]`.
+
+## §tier-corpus Live and demo specimen tiers
+
+`tiers/` owns the paid real-model `live` (`tiers/live/`) and `demo` (`tiers/demo/`)
+specimen corpora (#81). `npm run tier:live` and `npm run tier:demo` run either the
+full tier or an exact `--specimen <name>` selection against the candidate checkouts
+named by `PLURNK_BENCHLET_SERVICE_ROOT` and `PLURNK_BENCHLET_CLIENT_ROOT`
+({§benchlet-provenance}, {§benchlet-client-checkout}). An unknown specimen name is
+refused before any model call. The loader resolves `@plurnk/plurnk-service/harness`
+and workspace packages from the selected service checkout so candidate evaluations
+and frozen `deepswe/relock.sh` lanes exercise the exact target revision. Each run
+writes `provenance.json`, `census.md`, `census.json`, `result.json`, and per-session
+`record.json` (`BenchRecord`) and `digest/` under `<benchmarksHome>/tier-<live|demo>-<stamp>/`.
+Covered: `tiers/runner.test.ts [§tier-corpus]`.
+
+### §demo-oracles Demo story oracles
+
+A demo story is graded by its oracle, never by the model's claim. The script oracle
+accepts an execution the daemon observed — a terminal receipt, a native script or a
+shell command with observed successful output — and rejects a claimed, unobserved,
+failed, unrelated or mismatched one; a model that verifies around the run is not
+failed for it. The web oracle takes the actual latest stable version: never arbitrary
+digits, a partial match, a newer maintenance date or an LTS label. The packet audit
+oracle accepts numbered findings under any Markdown emphasis.
+Covered: `tiers/oracles.test.ts [§demo-oracles]`.
