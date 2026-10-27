@@ -2,7 +2,7 @@
 // specific-thing tests, not e2e stories). Proves the boot-DISCOVERED web stack works end-to-end:
 //   - http://  (@plurnk/plurnk-schemes-http) — a real fetch, no API key.
 //
-// Web discovery is an ordinary MCP attachment ({§membership}); the search-MCP
+// Web discovery is an ordinary MCP attachment ({§tier-corpus}); the search-MCP
 // live exercise lives with the demo-tier fixture (test/demo).
 //
 // NO-MOCK: the http test dispatches a parsed READ straight through a real Engine against the real
@@ -10,7 +10,7 @@
 // provider, no db mock, no model turn.
 //
 //  - http: a finite GET writes its complete canonical representation before READ returns 200;
-//    genuine event streams retain the subscription lifecycle ({§capability-ctx}).
+//    genuine event streams retain the subscription lifecycle ({§tier-corpus}).
 //  - Materializer page production is exercised by the installed plugin's own live
 //    test; the built-in local projection is proven by the demo web-retrieve story.
 
@@ -62,7 +62,7 @@ test("live web: a discovered http:// READ atomically materializes a real URL (no
             const body = await db.test_get_channel.get<{ content: string }>({ entry_id: entry.id, name: "body" });
             assert.ok(body?.content.startsWith(String(r.content)), "READ projects from the stored canonical prefix");
             assert.ok((body?.content.split("\n").length ?? 0) > 100, "the entry retains a page far longer than a hundred lines");
-            // {§packet} — a markerless READ is its first page: PLURNK_SERVICE_PREVIEW_LINES lines.
+            // {§tier-corpus} — a markerless READ is its first page: PLURNK_SERVICE_PREVIEW_LINES lines.
             const range = r.range as { total?: number; returned?: readonly number[] } | undefined;
             const page = Number(process.env.PLURNK_SERVICE_PREVIEW_LINES);
             assert.deepEqual(range?.returned, [1, Math.min(page, range?.total ?? -1)], "the first page, at most the panel's preview lines");

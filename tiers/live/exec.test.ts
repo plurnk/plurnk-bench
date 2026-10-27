@@ -44,7 +44,7 @@ test("live exec: model emits a sh fence and the spawn captures stdout", async (t
         assert.equal(hitMaxTurns, false);
         assert.equal(lastContent.trim(), "plurnk-exec-live-ok", "the model reports the observed stdout to the client");
 
-        // {§exec}: inspect the real invocation's retained stdout, not just its receipt.
+        // {§tier-corpus}: inspect the real invocation's retained stdout, not just its receipt.
         const execEntryCount = (await s.db.test_count_entries_by_workspace_scheme.get<{ n: number }>({
             workspace_id: s.workspaceId, scheme: "sh",
         }))?.n ?? 0;

@@ -1,22 +1,15 @@
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import {
-    closeSync,
     copyFileSync,
-    createWriteStream,
     existsSync,
     mkdirSync,
     mkdtempSync,
-    openSync,
-    readdirSync,
     readFileSync,
     rmSync,
     writeFileSync,
 } from "node:fs";
-import { homedir, tmpdir } from "node:os";
+import { tmpdir } from "node:os";
 import { dirname, relative, resolve } from "node:path";
-import { spawn, spawnSync } from "node:child_process";
-import { finished } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { allocateRunDirectory } from "../src/run-directory.ts";
@@ -30,234 +23,129 @@ import CandidateContainer from "../src/candidate-container.ts";
 import { webMaterializationProvenance } from "../src/web-materialization.ts";
 import {
     addSettledUsd,
-    summarizeDigestAccounting,
     summarizeRequiemAccounting,
-    type ProviderAccountingProjection,
-    type ProviderUsageProjection,
     type RequiemAccountingInput,
     type RequiemAccountingSummary,
 } from "../src/accounting.ts";
 import { candidateIsolation } from "../src/candidate-isolation.ts";
 import { assertCleanSources } from "../src/source-provenance.ts";
 import { readDigest } from "../src/digest.ts";
+import {
+    aliasConfiguration,
+    candidateOutcome,
+    candidatePolicyPath,
+    candidatePolicySnapshotPath,
+    candidateRecapSnapshotPath,
+    candidateTimeoutMs,
+    dockerImageId,
+    EMPTY_SHA256,
+    envFileKeyNames,
+    environmentKeyNames,
+    EXECUTOR_SHIMS,
+    executorShim,
+    producedNoPatch,
+    recordInfrastructureFailure,
+    requiemIsComplete,
+    requiemModelAlias,
+    resolveFrom,
+    runToFiles,
+    sha256,
+    shell,
+    writeExecutorShims,
+    writeJson,
+    type CommandResult,
+    type ContainerExec,
+} from "../src/benchlet-runtime.ts";
+import {
+    baselineInvalidity,
+    capturePatches,
+    captureTree,
+    ensureRepositoryCache,
+    environmentExcludedP2p,
+    gradeObservations,
+    gradePatch,
+    isDockerManifest,
+    isHostManifest,
+    isTreeManifest,
+    parseGoTestEvents,
+    parseTaskVerifierArtifacts,
+    parseTreeVerifierArtifacts,
+    prepareCandidateRepository,
+    snapshotTask,
+    TREE_TASK_ROOT,
+    treeInstruction,
+    validateFixture,
+    withoutExcluded,
+    type CtrfReport,
+    type DockerManifest,
+    type HostManifest,
+    type Manifest,
+    type OracleConfig,
+    type OracleResult,
+    type TestObservation,
+    type TestStatus,
+    type TreeManifest,
+    type VerifierReward,
+} from "./verifiers.ts";
+import {
+    digestSummary,
+    summarizeFailures,
+    type DigestJson,
+    type FailureIncident,
+    type FailureSummary,
+} from "./digest-summary.ts";
 
-type TestStatus = "passed" | "skipped" | "failed";
-
-interface ManifestBase {
-    schemaVersion: number;
-    task: string;
-    repositoryUrl: string;
-    baseCommit: string;
-    files: Record<string, string>;
-}
-
-interface HostManifest extends ManifestBase {
-    environment: {
-        kind: "host";
-    };
-    verifier: {
-        kind: "go";
-        suites: Array<{
-            name: string;
-            package: string;
-            buckets: Array<"p2p" | "f2p">;
-            timeoutSeconds: number;
-        }>;
-    };
-}
-
-interface DockerManifest extends ManifestBase {
-    environment: {
-        kind: "docker";
-        image: string;
-        network: "none";
-        cpus: number;
-        memoryMb: number;
-    };
-    verifier: {
-        kind: "task";
-        timeoutSeconds: number;
-    };
-}
-
-// A Terminal-Bench 2.1 task ({§benchlet-diagnostic}): no repository — the image's /app IS the task tree —
-// and a verifier that grades that tree (tests/test.sh → /logs/verifier/reward.txt + ctrf.json).
-interface TreeManifest {
-    schemaVersion: number;
-    task: string;
-    kind: "terminal-bench";
-    taskCache: string;
-    repositoryUrl: null;
-    baseCommit: null;
-    budgetSeconds: number;
-    environment: {
-        kind: "docker";
-        image: string;
-        network: "bridge";
-        cpus: number;
-        memoryMb: number;
-    };
-    verifier: {
-        kind: "tree";
-        timeoutSeconds: number;
-    };
-    files: Record<string, string>;
-}
-type Manifest = HostManifest | DockerManifest | TreeManifest;
-
-const isDockerManifest = (manifest: Manifest): manifest is DockerManifest =>
-    manifest.environment.kind === "docker" && manifest.verifier.kind === "task";
-
-const isHostManifest = (manifest: Manifest): manifest is HostManifest =>
-    manifest.environment.kind === "host" && manifest.verifier.kind === "go";
-export const isTreeManifest = (manifest: Manifest): manifest is TreeManifest =>
-    manifest.verifier.kind === "tree";
-
-interface CtrfReport {
-    results?: {
-        tests?: Array<{
-            name: string;
-            status: string;
-            message?: string;
-            trace?: string;
-        }>;
-    };
-}
-
-interface VerifierReward {
-    reward: number;
-    apply_failed?: number;
-    p2p_passed: number;
-    p2p_total: number;
-    f2p_passed: number;
-    f2p_total: number;
-    partial: number;
-}
-
-interface OracleConfig {
-    base_commit: string;
-    p2p_node_ids: string[];
-    f2p_node_ids: string[];
-}
-
-interface TestObservation {
-    status: TestStatus;
-    output: string;
-}
-
-interface CommandResult {
-    status: number | null;
-    signal: NodeJS.Signals | null;
-    timedOut: boolean;
-    error?: Error;
-}
-
-interface OracleResult {
-    applyFailed: boolean;
-    reward: 0 | 1;
-    p2pPassed: number;
-    p2pTotal: number;
-    f2pPassed: number;
-    f2pTotal: number;
-    partial: number;
-    tests: Array<{
-        nodeId: string;
-        bucket: "p2p" | "f2p";
-        status: TestStatus;
-        output: string;
-    }>;
-}
-
-interface DigestJson {
-    workspaces: Array<{
-        accounting: ProviderAccountingProjection | null;
-    }>;
-    workers: Array<{
-        id: number;
-        name: string;
-    }>;
-    loops: Array<{
-        id: number;
-        worker_id: number;
-        sequence: number;
-        status: number;
-        terminated_by: string | null;
-        result: {
-            status: number;
-            content?: string;
-            problem?: Record<string, unknown> | null;
-        } | null;
-    }>;
-    turns: Array<{
-        id: number;
-        model: string | null;
-    }>;
-    turn_attempts: Array<{
-        accepted: boolean | null;
-    }>;
-    provider_requests: Array<{
-        kind: string;
-        accounting: { model: string } | null;
-    }>;
-    log_entries: Array<{
-        id: number;
-        worker_id: number;
-        origin: string;
-        op: string | null;
-        target: string | null;
-        source?: string | null;
-        status_rx: number;
-        attrs: Record<string, unknown>;
-        problem?: {
-            type?: string;
-            title?: string;
-            detail?: string;
-            instance?: string;
-            [key: string]: unknown;
-        } | null;
-    }>;
-}
-
-interface FailureIncident {
-    kind: "operation" | "stream";
-    workerId: number;
-    address: string;
-    operation: string | null;
-    operationEntryId: number | null;
-    status: number;
-    problemType: string;
-    title: string | null;
-    detail: string | null;
-    observationRows: number;
-    channels: string[];
-}
-
-interface FailureSummary {
-    observationRows: number;
-    problemTypes: Record<string, number>;
-    incidents: FailureIncident[];
-}
+export {
+    aliasConfiguration,
+    baselineInvalidity,
+    candidateOutcome,
+    candidatePolicyPath,
+    candidatePolicySnapshotPath,
+    candidateRecapSnapshotPath,
+    candidateTimeoutMs,
+    captureTree,
+    digestSummary,
+    EMPTY_SHA256,
+    environmentExcludedP2p,
+    EXECUTOR_SHIMS,
+    executorShim,
+    gradeObservations,
+    isTreeManifest,
+    parseGoTestEvents,
+    parseTaskVerifierArtifacts,
+    parseTreeVerifierArtifacts,
+    producedNoPatch,
+    recordInfrastructureFailure,
+    requiemIsComplete,
+    requiemModelAlias,
+    runToFiles,
+    summarizeFailures,
+    TREE_TASK_ROOT,
+    treeInstruction,
+    withoutExcluded,
+    writeExecutorShims,
+    type CommandResult,
+    type ContainerExec,
+    type CtrfReport,
+    type DigestJson,
+    type DockerManifest,
+    type FailureIncident,
+    type FailureSummary,
+    type HostManifest,
+    type Manifest,
+    type OracleConfig,
+    type OracleResult,
+    type TestObservation,
+    type TestStatus,
+    type TreeManifest,
+    type VerifierReward,
+};
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const benchRoot = resolve(moduleDir, "..");
 let activeRunDir: string | undefined;
 let activeStartedAt: Date | undefined;
 let activeStage = "preflight";
-
-const expandHome = (value: string): string =>
-    value === "~" ? homedir() : value.startsWith("~/") ? resolve(homedir(), value.slice(2)) : value;
-
-// The alias-scoped daemon knobs that shape a run's inference: route, reasoning, service tier,
-// sampling, and capacity. Names only from this list; an alias-scoped credential is never read.
-const ALIAS_KNOBS = ["PLURNK_MODEL", "PLURNK_PROVIDERS_EFFORT", "PLURNK_PROVIDERS_SERVICE_TIER", "PLURNK_PROVIDERS_TEMPERATURE", "PLURNK_PROVIDERS_REPEAT_PENALTY", "PLURNK_PROVIDERS_CONTEXT_WINDOW", "PLURNK_PROVIDERS_OUTPUT_BUDGET", "PLURNK_PROVIDERS_REASONING_BUDGET"] as const;
-export const aliasConfiguration = (alias: string, env: NodeJS.ProcessEnv): Record<string, string> => Object.fromEntries(
-    ALIAS_KNOBS.map((knob) => [`${knob}_${alias}`, env[`${knob}_${alias}`]]).filter((entry): entry is [string, string] => entry[1] !== undefined),
-);
-
-const resolveFrom = (root: string, value: string): string => {
-    const expanded = expandHome(value);
-    return resolve(root, expanded);
-};
 
 export const manifestPathForTask = (task: string): string => {
     if (!/^[a-z0-9][a-z0-9._-]*$/.test(task)) {
@@ -266,1130 +154,11 @@ export const manifestPathForTask = (task: string): string => {
     return resolve(moduleDir, "benchlet.manifests", `${task}.json`);
 };
 
-export const candidatePolicyPath = (serviceRoot: string): string =>
-    resolve(serviceRoot, "plurnk-meta", "POLICY.md");
+export const allocateRun = (runsRoot: string, task: string, model: string, family = "deepswe"): string =>
+    allocateRunDirectory(runsRoot, [family, task, model]);
 
-export const candidatePolicySnapshotPath = (runDir: string): string =>
-    resolve(runDir, "candidate-policy.md");
-
-export const candidateRecapSnapshotPath = (runDir: string): string =>
-    resolve(runDir, "candidate-recap.md");
-
-const sha256 = (path: string): string =>
-    createHash("sha256").update(readFileSync(path)).digest("hex");
-
-const shell = (
-    command: string,
-    args: string[],
-    options: { cwd?: string; env?: NodeJS.ProcessEnv; allowFailure?: boolean } = {},
-): string => {
-    const result = spawnSync(command, args, {
-        cwd: options.cwd,
-        env: options.env ?? process.env,
-        encoding: "utf8",
-    });
-    if (result.error !== undefined) throw result.error;
-    if (!options.allowFailure && result.status !== 0) {
-        throw new Error(
-            `${command} ${args.join(" ")} failed (${result.status ?? result.signal ?? "unknown"}): `
-            + `${result.stderr || result.stdout}`.trim(),
-        );
-    }
-    return result.stdout;
-};
-
-const git = (repository: string, args: string[], options: { env?: NodeJS.ProcessEnv; allowFailure?: boolean } = {}): string =>
-    shell("git", ["-C", repository, ...args], options);
-
-const gitDir = (repository: string, args: string[]): string =>
-    shell("git", [`--git-dir=${repository}`, ...args]);
-
-const dockerImageId = (image: string): string => {
-    const inspect = spawnSync("docker", ["image", "inspect", "--format={{.Id}}", image], {
-        encoding: "utf8",
-    });
-    if (inspect.error !== undefined) throw inspect.error;
-    if (inspect.status !== 0) {
-        shell("docker", ["pull", image]);
-        return shell("docker", ["image", "inspect", "--format={{.Id}}", image]).trim();
-    }
-    return inspect.stdout.trim();
-};
-
-const removeContainer = (container: string): void => {
-    shell("docker", ["rm", "--force", container], { allowFailure: true });
-};
-
-const writeJson = (path: string, value: unknown): void => {
-    writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
-};
-
-export const runToFiles = async (
-    command: string,
-    args: string[],
-    options: {
-        cwd: string;
-        env?: NodeJS.ProcessEnv;
-        stdoutPath: string;
-        stderrPath: string;
-        tee?: boolean;
-        timeoutMs?: number;
-        signal?: AbortSignal;
-    },
-): Promise<CommandResult> => {
-    options.signal?.throwIfAborted();
-    const stdout = createWriteStream(options.stdoutPath);
-    const stderr = createWriteStream(options.stderrPath);
-    const child = spawn(command, args, {
-        cwd: options.cwd,
-        env: options.env ?? process.env,
-        signal: options.signal,
-        stdio: ["ignore", "pipe", "pipe"],
-    });
-    child.stdout.pipe(stdout);
-    child.stderr.pipe(stderr);
-    child.stdout.on("data", (chunk: Buffer) => {
-        if (options.tee === true) process.stdout.write(chunk);
-    });
-    child.stderr.on("data", (chunk: Buffer) => {
-        if (options.tee === true) process.stderr.write(chunk);
-    });
-    let processError: Error | undefined;
-    let timedOut = false;
-    const timer = options.timeoutMs === undefined
-        ? undefined
-        : setTimeout(() => {
-            timedOut = true;
-            child.kill("SIGTERM");
-        }, options.timeoutMs);
-    child.once("error", (error) => {
-        processError = error;
-    });
-    const result = await new Promise<CommandResult>((accept) => {
-        child.once("close", (status, signal) => {
-            if (timer !== undefined) clearTimeout(timer);
-            accept({
-                status,
-                signal,
-                timedOut,
-                ...(processError === undefined ? {} : { error: processError }),
-            });
-        });
-    });
-    await Promise.all([finished(stdout), finished(stderr)]);
-    options.signal?.throwIfAborted();
-    return result;
-};
-
-const streamGitDiff = async (
-    repository: string,
-    args: string[],
-    path: string,
-    env: NodeJS.ProcessEnv = process.env,
-    signal?: AbortSignal,
-): Promise<void> => {
-    signal?.throwIfAborted();
-    const fd = openSync(path, "w");
-    try {
-        const child = spawn("git", ["-C", repository, ...args], {
-            env,
-            signal,
-            stdio: ["ignore", fd, "pipe"],
-        });
-        let errorText = "";
-        let processError: Error | undefined;
-        child.stderr!.setEncoding("utf8");
-        child.stderr!.on("data", (chunk: string) => {
-            errorText += chunk;
-        });
-        child.once("error", (error) => {
-            processError = error;
-        });
-        const result = await new Promise<CommandResult>((accept) => {
-            child.once("close", (status, childSignal) => accept({
-                status,
-                signal: childSignal,
-                timedOut: false,
-                ...(processError === undefined ? {} : { error: processError }),
-            }));
-        });
-        signal?.throwIfAborted();
-        if (result.error !== undefined) throw result.error;
-        if (result.status !== 0) {
-            throw new Error(`git diff failed (${result.status ?? result.signal ?? "unknown"}): ${errorText.trim()}`);
-        }
-    } finally {
-        closeSync(fd);
-    }
-};
-
-const statusRank: Record<TestStatus, number> = {
-    passed: 0,
-    skipped: 1,
-    failed: 2,
-};
-
-export const parseGoTestEvents = (text: string): Map<string, TestObservation> => {
-    const observations = new Map<string, TestObservation>();
-    const output = new Map<string, string[]>();
-    const running = new Set<string>();
-    for (const [index, line] of text.split("\n").entries()) {
-        if (line.trim() === "") continue;
-        let event: { Action?: string; Package?: string; Test?: string; Output?: string };
-        try {
-            event = JSON.parse(line) as typeof event;
-        } catch (error) {
-            throw new Error(`go test -json emitted malformed JSON on line ${index + 1}`, { cause: error });
-        }
-        if (event.Package === undefined || event.Test === undefined) continue;
-        const nodeId = `${event.Package}.${event.Test}`;
-        if (event.Action === "run") running.add(nodeId);
-        if (event.Output !== undefined) {
-            const lines = output.get(nodeId) ?? [];
-            lines.push(event.Output);
-            output.set(nodeId, lines);
-        }
-        const status = event.Action === "pass"
-            ? "passed"
-            : event.Action === "skip"
-                ? "skipped"
-                : event.Action === "fail"
-                    ? "failed"
-                    : undefined;
-        if (status === undefined) continue;
-        const current = observations.get(nodeId);
-        if (current === undefined || statusRank[status] >= statusRank[current.status]) {
-            observations.set(nodeId, {
-                status,
-                output: (output.get(nodeId) ?? []).join("").trim(),
-            });
-        }
-        running.delete(nodeId);
-    }
-    for (const nodeId of running) {
-        const captured = (output.get(nodeId) ?? []).join("").trim();
-        observations.set(nodeId, {
-            status: "failed",
-            output: [
-                captured,
-                "go test ended after starting this test without emitting a terminal event",
-            ].filter(Boolean).join("\n"),
-        });
-    }
-    return observations;
-};
-
-// {§benchlet-diagnostic} — a pass-to-pass test that fails on the pristine baseline in THIS
-// environment cannot discriminate a candidate here (2026-09-08: eicrud's own login rate limiter
-// answered 425 to a test that expects 401 because this host ran two attempts inside the framework's
-// minimum interval; three runs, same test, no model involved). Such tests leave the graded set for
-// this run only — pinned task files stay byte-identical — and the exclusion is evidence in
-// oracle-exclusions.json and result.json. Fail-to-pass tests are never excused: a baseline where any
-// f2p passes is a broken task. One exclusion is a flaky test; more than one must stay within a tenth
-// of the p2p set, or the environment is broken rather than flaky and the run stays an
-// infrastructure failure.
-export const environmentExcludedP2p = (baseline: OracleResult): OracleResult["tests"] =>
-    baseline.tests.filter((test) => test.bucket === "p2p" && test.status !== "passed");
-
-export const baselineInvalidity = (baseline: OracleResult): string | null => {
-    if (baseline.f2pPassed !== 0) {
-        return `external oracle baseline is invalid: p2p ${baseline.p2pPassed}/${baseline.p2pTotal}, f2p ${baseline.f2pPassed}/${baseline.f2pTotal}`;
-    }
-    const excluded = environmentExcludedP2p(baseline).length;
-    if (excluded > Math.max(1, Math.floor(baseline.p2pTotal / 10))) {
-        return `external oracle baseline is invalid: p2p ${baseline.p2pPassed}/${baseline.p2pTotal} (more than a tenth fail before any model runs), f2p ${baseline.f2pPassed}/${baseline.f2pTotal}`;
-    }
-    return null;
-};
-
-export const withoutExcluded = (config: OracleConfig, excluded: ReadonlyArray<{ nodeId: string }>): OracleConfig => {
-    const drop = new Set(excluded.map(({ nodeId }) => nodeId));
-    return { ...config, p2p_node_ids: config.p2p_node_ids.filter((nodeId) => !drop.has(nodeId)) };
-};
-
-export const gradeObservations = (
-    config: OracleConfig,
-    observations: Map<string, TestObservation>,
-    applyFailed = false,
-): OracleResult => {
-    const tests = [
-        ...config.p2p_node_ids.map((nodeId) => ({ nodeId, bucket: "p2p" as const })),
-        ...config.f2p_node_ids.map((nodeId) => ({ nodeId, bucket: "f2p" as const })),
-    ].map(({ nodeId, bucket }) => {
-        const observed = applyFailed ? undefined : observations.get(nodeId);
-        return {
-            nodeId,
-            bucket,
-            status: observed?.status ?? "failed" as TestStatus,
-            output: observed?.output ?? (applyFailed ? "submission patch did not apply" : "test absent from oracle output"),
-        };
-    });
-    const p2pPassed = tests.filter((test) => test.bucket === "p2p" && test.status === "passed").length;
-    const f2pPassed = tests.filter((test) => test.bucket === "f2p" && test.status === "passed").length;
-    const p2pTotal = config.p2p_node_ids.length;
-    const f2pTotal = config.f2p_node_ids.length;
-    const passed = p2pPassed + f2pPassed;
-    const total = p2pTotal + f2pTotal;
-    return {
-        applyFailed,
-        reward: f2pTotal > 0 && p2pPassed === p2pTotal && f2pPassed === f2pTotal ? 1 : 0,
-        p2pPassed,
-        p2pTotal,
-        f2pPassed,
-        f2pTotal,
-        partial: total === 0 ? 0 : passed / total,
-        tests,
-    };
-};
-
-const verifyFixtureFiles = (manifest: Manifest, taskDir: string): void => {
-    for (const [name, expected] of Object.entries(manifest.files)) {
-        const path = resolve(taskDir, name);
-        if (!existsSync(path)) throw new Error(`external task fixture is missing ${name}: ${path}`);
-        const actual = sha256(path);
-        if (actual !== expected) {
-            throw new Error(`external task fixture drifted at ${name}: expected ${expected}, received ${actual}`);
-        }
-    }
-};
-const validateFixture = (manifest: Manifest, taskDir: string): OracleConfig => {
-    assert.equal(manifest.schemaVersion, 1, "benchlet manifest schema must be version 1");
-    if (isTreeManifest(manifest)) {
-        assert.equal(manifest.kind, "terminal-bench", "tree manifest must be a terminal-bench task");
-        assert.ok(manifest.taskCache !== "", "tree manifest must name its task cache");
-        assert.ok(Number.isSafeInteger(manifest.budgetSeconds) && manifest.budgetSeconds > 0, "tree manifest must pin the task's agent budget");
-        assert.ok(manifest.environment.image !== "", "Docker environment must pin an image");
-        assert.ok(Number.isFinite(manifest.environment.cpus) && manifest.environment.cpus > 0);
-        assert.ok(Number.isSafeInteger(manifest.environment.memoryMb) && manifest.environment.memoryMb > 0);
-        assert.ok(Number.isSafeInteger(manifest.verifier.timeoutSeconds) && manifest.verifier.timeoutSeconds > 0);
-        verifyFixtureFiles(manifest, taskDir);
-        for (const required of ["instruction.md", "task.toml", "tests/test.sh"]) {
-            if (!(required in manifest.files)) throw new Error(`tree manifest must pin ${required}`);
-        }
-        // No oracle buckets: the tree verifier names its tests at grade time, all fail-to-pass.
-        return { base_commit: "", p2p_node_ids: [], f2p_node_ids: [] };
-    }
-    assert.ok(manifest.repositoryUrl !== "", "benchlet manifest must pin a repository URL");
-    assert.match(manifest.baseCommit, /^[0-9a-f]{40}$/, "benchlet manifest must pin a full Git commit");
-    verifyFixtureFiles(manifest, taskDir);
-    const config = JSON.parse(readFileSync(resolve(taskDir, "tests/config.json"), "utf8")) as OracleConfig;
-    // Upstream task data sometimes truncates the base commit; the pin carries the full one.
-    assert.ok(
-        typeof config.base_commit === "string" && config.base_commit.length >= 7 && manifest.baseCommit.startsWith(config.base_commit),
-        `oracle base commit ${JSON.stringify(config.base_commit)} must be a prefix of the pinned commit ${manifest.baseCommit}`,
-    );
-    if (manifest.verifier.kind === "task") {
-        assert.equal(manifest.environment.kind, "docker", "task verifier requires its pinned Docker environment");
-        assert.ok(manifest.environment.image !== "", "Docker environment must pin an image");
-        assert.ok(Number.isFinite(manifest.environment.cpus) && manifest.environment.cpus > 0);
-        assert.ok(Number.isSafeInteger(manifest.environment.memoryMb) && manifest.environment.memoryMb > 0);
-        assert.ok(Number.isSafeInteger(manifest.verifier.timeoutSeconds) && manifest.verifier.timeoutSeconds > 0);
-        return config;
-    }
-
-    const configured = new Set([...config.p2p_node_ids, ...config.f2p_node_ids]);
-    const selected = new Map<string, number>();
-    for (const suite of manifest.verifier.suites) {
-        if (!Number.isSafeInteger(suite.timeoutSeconds) || suite.timeoutSeconds <= 0) {
-            throw new Error(`suite ${suite.name} must declare a positive timeoutSeconds`);
-        }
-        for (const bucket of suite.buckets) {
-            const ids = bucket === "p2p" ? config.p2p_node_ids : config.f2p_node_ids;
-            for (const nodeId of ids) {
-                if (nodeId.startsWith(`${suite.package}.`)) {
-                    selected.set(nodeId, (selected.get(nodeId) ?? 0) + 1);
-                }
-            }
-        }
-    }
-    assert.deepEqual([...selected.keys()].toSorted(), [...configured].toSorted(), "suite selectors must cover every oracle node");
-    assert.ok([...selected.values()].every((count) => count === 1), "suite selectors must cover every oracle node exactly once");
-    return config;
-};
-
-const ensureRepositoryCache = (manifest: HostManifest, cache: string): void => {
-    if (!existsSync(cache)) {
-        mkdirSync(dirname(cache), { recursive: true });
-        shell("git", ["init", "--bare", "--quiet", cache]);
-        gitDir(cache, ["remote", "add", "origin", manifest.repositoryUrl]);
-    }
-    assert.equal(gitDir(cache, ["rev-parse", "--is-bare-repository"]).trim(), "true");
-    assert.equal(gitDir(cache, ["remote", "get-url", "origin"]).trim(), manifest.repositoryUrl);
-    gitDir(cache, ["fetch", "--quiet", "--depth=1", "origin", manifest.baseCommit]);
-    const fetched = gitDir(cache, ["rev-parse", "FETCH_HEAD"]).trim();
-    assert.equal(fetched, manifest.baseCommit, "repository fetch returned the pinned base commit");
-    gitDir(cache, ["update-ref", "refs/heads/benchlet-base", manifest.baseCommit]);
-};
-
-// {§benchlet-diagnostic} — the container path every Terminal-Bench instruction names for its tree.
-export const TREE_TASK_ROOT = "/app";
-export const treeInstruction = (instruction: string, root: string): string =>
-    instruction.replaceAll(new RegExp(`${TREE_TASK_ROOT}(?=/|\\b)`, "g"), root);
-export const allocateRun = (runsRoot: string, task: string, model: string, family = "deepswe"): string => {
-    return allocateRunDirectory(runsRoot, [family, task, model]);
-};
-
-const snapshotTask = (
-    runDir: string,
-    manifestPath: string,
-    manifest: Manifest,
-    taskDir: string,
-): void => {
-    const destination = resolve(runDir, "task");
-    mkdirSync(destination, { recursive: true });
-    copyFileSync(manifestPath, resolve(destination, "benchlet.manifest.json"));
-    for (const name of Object.keys(manifest.files)) {
-        const target = resolve(destination, name);
-        mkdirSync(dirname(target), { recursive: true });
-        copyFileSync(resolve(taskDir, name), target);
-    }
-};
-
-const cloneBase = (cache: string, destination: string, baseCommit: string): void => {
-    shell("git", ["clone", "--quiet", "--no-checkout", cache, destination]);
-    git(destination, ["checkout", "--quiet", "-B", "main", baseCommit]);
-    git(destination, ["config", "core.hooksPath", "/dev/null"]);
-    git(destination, ["config", "user.name", "Plurnk"]);
-    git(destination, ["config", "user.email", "plurnk@pm.me"]);
-};
-
-const copyDockerBase = (manifest: DockerManifest, destination: string): void => {
-    mkdirSync(destination, { recursive: true });
-    const container = shell("docker", ["create", manifest.environment.image]).trim();
-    try {
-        shell("docker", ["cp", `${container}:/app/.`, destination]);
-    } finally {
-        removeContainer(container);
-    }
-    assert.equal(git(destination, ["rev-parse", "HEAD"]).trim(), manifest.baseCommit);
-    assert.equal(git(destination, ["status", "--porcelain"]), "", "Docker task checkout must be pristine");
-    git(destination, ["config", "core.hooksPath", "/dev/null"]);
-    git(destination, ["config", "user.name", "Plurnk"]);
-    git(destination, ["config", "user.email", "plurnk@pm.me"]);
-};
-
-// {§benchlet-diagnostic} — the image's /app is the task tree; it is copied out as-is, with no repository
-// to assert: the candidate daemon admits it through the harness member definition instead.
-const copyDockerTree = (image: string, destination: string): void => {
-    mkdirSync(destination, { recursive: true });
-    const container = shell("docker", ["create", image]).trim();
-    try {
-        shell("docker", ["cp", `${container}:/app/.`, destination]);
-    } finally {
-        removeContainer(container);
-    }
-};
-// {§benchlet-diagnostic} — the candidate's commands run inside the task image, not on the host.
-// The daemon spawns every executor by name through PATH, so a shim directory in front of the
-// candidate's PATH forwards each one into a long-lived container of the task image when the command's
-// cwd is inside the candidate repository, mounted there at its own host path so cwd and every path in
-// output line up; commands from anywhere else (the client build, the daemon's own tooling) run on the
-// host through the saved real PATH. The container runs as the host user, so files it writes stay
-// writable by the daemon, with the image's own home (handed to that user at start) as HOME, so the
-// toolchains and caches the image installed there are the candidate's as they are the verifier's.
-// Network follows the manifest, as the verifier does.
-// Origin (2026-09-08): the host lacked the images' optional test dependencies, toolchain versions, and
-// services; models saw phantom collection errors and repaired our machine instead of the task.
-export const EXECUTOR_SHIMS: readonly string[] = Object.freeze([
-    "sh", "bash", "node", "python3", "python", "perl", "ruby", "lua", "deno", "bun", "tclsh", "bc", "awk",
-    "jq", "sqlite3", "npm", "npx", "pnpm", "yarn", "cargo", "rustc", "go", "make",
-]);
-
-export interface ContainerExec {
-    readonly container: string;
-    readonly repository: string;
-    readonly user: string;
-    readonly home: string;
-    readonly realPath: string;
-}
-
-// The shim carries every value as a literal: the daemon scrubs its own PLURNK_* variables from
-// subprocess environments, so nothing but PATH is relied upon to reach the command.
-const shq = (value: string): string => "'" + value.replaceAll("'", "'\\''") + "'";
-export const executorShim = (name: string, exec: ContainerExec): string => [
-    "#!/bin/sh",
-    "# {§benchlet-diagnostic} — inside the candidate repository the command runs in the task container",
-    "# at the same path; anywhere else it runs on the host.",
-    'case "${PWD}/" in',
-    "    " + shq(exec.repository + "/") + '*) exec docker exec -i -u ' + shq(exec.user) + ' -w "${PWD}" -e HOME=' + shq(exec.home) + " " + shq(exec.container) + " " + name + ' "$@" ;;',
-    "esac",
-    "PATH=" + shq(exec.realPath) + " exec " + name + ' "$@"',
-    "",
-].join("\n");
-
-export const writeExecutorShims = (binDir: string, exec: ContainerExec): void => {
-    mkdirSync(binDir, { recursive: true });
-    for (const name of EXECUTOR_SHIMS) writeFileSync(resolve(binDir, name), executorShim(name, exec), { mode: 0o755 });
-};
-
-// One lifecycle per process; the docker calls ride the same `shell` every other stage uses.
 const candidateContainer = new CandidateContainer((command, args, options) => shell(command, args, options));
 const stopCandidateContainer = (): void => candidateContainer.stop();
-
-const prepareCandidateRepository = (
-    manifest: Manifest,
-    repositoryCache: string,
-    destination: string,
-): void => {
-    if (isTreeManifest(manifest)) {
-        copyDockerTree(manifest.environment.image, destination);
-        return;
-    }
-    if (isDockerManifest(manifest)) {
-        copyDockerBase(manifest, destination);
-        return;
-    }
-    assert.ok(isHostManifest(manifest), "benchlet manifest environment and verifier are incompatible");
-    cloneBase(repositoryCache, destination, manifest.baseCommit);
-};
-
-const capturePatches = async (
-    repository: string,
-    runDir: string,
-    baseCommit: string,
-    prefix = "",
-    signal?: AbortSignal,
-): Promise<{
-    branch: string;
-    head: string;
-    status: string;
-    committed: boolean;
-    submissionSha256: string;
-    workingSha256: string;
-}> => {
-    signal?.throwIfAborted();
-    const status = git(repository, ["status", "--porcelain=v2", "--branch"]);
-    const branch = git(repository, ["branch", "--show-current"]).trim();
-    const head = git(repository, ["rev-parse", "HEAD"]).trim();
-    const submissionPath = resolve(runDir, `${prefix}model.patch`);
-    await streamGitDiff(repository, ["diff", "--binary", baseCommit, "HEAD", "--"], submissionPath, process.env, signal);
-
-    const alternateIndex = resolve(runDir, `${prefix}working-tree.index`);
-    const indexEnv = { ...process.env, GIT_INDEX_FILE: alternateIndex };
-    git(repository, ["read-tree", "HEAD"], { env: indexEnv });
-    git(repository, ["add", "-A"], { env: indexEnv });
-    const workingPath = resolve(runDir, `${prefix}working.patch`);
-    await streamGitDiff(repository, ["diff", "--cached", "--binary", baseCommit, "--"], workingPath, indexEnv, signal);
-    rmSync(alternateIndex, { force: true });
-
-    return {
-        branch,
-        head,
-        status,
-        committed: head !== baseCommit,
-        submissionSha256: sha256(submissionPath),
-        workingSha256: sha256(workingPath),
-    };
-};
-
-// {§benchlet-diagnostic} — a task tree has no patches: its state is the sorted listing of every file with
-// its sha256, and the tree itself is what the verifier grades. Submission and working state are one.
-export const captureTree = (
-    tree: string,
-    runDir: string,
-    prefix = "",
-): {
-    branch: string;
-    head: string;
-    status: string;
-    committed: boolean;
-    submissionSha256: string;
-    workingSha256: string;
-} => {
-    const files = readdirSync(tree, { recursive: true, withFileTypes: true })
-        .filter((entry) => entry.isFile())
-        .map((entry) => relative(tree, resolve(entry.parentPath, entry.name)))
-        .toSorted();
-    const listing = files.map((path) => ({ path, sha256: sha256(resolve(tree, path)) }));
-    writeJson(resolve(runDir, `${prefix}working-tree.json`), { tree: relative(runDir, tree), files: listing });
-    const digest = createHash("sha256")
-        .update(listing.map(({ path, sha256: hash }) => `${hash}  ${path}\n`).join(""))
-        .digest("hex");
-    return { branch: "", head: "", status: "", committed: false, submissionSha256: digest, workingSha256: digest };
-};
-const regexEscape = (value: string): string => value.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
-
-const gradeGoPatch = async (
-    label: string,
-    patchPath: string,
-    artifactDir: string,
-    repositoryCache: string,
-    manifest: HostManifest,
-    taskDir: string,
-    config: OracleConfig,
-    signal?: AbortSignal,
-): Promise<OracleResult> => {
-    signal?.throwIfAborted();
-    mkdirSync(artifactDir, { recursive: true });
-    const workRoot = mkdtempSync(resolve(tmpdir(), `plurnk-benchlet-${label}-`));
-    const repository = resolve(workRoot, "repo");
-    try {
-        cloneBase(repositoryCache, repository, manifest.baseCommit);
-        const observations = new Map<string, TestObservation>();
-        const prepareDir = resolve(artifactDir, "prepare");
-        const modelArtifacts = resolve(prepareDir, "artifacts");
-        const verifierArtifacts = resolve(prepareDir, "verifier");
-        mkdirSync(modelArtifacts, { recursive: true });
-        copyFileSync(patchPath, resolve(modelArtifacts, "model.patch"));
-        const prepared = spawnSync("python3", [resolve(taskDir, "tests/grader.py"), "prepare"], {
-            cwd: repository,
-            env: {
-                ...process.env,
-                APP_DIR: repository,
-                ARTIFACTS_DIR: modelArtifacts,
-                TESTS_DIR: resolve(taskDir, "tests"),
-                VERIFIER_DIR: verifierArtifacts,
-            },
-            encoding: "utf8",
-        });
-        writeFileSync(resolve(prepareDir, "stdout.log"), prepared.stdout);
-        writeFileSync(resolve(prepareDir, "stderr.log"), prepared.stderr);
-        writeJson(resolve(prepareDir, "command.json"), {
-            command: "python3",
-            args: [resolve(taskDir, "tests/grader.py"), "prepare"],
-            status: prepared.status,
-            signal: prepared.signal,
-            error: prepared.error?.message ?? null,
-        });
-        if (prepared.error !== undefined) throw prepared.error;
-        if (prepared.status !== 0) {
-            throw new Error(`external verifier preparation failed for ${label}`);
-        }
-        const preparedRewardPath = resolve(verifierArtifacts, "reward.json");
-        if (existsSync(preparedRewardPath)) {
-            const preparedReward = JSON.parse(readFileSync(preparedRewardPath, "utf8")) as {
-                apply_failed?: number;
-            };
-            if (preparedReward.apply_failed === 1) {
-                return gradeObservations(config, observations, true);
-            }
-            throw new Error(`external verifier unexpectedly graded ${label} during preparation`);
-        }
-
-        for (const suite of manifest.verifier.suites) {
-            const selected = suite.buckets.flatMap((bucket) =>
-                (bucket === "p2p" ? config.p2p_node_ids : config.f2p_node_ids)
-                    .filter((nodeId) => nodeId.startsWith(`${suite.package}.`)));
-            const names = selected.map((nodeId) => nodeId.slice(suite.package.length + 1));
-            const packagePath = `./${suite.package.split("/").at(-1)}`;
-            const stdoutPath = resolve(artifactDir, `${suite.name}.jsonl`);
-            const stderrPath = resolve(artifactDir, `${suite.name}.stderr.log`);
-            const result = await runToFiles("go", [
-                "test",
-                "-json",
-                "-count=1",
-                `-timeout=${suite.timeoutSeconds}s`,
-                packagePath,
-                "-run",
-                `^(${names.map(regexEscape).join("|")})$`,
-            ], {
-                cwd: repository,
-                env: {
-                    ...process.env,
-                    GOCACHE: resolve(workRoot, ".gocache"),
-                },
-                stdoutPath,
-                stderrPath,
-                signal,
-            });
-            writeJson(resolve(artifactDir, `${suite.name}.command.json`), {
-                command: "go",
-                args: [
-                    "test",
-                    "-json",
-                    "-count=1",
-                    `-timeout=${suite.timeoutSeconds}s`,
-                    packagePath,
-                    "-run",
-                    `^(${names.map(regexEscape).join("|")})$`,
-                ],
-                status: result.status,
-                signal: result.signal,
-                error: result.error?.message ?? null,
-                timedOut: result.timedOut,
-            });
-            if (result.error !== undefined) throw result.error;
-            if (result.signal !== null) {
-                throw new Error(`oracle suite ${suite.name} was terminated by ${result.signal}`);
-            }
-            const parsed = parseGoTestEvents(readFileSync(stdoutPath, "utf8"));
-            for (const [nodeId, observation] of parsed) {
-                const current = observations.get(nodeId);
-                if (current === undefined || statusRank[observation.status] >= statusRank[current.status]) {
-                    observations.set(nodeId, observation);
-                }
-            }
-        }
-        return gradeObservations(config, observations);
-    } finally {
-        rmSync(workRoot, { recursive: true, force: true });
-    }
-};
-
-export const parseTaskVerifierArtifacts = (
-    config: OracleConfig,
-    reward: VerifierReward,
-    ctrf?: CtrfReport,
-): OracleResult => {
-    const applyFailed = reward.apply_failed === 1;
-    if (applyFailed) {
-        assert.equal(reward.reward, 0, "an unapplied patch cannot receive reward");
-        return gradeObservations(config, new Map(), true);
-    }
-    if (ctrf === undefined) throw new Error("task verifier did not produce ctrf.json");
-
-    const observations = new Map<string, TestObservation>();
-    const tests = ctrf.results?.tests;
-    if (!Array.isArray(tests)) throw new Error("task verifier emitted malformed CTRF test results");
-    for (const test of tests) {
-        const match = /^\[(p2p|f2p)\] (.+)$/.exec(test.name);
-        if (match === null) throw new Error(`task verifier emitted an unbucketed test: ${test.name}`);
-        const status = test.status === "passed" || test.status === "skipped" || test.status === "failed"
-            ? test.status
-            : "failed";
-        const nodeId = match[2]!;
-        if (observations.has(nodeId)) throw new Error(`task verifier emitted duplicate test evidence: ${nodeId}`);
-        observations.set(nodeId, {
-            status,
-            output: test.message ?? test.trace ?? "",
-        });
-    }
-
-    const result = gradeObservations(config, observations);
-    assert.equal(result.p2pPassed, reward.p2p_passed, "CTRF and reward disagree on p2p passes");
-    assert.equal(result.p2pTotal, reward.p2p_total, "manifest and reward disagree on p2p total");
-    assert.equal(result.f2pPassed, reward.f2p_passed, "CTRF and reward disagree on f2p passes");
-    assert.equal(result.f2pTotal, reward.f2p_total, "manifest and reward disagree on f2p total");
-    assert.equal(result.reward, reward.reward, "CTRF and reward disagree on binary reward");
-    assert.ok(Math.abs(result.partial - reward.partial) < Number.EPSILON, "CTRF and reward disagree on partial score");
-    return result;
-};
-
-const gradeTaskPatch = async (
-    label: string,
-    patchPath: string,
-    artifactDir: string,
-    manifest: DockerManifest,
-    taskDir: string,
-    config: OracleConfig,
-    signal?: AbortSignal,
-): Promise<OracleResult> => {
-    signal?.throwIfAborted();
-    mkdirSync(artifactDir, { recursive: true });
-    const verifierArtifacts = resolve(artifactDir, "verifier");
-    mkdirSync(verifierArtifacts);
-    const container = shell("docker", [
-        "create",
-        "--network",
-        manifest.environment.network,
-        "--cpus",
-        String(manifest.environment.cpus),
-        "--memory",
-        `${manifest.environment.memoryMb}m`,
-        manifest.environment.image,
-        "sleep",
-        "infinity",
-    ]).trim();
-    try {
-        shell("docker", ["start", container]);
-        shell("docker", ["exec", container, "mkdir", "-p", "/tests", "/logs/artifacts", "/logs/verifier"]);
-        shell("docker", ["cp", `${resolve(taskDir, "tests")}/.`, `${container}:/tests`]);
-        // {§benchlet-diagnostic} — the verifier grades the run's whitelist: the pinned config
-        // merged with the derived p2p set, written beside the artifacts as evidence and copied over
-        // the container's copy only when an id was excluded.
-        const pinned = JSON.parse(readFileSync(resolve(taskDir, "tests", "config.json"), "utf8")) as Record<string, unknown>;
-        const pinnedP2p = pinned.p2p_node_ids;
-        if (!Array.isArray(pinnedP2p)) throw new Error("pinned tests/config.json carries no p2p_node_ids array");
-        if (pinnedP2p.length !== config.p2p_node_ids.length) {
-            const overlay = resolve(artifactDir, "config.json");
-            writeJson(overlay, { ...pinned, p2p_node_ids: config.p2p_node_ids });
-            shell("docker", ["cp", overlay, `${container}:/tests/config.json`]);
-        }
-        shell("docker", ["cp", patchPath, `${container}:/logs/artifacts/model.patch`]);
-        const args = ["exec", container, "bash", "/tests/test.sh"];
-        const result = await runToFiles("docker", args, {
-            cwd: benchRoot,
-            stdoutPath: resolve(artifactDir, "stdout.log"),
-            stderrPath: resolve(artifactDir, "stderr.log"),
-            timeoutMs: manifest.verifier.timeoutSeconds * 1_000,
-            signal,
-        });
-        writeJson(resolve(artifactDir, "command.json"), {
-            command: "docker",
-            args,
-            status: result.status,
-            signal: result.signal,
-            error: result.error?.message ?? null,
-            timedOut: result.timedOut,
-        });
-        shell("docker", ["cp", `${container}:/logs/verifier/.`, verifierArtifacts]);
-        if (result.error !== undefined) throw result.error;
-        if (result.timedOut) throw new Error(`task verifier timed out for ${label}`);
-        if (result.status !== 0) {
-            throw new Error(`task verifier failed for ${label} (${result.status ?? result.signal ?? "unknown"})`);
-        }
-        const rewardPath = resolve(verifierArtifacts, "reward.json");
-        if (!existsSync(rewardPath)) throw new Error(`task verifier did not grade ${label}`);
-        const reward = JSON.parse(readFileSync(rewardPath, "utf8")) as VerifierReward;
-        const ctrfPath = resolve(verifierArtifacts, "ctrf.json");
-        const ctrf = existsSync(ctrfPath)
-            ? JSON.parse(readFileSync(ctrfPath, "utf8")) as CtrfReport
-            : undefined;
-        return parseTaskVerifierArtifacts(config, reward, ctrf);
-    } finally {
-        removeContainer(container);
-    }
-};
-
-// {§benchlet-diagnostic} — Harbor's text reward ("1" | "0") and the CTRF the task's pytest wrote. Every
-// test is fail-to-pass; the binary reward and the test evidence must agree.
-export const parseTreeVerifierArtifacts = (rewardText: string, ctrf?: CtrfReport): OracleResult => {
-    const reward = Number(rewardText.trim());
-    if (reward !== 0 && reward !== 1) throw new Error(`tree verifier wrote an unreadable reward: ${JSON.stringify(rewardText)}`);
-    const tests = ctrf === undefined ? [] : ctrf.results?.tests;
-    if (!Array.isArray(tests)) throw new Error("tree verifier emitted malformed CTRF test results");
-    const observed = tests.map((test) => ({
-        nodeId: test.name,
-        bucket: "f2p" as const,
-        status: (test.status === "passed" || test.status === "skipped" || test.status === "failed" ? test.status : "failed") as TestStatus,
-        output: test.message ?? test.trace ?? "",
-    }));
-    const f2pPassed = observed.filter((test) => test.status === "passed").length;
-    if (ctrf !== undefined && (reward === 1) !== (observed.length > 0 && f2pPassed === observed.length)) {
-        throw new Error(`tree verifier reward ${reward} disagrees with its CTRF evidence (${f2pPassed}/${observed.length} passed)`);
-    }
-    return {
-        applyFailed: false,
-        reward,
-        p2pPassed: 0,
-        p2pTotal: 0,
-        f2pPassed,
-        f2pTotal: observed.length,
-        partial: observed.length === 0 ? reward : f2pPassed / observed.length,
-        tests: observed,
-    };
-};
-// {§benchlet-diagnostic} — grade a task tree in a fresh task container: the tree replaces the image's /app
-// byte for byte (null grades the pristine image), then the canonical tests/test.sh runs.
-const gradeTaskTree = async (
-    label: string,
-    tree: string | null,
-    artifactDir: string,
-    manifest: TreeManifest,
-    taskDir: string,
-    signal?: AbortSignal,
-): Promise<OracleResult> => {
-    signal?.throwIfAborted();
-    mkdirSync(artifactDir, { recursive: true });
-    const verifierArtifacts = resolve(artifactDir, "verifier");
-    mkdirSync(verifierArtifacts);
-    const container = shell("docker", [
-        "create",
-        "--network",
-        manifest.environment.network,
-        "--cpus",
-        String(manifest.environment.cpus),
-        "--memory",
-        `${manifest.environment.memoryMb}m`,
-        manifest.environment.image,
-        "sleep",
-        "infinity",
-    ]).trim();
-    try {
-        shell("docker", ["start", container]);
-        shell("docker", ["exec", container, "mkdir", "-p", "/tests", "/logs/verifier"]);
-        shell("docker", ["cp", `${resolve(taskDir, "tests")}/.`, `${container}:/tests`]);
-        if (tree !== null) {
-            shell("docker", ["exec", container, "sh", "-c", "find /app -mindepth 1 -delete"]);
-            shell("docker", ["cp", `${tree}/.`, `${container}:/app`]);
-        }
-        const args = ["exec", container, "bash", "/tests/test.sh"];
-        const result = await runToFiles("docker", args, {
-            cwd: benchRoot,
-            stdoutPath: resolve(artifactDir, "stdout.log"),
-            stderrPath: resolve(artifactDir, "stderr.log"),
-            timeoutMs: manifest.verifier.timeoutSeconds * 1_000,
-            signal,
-        });
-        writeJson(resolve(artifactDir, "command.json"), {
-            command: "docker",
-            args,
-            status: result.status,
-            signal: result.signal,
-            error: result.error?.message ?? null,
-            timedOut: result.timedOut,
-        });
-        shell("docker", ["cp", `${container}:/logs/verifier/.`, verifierArtifacts]);
-        if (result.error !== undefined) throw result.error;
-        if (result.timedOut) throw new Error(`task verifier timed out for ${label}`);
-        const rewardPath = resolve(verifierArtifacts, "reward.txt");
-        if (!existsSync(rewardPath)) throw new Error(`task verifier did not grade ${label}`);
-        const ctrfPath = resolve(verifierArtifacts, "ctrf.json");
-        return parseTreeVerifierArtifacts(
-            readFileSync(rewardPath, "utf8"),
-            existsSync(ctrfPath) ? JSON.parse(readFileSync(ctrfPath, "utf8")) as CtrfReport : undefined,
-        );
-    } finally {
-        removeContainer(container);
-    }
-};
-const gradePatch = (
-    label: string,
-    patchPath: string,
-    artifactDir: string,
-    repositoryCache: string,
-    manifest: Manifest,
-    taskDir: string,
-    config: OracleConfig,
-    tree: string | null = null,
-    signal?: AbortSignal,
-): Promise<OracleResult> => isTreeManifest(manifest)
-    ? gradeTaskTree(label, tree, artifactDir, manifest, taskDir, signal)
-    : isDockerManifest(manifest)
-    ? gradeTaskPatch(label, patchPath, artifactDir, manifest, taskDir, config, signal)
-    : isHostManifest(manifest)
-        ? gradeGoPatch(label, patchPath, artifactDir, repositoryCache, manifest, taskDir, config, signal)
-        : Promise.reject(new Error("benchlet manifest environment and verifier are incompatible"));
-
-const failureText = (
-    problem: DigestJson["log_entries"][number]["problem"],
-    field: "type" | "title" | "detail" | "instance",
-): string | null => typeof problem?.[field] === "string" ? problem[field] : null;
-
-const terminalStreamObservation = (
-    entry: DigestJson["log_entries"][number],
-): { address: string; channel: string | null } | null => {
-    if (entry.origin !== "plurnk"
-        || entry.op !== "READ"
-        || entry.attrs.terminal !== true
-        || entry.target === null
-        || !URL.canParse(entry.target)) return null;
-    const address = new URL(entry.target);
-    const channel = address.hash.length > 1 ? address.hash.slice(1) : null;
-    address.hash = "";
-    return { address: address.toString(), channel };
-};
-
-// Stream coordinates are worker-relative; reconciliation imports a child's stream
-// observations into the parent's log with `source: worker://…`. Ownership and
-// incident keys namespace by that provenance so a child's `sh:///1/2/3` never
-// collides with the parent's own (#464).
-const streamNamespace = (entry: DigestJson["log_entries"][number]): string =>
-    typeof entry.source === "string" && entry.source.startsWith("worker://") ? entry.source : "";
-export const summarizeFailures = (entries: DigestJson["log_entries"]): FailureSummary => {
-    const streamOwners = new Map<string, DigestJson["log_entries"][number]>();
-    for (const entry of entries) {
-        const stream = entry.attrs.stream;
-        if (typeof stream !== "string") continue;
-        const key = `${entry.worker_id}\u0000${streamNamespace(entry)}\u0000${stream}`;
-        const previous = streamOwners.get(key);
-        if (previous !== undefined && previous.id !== entry.id) {
-            throw new Error(`digest assigns stream ${stream} to multiple log entries for worker ${entry.worker_id}`);
-        }
-        streamOwners.set(key, entry);
-    }
-
-    let observationRows = 0;
-    const incidents: FailureIncident[] = [];
-    const streamIncidents = new Map<string, FailureIncident>();
-    for (const entry of entries) {
-        if (entry.status_rx < 400) continue;
-        observationRows += 1;
-        const problemType = failureText(entry.problem, "type") ?? "unknown";
-        const title = failureText(entry.problem, "title");
-        const detail = failureText(entry.problem, "detail");
-        const stream = terminalStreamObservation(entry);
-        if (stream === null) {
-            incidents.push({
-                kind: "operation",
-                workerId: entry.worker_id,
-                address: failureText(entry.problem, "instance") ?? `log-entry:${entry.id}`,
-                operation: entry.op,
-                operationEntryId: entry.id,
-                status: entry.status_rx,
-                problemType,
-                title,
-                detail,
-                observationRows: 1,
-                channels: [],
-            });
-            continue;
-        }
-
-        const key = `${entry.worker_id}\u0000${streamNamespace(entry)}\u0000${stream.address}`;
-        const existing = streamIncidents.get(key);
-        if (existing !== undefined) {
-            if (existing.status !== entry.status_rx || existing.problemType !== problemType) {
-                throw new Error(`digest reports conflicting terminal failures for stream ${stream.address}`);
-            }
-            existing.observationRows += 1;
-            if (stream.channel !== null && !existing.channels.includes(stream.channel)) {
-                existing.channels.push(stream.channel);
-                existing.channels.sort();
-            }
-            continue;
-        }
-
-        const owner = streamOwners.get(`${entry.worker_id}\u0000${streamNamespace(entry)}\u0000${stream.address}`);
-        const incident: FailureIncident = {
-            kind: "stream",
-            workerId: entry.worker_id,
-            address: stream.address,
-            operation: owner?.op ?? null,
-            operationEntryId: owner?.id ?? null,
-            status: entry.status_rx,
-            problemType,
-            title,
-            detail,
-            observationRows: 1,
-            channels: stream.channel === null ? [] : [stream.channel],
-        };
-        streamIncidents.set(key, incident);
-        incidents.push(incident);
-    }
-
-    const problemTypes: Record<string, number> = {};
-    for (const incident of incidents) {
-        problemTypes[incident.problemType] = (problemTypes[incident.problemType] ?? 0) + 1;
-    }
-    return { observationRows, problemTypes, incidents };
-};
-
-export const digestSummary = (digest: DigestJson): {
-    modelTurns: number;
-    providerRequests: number;
-    rejectedEmissions: number;
-    models: string[];
-    usage: ProviderUsageProjection | null;
-    costUsd: string | null;
-    loopOutcomes: Array<{
-        workerId: number;
-        workerName: string | null;
-        loop: number;
-        status: number;
-        terminalMessage: string | null;
-        terminatedBy: string | null;
-        problem: Record<string, unknown> | null;
-    }>;
-    operationCounts: Record<string, number>;
-    failures: FailureSummary;
-} => {
-    const operationCounts: Record<string, number> = {};
-    for (const entry of digest.log_entries) {
-        if (entry.origin !== "model" || entry.op === null) continue;
-        operationCounts[entry.op] = (operationCounts[entry.op] ?? 0) + 1;
-    }
-    const accounting = summarizeDigestAccounting(digest);
-    const workerNames = new Map(digest.workers.map((worker) => [worker.id, worker.name]));
-    return {
-        modelTurns: digest.turns.filter((turn) => turn.model !== null && turn.model !== "unknown").length,
-        providerRequests: accounting.providerRequests,
-        rejectedEmissions: accounting.rejectedEmissions,
-        models: accounting.models,
-        usage: accounting.usage,
-        costUsd: accounting.costUsd,
-        loopOutcomes: digest.loops.map((loop) => ({
-            workerId: loop.worker_id,
-            workerName: workerNames.get(loop.worker_id) ?? null,
-            loop: loop.sequence,
-            status: loop.status,
-            terminalMessage: typeof loop.result?.content === "string" ? loop.result.content : null,
-            terminatedBy: loop.terminated_by,
-            problem: loop.result?.problem ?? null,
-        })),
-        operationCounts,
-        failures: summarizeFailures(digest.log_entries),
-    };
-};
-
-const environmentKeyNames = (env: NodeJS.ProcessEnv): string[] =>
-    Object.keys(env)
-        .filter((name) => /(?:API_KEY|_TOKEN|BASE_URL)$/.test(name))
-        .toSorted();
-
-const envFileKeyNames = (path: string): string[] => {
-    if (!existsSync(path)) return [];
-    return readFileSync(path, "utf8")
-        .split("\n")
-        .map((line) => /^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=/.exec(line)?.[1])
-        .filter((name): name is string => name !== undefined)
-        .toSorted();
-};
-
-export const requiemIsComplete = (
-    status: number | null,
-    markdownExists: boolean,
-    reportExists: boolean,
-): boolean => status === 0 && markdownExists && reportExists;
-
-// {§benchlet-diagnostic} — -1 is the no-limit idiom; the returned
-// undefined means "no timer" for the spawn helper.
-export const candidateTimeoutMs = (
-    candidateTimeout: number,
-    candidateOverhead: number,
-): number | undefined => candidateTimeout === -1
-    ? undefined
-    : (candidateTimeout + candidateOverhead) * 1_000;
-
-// {§benchlet-diagnostic} — a candidate the provider or the clock killed never got to try, and
-// the record has to say so: `harnessStatus: "complete"` used to cover a run whose model was cut off
-// mid-turn, making it indistinguishable from one that finished and simply failed the oracle (#41).
-// This is the DeepSWE half of the same hole closed for SWE-bench in #40.
-export const candidateOutcome = (exit: CommandResult): "finished" | "timeout" | "spawn_failed" | "exited" => {
-    if (exit.timedOut) return "timeout";
-    if (exit.error !== undefined) return "spawn_failed";
-    if (exit.status !== 0) return "exited";
-    return "finished";
-};
-
-// The SHA-256 of zero bytes: git wrote a diff and the diff was empty, so the repository never
-// changed. An empty patch is a real result — the model produced nothing — and is graded as the
-// loss it is, never mistaken for an ordinary near-miss (#41).
-export const EMPTY_SHA256 = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
-
-export const producedNoPatch = (submissionSha256: string): boolean => submissionSha256 === EMPTY_SHA256;
-
-export const recordInfrastructureFailure = (
-    runDir: string,
-    stage: string,
-    startedAt: Date | undefined,
-    error: unknown,
-    completedAt = new Date(),
-): void => {
-    const rendered = error instanceof Error ? error.stack ?? error.message : String(error);
-    writeFileSync(resolve(runDir, "infrastructure-error.log"), `${rendered}\n`);
-    writeJson(resolve(runDir, "result.json"), {
-        schemaVersion: 2,
-        harnessStatus: "infrastructure_error",
-        infrastructure: {
-            stage,
-            message: error instanceof Error ? error.message : String(error),
-        },
-        startedAt: startedAt?.toISOString() ?? null,
-        completedAt: completedAt.toISOString(),
-        durationMs: startedAt === undefined ? null : completedAt.getTime() - startedAt.getTime(),
-    });
-    const provenancePath = resolve(runDir, "provenance.json");
-    if (!existsSync(provenancePath)) return;
-    const provenance = JSON.parse(readFileSync(provenancePath, "utf8")) as Record<string, unknown>;
-    writeJson(provenancePath, {
-        ...provenance,
-        state: "infrastructure_error",
-        failedStage: stage,
-        completedAt: completedAt.toISOString(),
-    });
-};
-
-export const requiemModelAlias = (
-    enabled: boolean,
-    configured: string | undefined,
-    candidateModel: string,
-): string | null => {
-    if (!enabled) return null;
-    // SPEC {§config-carry}: the requiem witness is a distinct actor; unset
-    // deliberately inherits the already-resolved candidate selection.
-    return configured?.trim() || candidateModel;
-};
 
 const requiemSummary = (path: string): RequiemAccountingSummary => {
     const report = JSON.parse(readFileSync(path, "utf8")) as RequiemAccountingInput;
@@ -1413,8 +182,6 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         strict: true,
     });
     const task = values.task ?? process.env.PLURNK_BENCHLET_TASK;
-    // --recap <file>: the candidate daemon's Recap footer (PLURNK_SERVICE_RECAP) for this
-    // run only — model-facing text is tuned per run, never by editing a tracked source file.
     const recap = values.recap ?? process.env.PLURNK_BENCHLET_RECAP;
     const candidateRecap = recap === undefined || recap.trim() === "" ? null : resolveFrom(process.cwd(), recap);
     if (task === undefined || task.trim() === "") throw new Error("benchlet requires a task name");
@@ -1426,7 +193,6 @@ const main = async (signal?: AbortSignal): Promise<void> => {
     const preflightOnly = values.preflight;
     const model = selectedModel();
     const taskCache = resolveFrom(benchRoot, process.env.PLURNK_BENCHLET_TASK_CACHE ?? "");
-    // {§benchlet-diagnostic} — a tree manifest names its own corpus; DeepSWE tasks use the configured cache.
     const taskDir = resolve(isTreeManifest(manifest) ? resolveFrom(benchRoot, manifest.taskCache) : taskCache, manifest.task);
     const repositoryCacheRoot = resolveFrom(
         benchRoot,
@@ -1441,7 +207,6 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         "PLURNK_BENCHLET_CLIENT_ROOT",
     );
     const candidatePolicy = candidatePolicyPath(serviceRoot);
-    // {§benchlet-diagnostic} — a tree task runs on its own pinned agent budget (FrontierHarness parity).
     const candidateTimeout = isTreeManifest(manifest)
         ? manifest.budgetSeconds
         : Number(process.env.PLURNK_BENCHLET_CANDIDATE_TIMEOUT_SEC);
@@ -1457,8 +222,6 @@ const main = async (signal?: AbortSignal): Promise<void> => {
     if (!Number.isSafeInteger(candidateTimeout) || candidateTimeout === 0 || candidateTimeout < -1) {
         throw new Error("PLURNK_BENCHLET_CANDIDATE_TIMEOUT_SEC must be a positive integer, or -1 for no limit");
     }
-    // Deadline-snapshot mode (bench#18): the run plays through to a hard cap while
-    // the official budget becomes a repo photograph graded alongside the finish.
     const timeless = process.env.PLURNK_BENCHLET_TIMELESS === "1";
     const timelessCap = process.env.PLURNK_BENCHLET_TIMELESS_CAP === undefined
         ? 2
@@ -1549,8 +312,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             verifier: manifest.verifier,
         },
         modelAlias: model,
-        // {§bench-relock} — the alias's route knobs as the daemon will read them, so a run
-        // records which model, reasoning level, and sampling it actually asked for.
+        // {§bench-relock}
         aliasConfiguration: aliasConfiguration(model, process.env),
         sources,
         webMaterialization: webMaterializationProvenance(process.env),
@@ -1620,9 +382,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
 
     const repository = resolve(runDir, "repo");
     prepareCandidateRepository(manifest, repositoryCache, repository);
-    // {§benchlet-diagnostic} — a Terminal-Bench instruction names the container path `/app`; the host
-    // candidate's tree lives in the run directory, so the instruction names that path instead and the
-    // rewrite is recorded. The verifier still sees the tree at /app inside its container.
+    // {§benchlet-diagnostic}
     const instructionSource = readFileSync(resolve(taskDir, "instruction.md"), "utf8");
     const instruction = isTreeManifest(manifest) ? treeInstruction(instructionSource, repository) : instructionSource;
     const candidateArgs = [
@@ -1637,7 +397,6 @@ const main = async (signal?: AbortSignal): Promise<void> => {
     const containerExec = isDockerManifest(manifest)
         ? (() => {
             const user = process.getuid!() + ":" + process.getgid!();
-            // {§benchlet-diagnostic} — the daemon's executor scratch is per-run and mounted as-is.
             const mounts = { repository, scratch: resolve(runDir, "exec-scratch") };
             const container = candidateContainer.start(manifest.environment, mounts, user);
             const binDir = resolve(runDir, "bin");
@@ -1650,7 +409,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         })()
         : { env: {}, record: { kind: "host" } };
     writeJson(resolve(runDir, "candidate-execution.json"), containerExec.record);
-    // {§benchlet-diagnostic} — the candidate reaches no network beyond its model.
+    // {§benchlet-diagnostic}
     const isolation = candidateIsolation([...envFileKeyNames(operatorEnv), ...Object.keys(process.env)]);
     writeJson(resolve(runDir, "candidate-isolation.json"), { masked: isolation.masked, webHosts: [], capabilities: isolation.capabilities });
     const candidateEnvironmentOverrides = {
@@ -1659,8 +418,6 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         PLURNK_CANDIDATE_DIR: runDir,
         PLURNK_MODEL: model,
         PLURNK_CLIENT_CHECKOUT: clientRoot,
-        // {§benchlet-diagnostic} — a task tree is no repository: the harness admits it as a service member
-        // definition, exactly as the Harbor agent does (terminal_bench/plurnk_agent.py).
         ...(isTreeManifest(manifest) ? { PLURNK_MEMBERS_task: "**", PLURNK_MEMBERS_ENABLED: "1" } : {}),
         PLURNK_SERVICE_POLICY: candidatePolicySnapshot,
         ...(candidateRecapSnapshot === null ? {} : { PLURNK_SERVICE_RECAP: candidateRecapSnapshot }),
@@ -1673,8 +430,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         environmentOverrides: candidateEnvironmentOverrides,
     });
     activeStage = "candidate";
-    // {§pair-sheet} — the candidate stage's own clock, beside the harness clock: a pair reads
-    // agent wall time against mini's agent_execution window, not the whole benchlet run.
+    // {§pair-sheet}
     const candidateStartedAt = new Date();
     const candidate = await runToFiles(process.execPath, candidateArgs, {
         cwd: serviceRoot,
@@ -1743,7 +499,6 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         });
     }
 
-    // bench#18: grade the deadline photograph when the run played through.
     let deadlineOracle: Record<string, unknown> | null = null;
     const deadlineRepo = resolve(runDir, "repo@deadline");
     if (timeless && existsSync(deadlineRepo)) {
@@ -1787,8 +542,6 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             submissionEvidence: { reusedWorking: deadlineReused, patchSha256: deadlineState.submissionSha256 },
         };
     } else if (timeless) {
-        // The candidate finished inside the official budget: at the deadline
-        // instant the repo was already final, so the photograph is the finish.
         deadlineOracle = {
             budgetSeconds: candidateTimeout,
             capSeconds: clientTimeout,
@@ -1846,7 +599,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
 
     activeStage = "finalize";
     const completedAt = new Date();
-    // {§benchlet-diagnostic} — a killed candidate is never "complete", whatever the requiem did.
+    // {§benchlet-diagnostic}
     const candidateExit = candidateOutcome(candidate);
     const harnessStatus = candidateExit !== "finished"
         ? "candidate_failed"
@@ -1877,18 +630,17 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         git: patchState,
         oracle: {
             baseline,
-            // {§benchlet-diagnostic} — what this run did not grade, and why.
+            // {§benchlet-diagnostic}
             environmentExcludedP2p: excludedP2p.map(({ nodeId, output }) => ({ nodeId, baselineOutput: output })),
             working: workingOracle,
             submission: submissionOracle,
             submissionEvidence: {
                 reusedWorking: submissionReusedWorking,
                 patchSha256: patchState.submissionSha256,
-                // {§benchlet-diagnostic} — "the model changed nothing" is its own result.
+                // {§benchlet-diagnostic}
                 emptyPatch: producedNoPatch(patchState.submissionSha256),
             },
         },
-        // bench#18: the official budget's photograph beside the played-through finish.
         deadlineOracle,
         requiem,
         startedAt: startedAt.toISOString(),

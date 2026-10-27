@@ -40,7 +40,7 @@ export interface TrialRow {
     readonly webAttempts: number | null;   // model-issued http(s) operations, whatever the receipt said
     readonly webReads: number | null;      // the ones that were served (status < 400): a real leak
     readonly mcpCalls: number | null;
-    // the service's `§digest-edit-census` (service): every model EDIT by authored form, refusals, and revisits.
+    // {§swebench-comparison}: every model EDIT by authored form, refusals, and revisits.
     readonly edits: EditCensus | null;
     readonly evidence: string;
 }
@@ -295,8 +295,8 @@ export const render = (campaign: { corpus?: string; model?: string | null; servi
 // {§swebench-evaluator} — the loop's halt rule. `pass` is a clean pass; anything else names what to read:
 // `fail` the oracle refused a clean run, `agent` the candidate did not exit cleanly (struck out,
 // cancelled, out of time), `harness` the bench itself left no record or no verdict.
-// {§swebench-evaluator} — the halt rule. The oracle grades the patch, whatever ended the loop
-// (plurnk-service#840): a reward is the verdict, and a loop the engine ended decorates it, so the strict
+// {§swebench-evaluator} — the halt rule. The oracle grades the patch, whatever ended the loop:
+// a reward is the verdict, and a loop the engine ended decorates it, so the strict
 // halt still stops to read it while the clean halt runs on. Without a reward, an engine terminal —
 // turn ceiling, strike threshold, cycle, timeout — is the model's outcome, never the agent's (#46).
 const ENGINE_TERMINALS: ReadonlyMap<number, string> = new Map([
@@ -328,8 +328,8 @@ export const verdictOf = (trialDir: string): string => {
 };
 
 // {§swebench-evaluator}: a captured candidate can be regraded, not repurchased to repair its grader.
-// The report is the grading, and the evaluator's exit rides the verdict as its diagnostic
-// (plurnk-bench#78): under `clean` a saved verdict settles the candidate as it stands; under the
+// The report is the grading, and the evaluator's exit rides the verdict as its diagnostic:
+// under `clean` a saved verdict settles the candidate as it stands; under the
 // strict `pass` policy, which counts only a clean pass, an abnormal exit beside the verdict is
 // settled by the evaluator alone, so the pair is regraded or skipped, never bought again.
 export const requireSettledEvaluation = (trialDir: string, policy: "pass" | "clean"): void => {

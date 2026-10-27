@@ -1,4 +1,4 @@
-// {§digest-forensic-fidelity} (#893): every EDIT addressing form the card teaches, witnessed live. Each
+// {§tier-corpus} (#893): every EDIT addressing form the card teaches, witnessed live. Each
 // specimen is one sentence whose natural EDIT is one form. The landing is asserted on the entry's
 // content: exactly one EDIT, no refusal on the way, authored in a taught form. Which taught form
 // the model chose is reported, not required — models take any taught address that lands, and the
@@ -45,7 +45,7 @@ for (const kind of FORMS) test(`live: EDIT by ${kind.form} — one taught EDIT l
         assert.equal(loop.finalStatus, 200);
         assert.equal(await readBody(s.db, "notes.md"), kind.expected, "the edit landed exactly");
         const edits = await editForms(s, loop.modelSessionId);
-        // A 304 changed nothing ({§edit}): neither a landing nor a refusal.
+        // A 304 changed nothing ({§tier-corpus}): neither a landing nor a refusal.
         const landed = edits.filter(({ status }) => status < 300);
         assert.equal(landed.length, 1, `one landed EDIT: ${JSON.stringify(edits)}`);
         assert.ok(TAUGHT.includes(landed[0].form), `authored in a taught form: ${JSON.stringify(edits)}`);

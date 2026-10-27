@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Diagnostic smoke (SPEC §config-carry): drive one DeepSWE task through plurnk. Reads the AUTHORITATIVE daemon
+# Diagnostic smoke ({§config-carry}): drive one DeepSWE task through plurnk. Reads the AUTHORITATIVE daemon
 # config IN PLACE — bench re-declares nothing:
 #   • model choice  ← shell, then $XDG_CONFIG_HOME/plurnk/.env, then .env.defaults
 #   • alias tuning  ← $XDG_CONFIG_HOME/plurnk/.env

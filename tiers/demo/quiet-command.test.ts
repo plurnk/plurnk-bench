@@ -1,4 +1,4 @@
-// {§session-wait-timing}: outcome-oriented recovery from a service that leaves its first request unanswered.
+// {§tier-corpus}: outcome-oriented recovery from a service that leaves its first request unanswered.
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";

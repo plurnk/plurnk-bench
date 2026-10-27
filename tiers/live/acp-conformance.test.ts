@@ -1,4 +1,4 @@
-// {§acp-first-party-client-conformance} Optional real-model counterpart of the
+// {§tier-corpus} Optional real-model counterpart of the
 // deterministic official-client gate.
 
 import assert from "node:assert/strict";
@@ -13,7 +13,7 @@ import { bindListener, Daemon, liveProvider, liveRun, liveTest as test, openMigr
 test("live: the ACP client accepts the complete model response stream", async (t) => {
     serverProposals(t, "accept");
 
-    // {§test-artifact-retention} — the session's run directory holds its database, its own host and, at the end,
+    // {§tier-corpus} — the session's run directory holds its database, its own host and, at the end,
     // its digest and census row, like every other live session's.
     const run = await liveRun("live-acp-conformance");
     const db = await openMigrated(run.dbPath);
@@ -25,7 +25,7 @@ test("live: the ACP client accepts the complete model response stream", async (t
     const sandbox = await mkdtemp(join(tmpdir(), "acp-conf-"));
 
     try {
-        // {§acp-http-authorization} — an access token the daemon's own authority issued; under the
+        // {§tier-corpus} — an access token the daemon's own authority issued; under the
         // gate profile's PLURNK_AUTH=0 the listener ignores it and admits anonymously.
         const token = daemon.credentials.issue({ kind: "access", subject: "operator", clientId: "operator", scopes: ["acp"], family: "live", ttlMs: 600_000 }).token;
         const wsCtor: WebSocketConstructor = Reflect.get({ v: WebSocket }, "v");

@@ -1,4 +1,4 @@
-// {§mcp-model-projection} {§mcp-configuration}
+// {§tier-corpus} {§tier-corpus}
 import assert from "node:assert/strict";
 import { McpServer, createMcpHandler } from "@modelcontextprotocol/server";
 import { isRecord, type FunctionalityListResult, type McpOAuthBeginResult, type McpOAuthCompletionResult } from "@plurnk/plurnk-contracts";

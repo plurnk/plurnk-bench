@@ -90,13 +90,13 @@ export default class Engine {
     #lifecycle: LoopLifecycle;
     #schemes: SchemeRegistry;
     #mimetypes: Mimetypes;
-    // {§tokenomics-agnostic-ruler} — the stable model-independent ruler used
+    // — the stable model-independent ruler used
     // for write-time, catalog, receipt, and packet weights.
     #weighContent: (text: string) => number;
     // Boot-discovered runtime executors. Daemon builds + sets via
     // setExecutors at start(); undefined until then (and in bare tests).
     #executors: ExecutorRegistry | undefined;
-    // Per-turn running-session READ obligations. {§join-blocking-collect}
+    // Per-turn running-session READ obligations.
 
     // The collaborators. Engine constructs them (they share its deps via
     // thunks where the value is late-injected — executors, loop signals)
@@ -117,7 +117,7 @@ export default class Engine {
     // Streaming schemes (exec) chain their per-spawn controllers off
     // ctx.signal so cancelled loops tear down their background spawns.
     #loopSignals = new Map<number, AbortSignal>();
-    // {§message-loop-containment}: one loop's message allocation and
+    //: one loop's message allocation and
     // persistence is a serial critical section. A completed later write can
     // therefore never overtake or replace an earlier concurrent arrival.
     #messageWriteLocks = new Map<number, Promise<unknown>>();
@@ -254,7 +254,7 @@ export default class Engine {
     readonly #workspaceTurnStarting: WorkspaceTurnStarting | undefined;
     readonly #loopDriver: LoopDriver;
 
-    // The daemon's callbacks arrive flat and travel as one bundle ({§engine-notifications}).
+    // The daemon's callbacks arrive flat and travel as one bundle ().
     constructor({ db, lifecycle, schemes, mimetypes, acquireWorkspaceTurn, workspaceTurnStarting, weigh, ...notify }: {
         db: Db;
         lifecycle?: LoopLifecycle;
@@ -276,7 +276,7 @@ export default class Engine {
         // production-configured Mimetypes via the constructor arg.
         this.#mimetypes = mimetypes ?? new Mimetypes({
             discovery: { registry: emptyRegistry(), handlers: new Map(), packageAttributions: new Map(), skipped: [] } });
-        // {§tokenomics-agnostic-ruler} — standalone construction and the daemon
+        // — standalone construction and the daemon
         // use the same default; provider request counting remains confined to
         // provider-owned capacity assessment.
         this.#weighContent = weigh ?? contentWeight;
@@ -349,7 +349,7 @@ export default class Engine {
 
     // Late injection: the executor registry is async-built at daemon start()
     // (discover + probe), after Engine construction.
-    // {§fence-heading-in-body} — the tags the parser must know for a workspace's executors.
+    // — the tags the parser must know for a workspace's executors.
     executorTags(workspaceId?: number): readonly string[] {
         return this.#executors?.availableRuntimes(workspaceId) ?? [];
     }
@@ -358,7 +358,7 @@ export default class Engine {
         this.#executors = executors;
     }
 
-    // {§functionality-documents} — the coordinator's per-Session generated
+    // — the coordinator's per-Session generated
     // documents join the Session's reference entries.
     setFunctionalityDocuments(documents: (workspaceId: number) => Array<{ family: string; pathname: string; content: string }>): void {
         this.#packets.setFunctionalityDocuments(documents);
@@ -378,7 +378,7 @@ export default class Engine {
         }).filter(({ tag }) => RuntimePolicy.isEnabled(tag));
     }
 
-    // {§extension-namespace-arbitration} Both registries prepare before either publishes.
+    // Both registries prepare before either publishes.
     registerRuntimes(registrations: readonly ModuleRuntimeRegistration[]): void {
         if (this.#executors === undefined) throw new Error("registerRuntimes: executor registry not wired yet");
         const normalized = Engine.#enabledRuntimes(registrations);
@@ -435,7 +435,7 @@ export default class Engine {
     }
 
     // The session's durable opaque identity for provider calls; fail hard when a
-    // session has none. {§session-provider-identity}
+    // session has none.
     async resolveSessionProviderIdentity(sessionId: number): Promise<{ sessionId: string }> {
         const identity = await this.#db.engine_session_provider_identity.get<{
             session_id: string;
@@ -446,7 +446,7 @@ export default class Engine {
         return { sessionId: identity.session_id };
     }
 
-    // {§attribution} — reporting derives from exact provider-request evidence;
+    // — reporting derives from exact provider-request evidence;
     // malformed durable tags fail here instead of being silently filtered.
     async loopAttributions(loopId: number): Promise<string[]> {
         const rows = await this.#db.engine_loop_attributions.all<{ attribution: unknown }>({ loop_id: loopId });
@@ -460,8 +460,8 @@ export default class Engine {
     }
 
     // The request ledger is cardinal evidence; its aggregate and the latest-turn
-    // occupancy gauge are derived projections. {§tokenomics-client-gauge},
-    // {§notifications-loop-terminated}, {§provider-accounting}
+    // occupancy gauge are derived projections.,
+    //,
     async loopUsage(loopId: number): Promise<LoopUsage> {
         const row = await this.#db.engine_loop_usage.get<{
             context_tokens: number | null;
@@ -482,13 +482,13 @@ export default class Engine {
             contextTokens: row.context_tokens,
             // Request-shaped physical capacity from that same latest emission call.
             contextCapacity: row.context_capacity,
-            // Latest turn's opaque provider metadata. {§meta-passthrough}
+            // Latest turn's opaque provider metadata.
             meta: JSON.parse(row.meta ?? "{}") as Record<string, unknown> };
     }
 
-    // {§methods-session-accounting} — the spend of a session's descendants on loops begun
+    // — the spend of a session's descendants on loops begun
     // after its loop; no loop, no delegation, and the empty set projects explicit zero
-    // ({§provider-accounting}). Never the session's own loop: that stays its own accounting.
+    // (). Never the session's own loop: that stays its own accounting.
     async descendantAccounting(sessionId: number, loopId: number | null): Promise<ProviderAccounting> {
         const requests = loopId === null
             ? []
@@ -508,7 +508,7 @@ export default class Engine {
         return this.#packets.referenceEntries(workspaceId);
     }
 
-    // {§env-delta-log-pull} — materialize one closed interval of the ambient
+    // — materialize one closed interval of the ambient
     // occurrence journal into this session's self-contained log. #67 owns only
     // the remaining model-facing actor-name projection.
     cancelSubscription(subscriptionId: number): Promise<boolean> {
@@ -519,13 +519,13 @@ export default class Engine {
         this.#notices.delete(loopId);
     }
 
-    // {§env-delta} — exec streams as an instance of the ambient-observe machine:
+    // — exec streams as an instance of the ambient-observe machine:
     // each turn, emit each owned channel's next publishable content as a foisted READ row. It is
     // 200 while the channel streams and preserves the exact terminal result when closed. Intermediate
     // observations stay out of the log; the terminal observation becomes visible. The cursor is the
-    // streamEnd recorded on the channel's prior observation. {§exec-stream}
+    // streamEnd recorded on the channel's prior observation.
     async dispatch(context: DispatchContext): Promise<DispatchResult> {
-        return observed( // {§observability-boundary}
+        return observed( //
             "op.dispatch",
             { op: context.statement.op },
             async (span) => {
@@ -655,7 +655,7 @@ export default class Engine {
     > {
         const turnRow = await this.#db.drain_next_turn_seq_for_loop.get<{ next: number }>({ loop_id: loopId });
         const turnSeq = turnRow?.next ?? 1;
-        // {§message-loop-containment}: the inbox keeps arrival order; the next turn boundary publishes.
+        //: the inbox keeps arrival order; the next turn boundary publishes.
         const appended = await this.#db.drain_enqueue_message.get<{ id: number; ordinal: number }>({
             loop_id: loopId, source: source ?? null, body: prompt, open_paths: JSON.stringify(openPaths),
             evidence: JSON.stringify(evidence),

@@ -1,4 +1,4 @@
-// Composed real-model drill for {§log-history-projection}. Deterministic
+// Composed real-model drill for {§tier-corpus}. Deterministic
 // integration coverage owns the complete state matrix; this specimen proves
 // that the production loop, broad log KILL, and forensic digest retain the
 // same append-only contract end to end.
@@ -32,7 +32,7 @@ test("live: broad log KILL retires READ receipts without erasing program artifac
         const priorPrograms = await s.db.test_turn_sources.all<{
             turn_id: number; kind: string; sequence: number; content: string; producer: string;
         }>({ session_id: primed.modelSessionId });
-        // {§session-initialization-entry} — initialization records its survey program and authors no reasoning.
+        // {§tier-corpus} — initialization records its survey program and authors no reasoning.
         assert.ok(priorPrograms.some(({ kind, producer }) => kind === "ops" && producer === "_plurnk"),
             "initialization records its survey as a program source");
         assert.ok(!priorPrograms.some(({ kind, producer }) => kind === "reasoning" && producer === "_plurnk"),
@@ -105,7 +105,7 @@ test("live: broad log KILL retires READ receipts without erasing program artifac
             "every retired READ remains durable and forensically marked inactive",
         );
 
-        // {§share-packet-names}: artifacts are named by log coordinate; the digest's turn order is chronological.
+        // {§tier-corpus}: artifacts are named by log coordinate; the digest's turn order is chronological.
         const assistantArtifacts = digest.turns.toSorted((a, b) => a.id - b.id)
             .flatMap(({ artifact, program }) => artifact === null || program === null ? [] : [`${artifact}.assistant.md`]);
         const artifactSources = await Promise.all(assistantArtifacts.map((name) => readFile(join(digestDir, name), "utf8")));

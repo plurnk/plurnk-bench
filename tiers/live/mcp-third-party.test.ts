@@ -1,4 +1,4 @@
-// {§mcp-model-projection} {§test-artifact-retention} — current third-party stdio and Streamable HTTP servers
+// {§tier-corpus} {§tier-corpus} — current third-party stdio and Streamable HTTP servers
 // compose through the assembled daemon and its ACP listener: a scripted model, real servers. The
 // specimen names what it needs of the host (npx, the registry that serves the stdio server, the
 // remote HTTP server) and skips by name when one does not answer.
@@ -58,7 +58,7 @@ test("live mcp: current third-party stdio and HTTP servers compose through the a
         "    user: {}",
         "",
     ].join("\n"));
-    // {§mcp-configuration}
+    // {§tier-corpus}
     const { hostPaths, env: mcpEnv } = await mcpFixture(t, {
         kubernetes: {
             type: "stdio",
@@ -103,14 +103,14 @@ test("live mcp: current third-party stdio and HTTP servers compose through the a
             action: { kind: "workspace.mcp.enable", alias: "goji" },
         })));
         assert.equal(goji.ok, true, JSON.stringify(goji.problem));
-        // {§mcp-model-projection} These third-party tools may omit readOnlyHint.
+        // {§tier-corpus} These third-party tools may omit readOnlyHint.
         serverProposals(t, "accept");
 
         const kubernetesRun = await post(port, runInput(workspace, "call-kubernetes", {
             prompt: "Use the attached Kubernetes configuration tool and report the current context.",
         }));
         assert.equal(terminalMeta(kubernetesRun)?.stopReason, "end_turn");
-        // {§mcp-model-projection} is witnessed shape by shape in the intg tier under the Mock profile;
+        // {§tier-corpus} is witnessed shape by shape in the intg tier under the Mock profile;
         // this specimen witnesses the composition: the real server's catalog, its tool's result in a
         // packet, the run's outcome and the model's speech.
         const anyPacket = (pattern: RegExp): boolean => provider.requests.some((_, index) => pattern.test(packet(provider.requests, index)));

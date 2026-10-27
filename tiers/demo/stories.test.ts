@@ -69,7 +69,7 @@ const runStory = async (opts: StoryOpts): Promise<StoryResult> => {
         );
         const { finalStatus, hitMaxTurns, turnIds, modelSessionId, lastContent } = loop;
         console.error(`[story:${opts.label}] turns=${turnIds.length} finalStatus=${finalStatus} hitMaxTurns=${hitMaxTurns}`);
-        // {§test-artifact-retention} — every demo story also audits the workspace the model leaves behind.
+        // {§tier-corpus} — every demo story also audits the workspace the model leaves behind.
         const wsViolations = await ResourceState.check(s.db);
         assert.deepEqual(wsViolations, [], `[story:${opts.label}] the workspace stays lawful after the story`);
 
@@ -92,7 +92,7 @@ const runStory = async (opts: StoryOpts): Promise<StoryResult> => {
     }
 };
 
-// {§mcp-configuration} {§mcp-module}
+// {§tier-corpus} {§tier-corpus}
 const BRAVE_SEARCH = { name: "brave", type: "stdio", command: "npx", args: ["-y", "@brave/brave-search-mcp-server@2.1.0"] };
 const addMcp = (definition: { readonly name: string }) => async (workspace: LiveWorkspace): Promise<void> => {
     const added = await workspace.invokeWorkspaceAction("workspace.mcp.add", { definition }) as { status?: number };
@@ -128,7 +128,7 @@ const runStoryChain = async (opts: ChainOpts): Promise<ChainResult> => {
             console.error(`[chain:${opts.label}] step ${steps.length} turns=${loop.turnIds.length} finalStatus=${loop.finalStatus}`);
             if (opts.onStep !== undefined) await opts.onStep(steps.length - 1, fixture.workspace);
         }
-        // {§test-artifact-retention} — the chain leaves a lawful workspace, audited like every story.
+        // {§tier-corpus} — the chain leaves a lawful workspace, audited like every story.
         const chainViolations = await ResourceState.check(s.db);
         assert.deepEqual(chainViolations, [], `[chain:${opts.label}] the workspace stays lawful after the chain`);
         return { workspace: fixture.workspace, steps, db: s.db, cleanup };
@@ -168,7 +168,7 @@ test("story: find a single value in a JSON config", async (t) => {
     } finally { await story.cleanup(); }
 });
 
-test("{§membership} story: answer a current question with search MCP available", { requires: ["env:BRAVE_API_KEY"] }, async (t) => {
+test("{§tier-corpus} story: answer a current question with search MCP available", { requires: ["env:BRAVE_API_KEY"] }, async (t) => {
     // The attachment provides an option, not an oracle requirement. The independent
     // release index is never injected into the model's prompt or workspace.
     const index = await fetch("https://nodejs.org/dist/index.json", {
@@ -185,7 +185,7 @@ test("{§membership} story: answer a current question with search MCP available"
         setup: addMcp(BRAVE_SEARCH),
     });
     try {
-        // {§membership} — graded on retrieval by any first-class route (#828): search MCP results,
+        // {§tier-corpus} — graded on retrieval by any first-class route (#828): search MCP results,
         // a direct READ, or an execution's output the model observed. The answer names a version that
         // retrieved content carried; the release index is information, the backend's crawl lag is not the model's.
         const rows = (await Promise.all(story.turnIds.map((turnId) =>
@@ -385,7 +385,7 @@ test("story: report the number of files in a directory", async (t) => {
 test("story: draft a brief, tighten it, then file it away", async (t) => {
     // Authoring → refinement → reorganization in ONE workspace. The model creates prose (brief.md),
     // then must re-READ its OWN prior work and EDIT it shorter (the refine turn renders its
-    // bounded landed receipt — {§edit-result-receipt-projection}), then MOVE it out of the root.
+    // bounded landed receipt — {§tier-corpus}), then MOVE it out of the root.
     // Outcome asserts on disk, snapshotting size BEFORE the move. All natural prompts.
     const sizes: number[] = [];
     const chain = await runStoryChain({
@@ -467,8 +467,8 @@ test("an execution-restricted workspace answers a shell-tempting question withou
     } finally { await story.cleanup(); }
 });
 
-// {§test-artifact-retention} — create, revise, and reread one model-authored file across loops.
-test("{§test-artifact-retention}: create and revise a decisions document without fragmenting identity", async (t) => {
+// {§tier-corpus} — create, revise, and reread one model-authored file across loops.
+test("{§tier-corpus}: create and revise a decisions document without fragmenting identity", async (t) => {
     const chain = await runStoryChain({
         signal: t.signal,
         label: "resource-state-edit",
@@ -488,7 +488,7 @@ test("{§test-artifact-retention}: create and revise a decisions document withou
         assert.doesNotMatch(onDisk, /sqlite/i, "the revised decision is gone");
         assert.match(chain.steps[2].lastContent, /express/i, "the model reports its own work");
         assert.match(chain.steps[2].lastContent, /postgres/i);
-        // {§db-migrations}: one file remains one row across all three loops.
+        // {§tier-corpus}: one file remains one row across all three loops.
         const row = await chain.db.test_count_rows_for_pathname.get<{ n: number }>({ pathname: "docs/decisions.md" });
         assert.equal(row?.n, 1, "the created file has exactly one durable identity");
     } finally { await chain.cleanup(); }

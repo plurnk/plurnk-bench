@@ -89,7 +89,7 @@ export interface ExceptionInfo {
     readonly exception_message: string;
 }
 
-// {§swebench-evaluator}-trial. A trial's result.json says how the candidate ended. Only a clean exit is `null`:
+// {§swebench-evaluator}. A trial's result.json says how the candidate ended. Only a clean exit is `null`:
 // a spawn failure and a non-zero exit used to read as success here, so a run that never started
 // looked the same as one that finished and simply wrote no patch (#40).
 export const exceptionInfo = (result: CandidateExit, timeoutSeconds: number): ExceptionInfo | null => {
@@ -102,7 +102,7 @@ export const exceptionInfo = (result: CandidateExit, timeoutSeconds: number): Ex
 };
 
 // {§swebench-evaluator}: the verifier's report is the grading. Its process exit is a diagnostic the
-// evaluator already recorded on the verdict (plurnk-bench#78); only an absent report leaves a trial
+// evaluator already recorded on the verdict; only an absent report leaves a trial
 // ungraded and unpublished.
 export const gradingOutcome = (status: number | null, signal: string | null, rewardExists: boolean): { graded: true } | { graded: false; reason: string } =>
     rewardExists

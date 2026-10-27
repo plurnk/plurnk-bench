@@ -4,7 +4,7 @@ Drives [DevRev Enterprise-Bench](https://github.com/devrev/enterprise-bench) L1-
 cross-system tasks over Jira-style PM, Salesforce-style CRM, and Drive-style file-server
 MCP services — through the ordinary plurnk client/service boundary under
 [Harbor](https://github.com/harbor-framework/harbor), the benchmark's own harness.
-Contracts: [SPEC.md §enterprise](../SPEC.md).
+Contracts: [SPEC.md `{§enterprise}`](../SPEC.md).
 
 - `driver.py` — the Harbor agent (`-a driver:PlurnkAgent`): installs the pinned daemon +
   client into the task image, declares the benchmark's MCP services as plurnk HTTP MCP

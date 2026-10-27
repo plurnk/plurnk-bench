@@ -3,7 +3,7 @@
 // separately and is NOT a release gate. Deterministic integration owns the lifecycle contract,
 // while bench evaluates whether models choose and use delegation effectively.
 //
-// {§message-arrival} / {§env-delta}: replies and retained
+// {§tier-corpus} / {§tier-corpus}: replies and retained
 // outcomes resume the parent in place; observations do not manufacture assignments.
 
 import { liveTest as test } from "@plurnk/plurnk-service/harness";
@@ -60,7 +60,7 @@ test("topo probe: answer a multi-part task that invites fan-out", async (t) => {
         signal: t.signal,
         label: "fanout",
         prompt: "src/config.json has three settings: db, pool, and host. Have a separate session look up each one, then give me all three values together.",
-        // {§operator-config-workspace-settings} — the ceiling counts every model call in the session tree (#838): three children at two
+        // {§tier-corpus} — the ceiling counts every model call in the session tree (#838): three children at two
         // or three calls each plus the parent is ten to thirteen, and a rail retry is one more.
         maxTurns: 20,
     });

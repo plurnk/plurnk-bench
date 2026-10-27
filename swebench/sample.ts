@@ -1,4 +1,4 @@
-// SPEC {§swebench-evaluator}-corpus. Draw the campaign's task sample from the official Lite dataset
+// {§swebench-evaluator}. Draw the campaign's task sample from the official Lite dataset
 // reproducibly: a seed plus a plain hash order, never an RNG whose stream can drift between
 // library versions. The draw is a CORPUS record — ids, dataset identity, algorithm, seed — so a
 // later run is reproducible or restrictable to exactly the same tasks. A seeded draw is OUR

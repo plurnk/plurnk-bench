@@ -18,7 +18,7 @@ const evidenceOf = (artifact) => {
 };
 
 // {§swebench-evaluator}: the verifier's report is the grading; the evaluator's exit rides the verdict
-// as its diagnostic (plurnk-bench#78), so a graded candidate is an outcome whatever that exit was.
+// as its diagnostic, so a graded candidate is an outcome whatever that exit was.
 const hasCandidateOutcome = ({ summary, reward, exception }) => reward && summary?.requests > 0
     && (exception === null || ["AgentExitError", "AgentTimeoutError", "AgentCancelledError"].includes(exception.exception_type));
 

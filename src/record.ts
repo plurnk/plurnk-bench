@@ -6,7 +6,7 @@
 // from Pier's verifier `reward.json`. This is the one concept the daemon DB + digest
 // don't model; `run` is the drill-down handle back into digest.
 //
-// Two orthogonal verdicts (SPEC §verdicts), never conflated:
+// Two orthogonal verdicts ({§verdicts}), never conflated:
 //   - `status`: the client's terminal loop status — how the AGENT LOOP ended (200/499/4xx).
 //   - `outcome`/`reward`/`testPassFraction`: the Pier verifier's score — how the
 //     BENCHMARK graded the produced patch. A loop can end 200 and still fail the oracle.
@@ -29,7 +29,7 @@ export interface Usage {
     meta: Record<string, unknown>;
 }
 
-// Pointer into the daemon DB (SPEC §digest-boundary) — bench NEVER reads the DB
+// Pointer into the daemon DB ({§digest-boundary}) — bench NEVER reads the DB
 // itself (digest owns DB→forensics). `dbPath` is the always-present handle: `digest
 // <dbPath>` renders the run(s). Workspace, worker, and loop identity come from
 // the client's `--json` doc when
@@ -71,7 +71,7 @@ export interface BenchRecord {
     startedAt?: string;         // ISO 8601, when available (Pier trial timing)
     finishedAt?: string;        // ISO 8601
     webMaterialization?: WebMaterializationProvenance;
-    // SPEC {§publish}-accounting: the banked exit interview's spend, folded in
+    // {§publish}: the banked exit interview's spend, folded in
     // post-interview so the run dir's ledger is complete in one file.
     requiem?: import("./accounting.ts").RequiemAccountingSummary;
     problem?: import("@plurnk/plurnk-contracts").ProblemDetails; // exact client or terminal failure occurrence

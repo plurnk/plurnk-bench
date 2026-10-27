@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Enterprise-Bench runner (SPEC §enterprise): drive DevRev Enterprise-Bench L1-L2 tasks through
+# Enterprise-Bench runner ({§enterprise}): drive DevRev Enterprise-Bench L1-L2 tasks through
 # plurnk under Harbor. Reads the AUTHORITATIVE daemon config IN PLACE — bench re-declares nothing:
 #   • model choice  ← shell, then $XDG_CONFIG_HOME/plurnk/.env, then .env.defaults
 #   • alias tuning  ← $XDG_CONFIG_HOME/plurnk/.env

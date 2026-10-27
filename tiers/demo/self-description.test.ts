@@ -1,6 +1,6 @@
 // Reply demos: the user is TALKING TO plurnk about plurnk, not giving it a task. These
 // are the cases benchmarks never cover — a benchmark grades the workspace afterwards, these
-// demos grade the reply. Showing an operation must never run it ({§fence-pairing}), and an
+// demos grade the reply. Showing an operation must never run it ({§tier-corpus}), and an
 // answer must actually arrive.
 //
 // Strict by design: an advisory, a strike, an empty turn or a mutation is a failure here, even

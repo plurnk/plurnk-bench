@@ -102,7 +102,7 @@ test("{§swebench-comparison} the campaign sheet counts friction before verdicts
     assert.equal(summary.emptyPatches, 1);
     assert.deepEqual(summary.exceptions, { TimeoutError: 1 });
     assert.equal(summary.friction.turns?.noOperation, 3, "engine outcomes, not raw formatting, establish no-operation turns");
-    assert.deepEqual(summary.edits, { count: 5, refused: 0, revisits: 1, forms: { hash: 4, whole: 1 } }, "the service's `§digest-edit-census` the EDIT census sums over trials; a trial without one adds nothing");
+    assert.deepEqual(summary.edits, { count: 5, refused: 0, revisits: 1, forms: { hash: 4, whole: 1 } }, "the EDIT census sums over trials; a trial without one adds nothing");
     assert.deepEqual(summary.isolation, { webReferences: 2, webAttempts: 5, webReads: 3, mcpCalls: 1, trialsTouched: 1, classifiedTrials: 3 });
     assert.deepEqual(summary.loopsEnded, { "500": 1 }, "a loop the daemon ended is friction even when the oracle passes it");
     assert.deepEqual([summary.graded, summary.resolved, summary.resolveRate], [2, 1, 0.5]);
@@ -128,7 +128,7 @@ test("{§swebench-comparison} the campaign sheet counts friction before verdicts
     assert.ok(!sheet.includes("## Statistics"), "no baselines, no statistics section");
 });
 
-test("{§benchlet-diagnostic} {§share-packet-names} the teaching check reads the first packet the model saw, by the digest's own turn order and artifact names, and counts only web scheme references", (t) => {
+test("{§benchlet-diagnostic} the teaching check reads the first packet the model saw, by the digest's own turn order and artifact names, and counts only web scheme references", (t) => {
     const digest = mkdtempSync(join(tmpdir(), "swebench-digest-"));
     t.after(() => rmSync(digest, { recursive: true, force: true }));
     const survey = (names: string[]): string => names.map((name) => `[{"path":"worker:///_plurnk/plurnk/${name}.md","mimetype":"text/markdown"}]`).join("\n");
@@ -458,7 +458,7 @@ test("{§swebench-comparison} a launch runs the corpus in order, drops --skip id
 // ─── run.test.ts ───
 {
 test("{§swebench-evaluator} a graded trial publishes whatever the evaluator's exit; only an absent report is ungraded", () => {
-    assert.deepEqual(gradingOutcome(1, null, true), { graded: true }, "a cleanup failure after the report is a diagnostic on the verdict, not a lost trial (plurnk-bench#78)");
+    assert.deepEqual(gradingOutcome(1, null, true), { graded: true }, "a cleanup failure after the report is a diagnostic on the verdict, not a lost trial ({§swebench-evaluator})");
     assert.deepEqual(gradingOutcome(0, null, true), { graded: true });
     assert.deepEqual(gradingOutcome(1, null, false), { graded: false, reason: "the official evaluator exited 1 without a report" });
     assert.deepEqual(gradingOutcome(null, "SIGKILL", false), { graded: false, reason: "the official evaluator exited SIGKILL without a report" });

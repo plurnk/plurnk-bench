@@ -1,5 +1,5 @@
-// Live coverage of model-to-operation mapping for {§read}, {§edit}, {§find},
-// {§copy}, and entry KILL, including text-region and matcher forms.
+// Live coverage of model-to-operation mapping for {§tier-corpus}, {§tier-corpus}, {§tier-corpus},
+// {§tier-corpus}, and entry KILL, including text-region and matcher forms.
 //
 // Each test is ONE natural sentence that can only mean ONE op — the op is NEVER
 // spelled out. Showing the literal op triggers model meta-awareness about the

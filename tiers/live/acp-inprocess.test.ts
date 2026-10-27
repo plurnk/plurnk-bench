@@ -1,4 +1,4 @@
-// {§acp-daemon-client} The go-live smoke: the in-process client interface, discovered by the
+// {§tier-corpus} The go-live smoke: the in-process client interface, discovered by the
 // daemon and mounted at /acp on its listener, drives
 // a real model session through the shared live runner.
 
@@ -14,7 +14,7 @@ import { bindListener, Daemon, liveProvider, liveRun, liveTest as test, openMigr
 test("live: discovery and model response traverse the in-process ACP module", async (t) => {
     serverProposals(t, "accept");
 
-    // {§test-artifact-retention} — the session's run directory holds its database, its own host and, at the end,
+    // {§tier-corpus} — the session's run directory holds its database, its own host and, at the end,
     // its digest and census row, like every other live session's.
     const run = await liveRun("live-acp-inprocess");
     const db = await openMigrated(run.dbPath);
@@ -28,7 +28,7 @@ test("live: discovery and model response traverse the in-process ACP module", as
     const addr = http.httpAddress();
 
     try {
-        // {§acp-http-authorization} — an access token the daemon's own authority issued; under the
+        // {§tier-corpus} — an access token the daemon's own authority issued; under the
         // gate profile's PLURNK_AUTH=0 the listener ignores it and admits anonymously.
         const token = daemon.credentials.issue({ kind: "access", subject: "operator", clientId: "operator", scopes: ["acp"], family: "live", ttlMs: 600_000 }).token;
         const wsCtor: WebSocketConstructor = Reflect.get({ v: WebSocket }, "v");

@@ -1,7 +1,7 @@
-// SPEC §publish / {§publish}. Publish a bench run to the one shared, human-referenceable
+// {§publish}. Publish a bench run to the one shared, human-referenceable
 // tree so anyone can inspect it by name: <home>/run<N>-<harness>-<task>-<model>/{plurnk.db,
 // digest/, record.json}. Copies the run's DB through the report package's Share.snapshot
-// ({§share-packet-names}: SQLite, never the filesystem, so committed WAL pages are kept), renders
+// (SQLite, never the filesystem, so committed WAL pages are kept), renders
 // its digest (reusing the report package's Digest — bench builds no forensics), and writes the joined
 // BenchRecord (the oracle side:
 // reward/outcome, which the DB+digest do NOT carry) so the run dir is a COMPLETE,
@@ -130,7 +130,7 @@ export const publishRun = (record: BenchRecord, benchmarksDir: string, options: 
     return runDir;
 };
 
-// SPEC {§publish}-accounting. The interview re-invokes the model; that spend is part
+// SPEC {§publish}. The interview re-invokes the model; that spend is part
 // of the run. record.json carries the requiem accounting summary so a corpus tally reads
 // one file per run instead of discovering digest/requiem.json.
 export const foldRequiemAccounting = (dir: string): void => {
@@ -176,7 +176,7 @@ export const publishTrial = async (trialDir: string, harness: string, benchmarks
         } catch (e) {
             note = ` (requiem skipped: ${(e as Error).message.slice(0, 70)})`;
         }
-        // SPEC {§publish}-accounting (#461): a banked interview's spend belongs to
+        // SPEC {§publish} (#461): a banked interview's spend belongs to
         // the run's ledger; a fold failure is a defect and fails hard.
         if (note === " + requiem") foldRequiemAccounting(dir);
     }

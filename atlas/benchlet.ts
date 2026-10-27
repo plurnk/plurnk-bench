@@ -5,7 +5,6 @@ import {
     readFileSync,
     writeFileSync,
 } from "node:fs";
-import { homedir } from "node:os";
 import {
     basename,
     dirname,
@@ -16,8 +15,16 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import {
+    dockerImageId as imageId,
+    environmentKeyNames,
+    removeContainer,
+    requiemIsComplete,
+    resolveFrom,
     runToFiles,
-} from "../deepswe/benchlet.ts";
+    shell,
+    writeJson,
+    type CommandResult,
+} from "../src/benchlet-runtime.ts";
 import { allocateRunDirectory } from "../src/run-directory.ts";
 import {
     benchmarksHome,
@@ -87,33 +94,12 @@ interface Digest {
     }>;
 }
 
-interface CommandResult {
-    readonly status: number | null;
-    readonly signal: NodeJS.Signals | null;
-    readonly timedOut: boolean;
-    readonly error?: Error;
-}
-
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const benchRoot = resolve(moduleDir, "..");
 let activeRunDir: string | undefined;
 let activeStartedAt: Date | undefined;
 let activeStage = "preflight";
 let activeContainer: string | undefined;
-
-const writeJson = (path: string, value: unknown): void => {
-    writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
-};
-
-const expandHome = (value: string): string =>
-    value === "~"
-        ? homedir()
-        : value.startsWith("~/")
-            ? resolve(homedir(), value.slice(2))
-            : value;
-
-const resolveFrom = (root: string, value: string): string =>
-    resolve(root, expandHome(value));
 
 const required = (name: string): string => {
     const value = process.env[name];
@@ -150,30 +136,6 @@ const ratio = (name: string): number => {
     return value;
 };
 
-const shell = (
-    command: string,
-    args: string[],
-    options: {
-        cwd?: string;
-        env?: NodeJS.ProcessEnv;
-        allowFailure?: boolean;
-    } = {},
-): string => {
-    const result = spawnSync(command, args, {
-        cwd: options.cwd,
-        env: options.env ?? process.env,
-        encoding: "utf8",
-    });
-    if (result.error !== undefined) throw result.error;
-    if (!options.allowFailure && result.status !== 0) {
-        throw new Error(
-            `${command} ${args.join(" ")} failed (${result.status ?? result.signal ?? "unknown"}): `
-            + `${result.stderr || result.stdout}`.trim(),
-        );
-    }
-    return result.stdout;
-};
-
 const ensureAtlasSource = (
     repository: string,
     revision: string,
@@ -208,11 +170,6 @@ const ensureAtlasSource = (
     }
 };
 
-const environmentKeyNames = (env: NodeJS.ProcessEnv): string[] =>
-    Object.keys(env)
-        .filter((name) => /(?:API_KEY|_TOKEN|BASE_URL)$/.test(name))
-        .toSorted();
-
 // The fixture supplies one complete connection definition, without a plugin wrapper.
 export const atlasEnvironment = (adapterArgs: readonly string[], node: string): Record<string, string> => ({
     PLURNK_MCP_ENABLED: "1",
@@ -224,24 +181,6 @@ export const withoutMcpServers = (env: NodeJS.ProcessEnv): NodeJS.ProcessEnv =>
         Object.entries(env).filter(([name]) =>
             !name.startsWith("PLURNK_MCP_")),
     );
-
-const imageId = (image: string): string => {
-    const inspect = spawnSync(
-        "docker",
-        ["image", "inspect", "--format={{.Id}}", image],
-        { encoding: "utf8" },
-    );
-    if (inspect.error !== undefined) throw inspect.error;
-    if (inspect.status !== 0) shell("docker", ["pull", image]);
-    return shell(
-        "docker",
-        ["image", "inspect", "--format={{.Id}}", image],
-    ).trim();
-};
-
-const removeContainer = (container: string): void => {
-    shell("docker", ["rm", "--force", container], { allowFailure: true });
-};
 
 const captureContainerLog = (container: string, runDir: string): void => {
     const result = spawnSync("docker", ["logs", container], {
@@ -464,11 +403,7 @@ export const atlasClientArgs = (options: {
     options.prompt,
 ];
 
-export const requiemIsComplete = (
-    status: number | null,
-    markdown: boolean,
-    report: boolean,
-): boolean => status === 0 && markdown && report;
+export { requiemIsComplete };
 
 export const successfulExecutorCalls = (
     entries: Digest["log_entries"],

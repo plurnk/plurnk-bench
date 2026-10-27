@@ -1,4 +1,4 @@
-// {§test-artifact-retention} — the terminal client's own real-model tier, driven from the service's live tier so
+// {§tier-corpus} — the terminal client's own real-model tier, driven from the service's live tier so
 // it has a census row: the client checkout (PLURNK_CLIENT_CHECKOUT, else `../plurnk`) runs
 // `npm run test:tui:live` against this checkout's service on the active route; its output lands in
 // the run directory. Skips by name when there is no client checkout.

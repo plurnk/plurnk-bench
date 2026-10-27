@@ -1,5 +1,5 @@
 /**
- * Live llama-server reasoning contract, in the live tier ({§test-artifact-retention}): unit coverage proves the
+ * Live llama-server reasoning contract, in the live tier ({§tier-corpus}): unit coverage proves the
  * wire mapping; these specimens prove a real local server honors the request rather than running to
  * the generation envelope. They require the server at PLURNK_LLAMA_URL (127.0.0.1:11435 unless set)
  * to answer and skip by name otherwise; PLURNK_LLAMA_RAIL_PROFILE names its template, gemma or qwen.
@@ -38,7 +38,7 @@ const provider = (): ModelProvider => new ModelProvider({
     grammarStyle: "llamacpp",
 });
 
-// {§provider-effort}
+// {§tier-corpus}
 test("live llama-server honors PLURNK's request-scoped reasoning allowance", { requires: [...REQUIRES] }, async () => {
     const response = await provider().generate({
         sessionId: "llama-reasoning-contract",
@@ -57,7 +57,7 @@ test("live llama-server honors PLURNK's request-scoped reasoning allowance", { r
     assert.ok((timings!.predicted_n as number) < generationEnvelope, "reasoning ran to the generation envelope");
 });
 
-// {§provider-failure-normalization} — the live adapter must preserve the raw sentence
+// {§tier-corpus} — the live adapter must preserve the raw sentence
 // before separating reasoning and content itself.
 test("live llama-server returns exact pre-projection grammar evidence", { requires: [...REQUIRES] }, async () => {
     const prefix = envelope("verify");
