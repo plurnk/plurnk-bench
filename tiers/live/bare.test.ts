@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { liveTest as test } from "@plurnk/plurnk-service/harness";
 import { liveLoop, liveWorkspace } from "@plurnk/plurnk-service/harness";
 
-test("{§bare-inference} live: delegate two isolated questions and consume their answers", async (t) => {
+test("{§op-methods-op-dispatch} live: delegate two isolated questions and consume their answers", async (t) => {
     const s = await liveWorkspace({ name: `live-bare-${crypto.randomUUID()}` });
     try {
         // {§bare-statement} — the taught form only: BARE carries its prompt in the fence body (#848).
@@ -18,7 +18,7 @@ test("{§bare-inference} live: delegate two isolated questions and consume their
         const calls = (await Promise.all(turnIds.map((turnId) =>
             s.db.test_model_calls.all<{ kind: string; state: string; log_entry_id: number | null }>({ turn_id: turnId }),
         ))).flat().filter(({ kind }) => kind === "bare");
-        // {§provider-recovery} — a failed BARE is re-issued as its own call (#829): count the served
+        // {§engine-rails} — a failed BARE is re-issued as its own call (#829): count the served
         // delegations, not the attempts.
         const served = calls.filter(({ state }) => state === "response");
         assert.equal(served.length, 2, "two served isolated provider calls answered the requested delegation");

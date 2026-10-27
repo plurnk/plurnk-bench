@@ -55,7 +55,7 @@ test("live: a client-attached image persists until log curation", { requires: ["
         assert.equal(followup.modelSessionId, first.modelSessionId);
         assert.equal(followup.finalStatus, 200);
         assert.match(followup.lastContent, /horizontal|side.by.side/i);
-        // {§packet-attachment-parts}: the first request of another loop already contains the same observation.
+        // {§log-wire-format}: the first request of another loop already contains the same observation.
         const retained = (await packets(s, followup.turnIds))[0]?.attachments ?? [];
         assert.ok(retained.some((attachment) => attachment.contentHash === contentHash && attachment.coordinate === observed.coordinate),
             "the image survives completion and the next prompt without a new READ");
@@ -74,7 +74,7 @@ test("live: a client-attached image persists until log curation", { requires: ["
     } finally { await lifetime.disposeAsync(); }
 });
 
-// {§packet-attachment-parts} (#899): a retained native part is captioned as the model's own READ. The
+// {§log-wire-format} (#899): a retained native part is captioned as the model's own READ. The
 // witness is the model's account of what it has seen: after one image READ, a later message that
 // carries nothing must be reported as carrying nothing, and the image counted once.
 const ACCOUNT = "Reply with exactly one line and nothing else, in this form: `distinct_images=<n> new_image_this_message=<yes|no>` — n is how many distinct images you have seen so far, and the second field says whether a new image arrived with this message.";

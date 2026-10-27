@@ -324,7 +324,7 @@ complete evidence while changing one experimental variable at a time.
   task's tests while the verifier could.
 - §benchlet-container-scratch The daemon's executor scratch is the run's own directory, seen at
   one absolute path on both sides. The daemon writes the absolute host path of a realized
-  executor source into the command it hands the shim ({§exec-scratch-directory}); unset, that
+  executor source into the command it hands the shim ({§exec-target-routing}); unset, that
   path is `$XDG_RUNTIME_DIR/plurnk`, which the container does not mount. So every lane whose
   daemon runs on the host and whose executors run in a task container (the Docker benchlet and
   `swebench/run.ts`) names `<run>/exec-scratch` (`<trial>/exec-scratch` for a SWE-bench trial):
@@ -683,7 +683,7 @@ an oracle result or proof of verifier isolation.
 
 | Task working directory | Plurnk root | Membership |
 | --- | --- | --- |
-| Inside a Git repository | Task working directory | Automatic tracked membership ({§membership-baseline} in plurnk-core); no harness member definition. |
+| Inside a Git repository | Task working directory | Automatic tracked membership ({§membership} in plurnk-core); no harness member definition. |
 | Plain directory below `/` | `/` | Only that directory's subtree, expressed relative to `/` (e.g. `PLURNK_MEMBERS_task=app/**`); `app/x` and `/app/x` identify the same resource. |
 | Plain `/` | None | Reject before daemon startup; do not admit the entire container filesystem. |
 

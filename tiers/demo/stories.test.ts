@@ -168,7 +168,7 @@ test("story: find a single value in a JSON config", async (t) => {
     } finally { await story.cleanup(); }
 });
 
-test("{§web-search-retrieval} story: answer a current question with search MCP available", { requires: ["env:BRAVE_API_KEY"] }, async (t) => {
+test("{§membership} story: answer a current question with search MCP available", { requires: ["env:BRAVE_API_KEY"] }, async (t) => {
     // The attachment provides an option, not an oracle requirement. The independent
     // release index is never injected into the model's prompt or workspace.
     const index = await fetch("https://nodejs.org/dist/index.json", {
@@ -185,7 +185,7 @@ test("{§web-search-retrieval} story: answer a current question with search MCP 
         setup: addMcp(BRAVE_SEARCH),
     });
     try {
-        // {§web-search-retrieval} — graded on retrieval by any first-class route (#828): search MCP results,
+        // {§membership} — graded on retrieval by any first-class route (#828): search MCP results,
         // a direct READ, or an execution's output the model observed. The answer names a version that
         // retrieved content carried; the release index is information, the backend's crawl lag is not the model's.
         const rows = (await Promise.all(story.turnIds.map((turnId) =>
@@ -488,7 +488,7 @@ test("{§fs-resource-state}: create and revise a decisions document without frag
         assert.doesNotMatch(onDisk, /sqlite/i, "the revised decision is gone");
         assert.match(chain.steps[2].lastContent, /express/i, "the model reports its own work");
         assert.match(chain.steps[2].lastContent, /postgres/i);
-        // {§entry-identity-no-null}: one file remains one row across all three loops.
+        // {§db-migrations}: one file remains one row across all three loops.
         const row = await chain.db.test_count_rows_for_pathname.get<{ n: number }>({ pathname: "docs/decisions.md" });
         assert.equal(row?.n, 1, "the created file has exactly one durable identity");
     } finally { await chain.cleanup(); }

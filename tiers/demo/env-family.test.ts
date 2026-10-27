@@ -1,4 +1,4 @@
-// {§exec-env-scoped} {§functionality-scope} — the env family as a model actually meets it.
+// {§execution-output-identity} {§functionality-scope} — the env family as a model actually meets it.
 //
 // These two stories exist because correctness tests cannot answer the question the feature is
 // for: can a model find the environment surface and use it without being told the verbs? They

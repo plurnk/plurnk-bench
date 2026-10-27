@@ -2,7 +2,7 @@
 // specific-thing tests, not e2e stories). Proves the boot-DISCOVERED web stack works end-to-end:
 //   - http://  (@plurnk/plurnk-schemes-http) — a real fetch, no API key.
 //
-// Web discovery is an ordinary MCP attachment ({§web-search-retrieval}); the search-MCP
+// Web discovery is an ordinary MCP attachment ({§membership}); the search-MCP
 // live exercise lives with the demo-tier fixture (test/demo).
 //
 // NO-MOCK: the http test dispatches a parsed READ straight through a real Engine against the real
