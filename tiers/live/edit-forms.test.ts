@@ -1,4 +1,4 @@
-// {§digest-edit-census} (#893): every EDIT addressing form the card teaches, witnessed live. Each
+// {§digest-forensic-fidelity} (#893): every EDIT addressing form the card teaches, witnessed live. Each
 // specimen is one sentence whose natural EDIT is one form. The landing is asserted on the entry's
 // content: exactly one EDIT, no refusal on the way, authored in a taught form. Which taught form
 // the model chose is reported, not required — models take any taught address that lands, and the

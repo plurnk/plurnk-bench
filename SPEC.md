@@ -172,14 +172,14 @@ Covered: `ingest.test.ts [§provenance]`.
 
 `publishRun` writes `<plurnk>/benchmarks/run<N>/` containing **`plurnk.db`** (the daemon DB,
 copied through `@plurnk/plurnk-digest`'s `Share.snapshot` — SQLite's consistent copy, so committed pages
-still in the trial's `-wal` file arrive, {§share-snapshot}), **`digest/`** (rendered from the
+still in the trial's `-wal` file arrive, {§share-packet-names}), **`digest/`** (rendered from the
 COPY — the dir is self-contained), and **`record.json`** (the joined landing: the oracle side
 the DB+digest cannot carry). The run dir is a plain folder, never an archive; the bench's own
 layout sits over the report package's snapshot and digest, and adds no copy or zip of its own.
-Covered: `publish.test.ts [§publish] {§share-snapshot}`.
+Covered: `publish.test.ts [§publish] {§share-packet-names}`.
 
 - §publish-numbering `run<N>-<harness>-<task>-<model>`: N continues the tree (max existing + 1,
-- §publish-launch-folder **The run folder is live from launch.** A runner may allocate the run folder before the daemon starts (`allocateRunDirectory`, the same naming rule) and run the daemon with that folder as its own directory, so `plurnk.db` is there from the first turn and the operator watches the run where it will be read; the trial's scratch keeps `agent` as a link to it. Publication then finalizes that folder in place — the database consolidated through {§share-snapshot}, `digest/` and `record.json` written beside it — rather than copying from the scratch. A trial that opened its folder at launch is published nowhere else. The swebench runner does this for every graded trial and prints `run=<folder>` at launch; a preflight opens no run folder.
+- §publish-launch-folder **The run folder is live from launch.** A runner may allocate the run folder before the daemon starts (`allocateRunDirectory`, the same naming rule) and run the daemon with that folder as its own directory, so `plurnk.db` is there from the first turn and the operator watches the run where it will be read; the trial's scratch keeps `agent` as a link to it. Publication then finalizes that folder in place — the database consolidated through {§share-packet-names}, `digest/` and `record.json` written beside it — rather than copying from the scratch. A trial that opened its folder at launch is published nowhere else. The swebench runner does this for every graded trial and prints `run=<folder>` at launch; a preflight opens no run folder.
   else 1; non-run dirs ignored), the task is its last path segment, the model its alias — the
   same shape the benchlets allocate.
 - §publish-turnless-gate A turn-less DB (infra failure — the daemon never looped) is rolled

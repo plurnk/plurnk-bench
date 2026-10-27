@@ -1,7 +1,7 @@
 // SPEC §publish / §results-canon. Publish a bench run to the one shared, human-referenceable
 // tree so anyone can inspect it by name: <home>/run<N>-<harness>-<task>-<model>/{plurnk.db,
 // digest/, record.json}. Copies the run's DB through the report package's Share.snapshot
-// ({§share-snapshot}: SQLite, never the filesystem, so committed WAL pages are kept), renders
+// ({§share-packet-names}: SQLite, never the filesystem, so committed WAL pages are kept), renders
 // its digest (reusing the report package's Digest — bench builds no forensics), and writes the joined
 // BenchRecord (the oracle side:
 // reward/outcome, which the DB+digest do NOT carry) so the run dir is a COMPLETE,

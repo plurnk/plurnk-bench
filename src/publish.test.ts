@@ -35,7 +35,7 @@ const mockDigest = (t: TestContext, digestJson: unknown): void => {
     });
 };
 
-test("[§publish] {§share-snapshot} the published plurnk.db is SQLite's consistent copy: committed WAL pages arrive, the source is untouched", (t) => {
+test("[§publish] {§share-packet-names} the published plurnk.db is SQLite's consistent copy: committed WAL pages arrive, the source is untouched", (t) => {
     const root = mkdtempSync(join(tmpdir(), "bench-pub-snapshot-"));
     t.after(() => rmSync(root, { recursive: true, force: true }));
     const dbPath = join(root, "agent", "plurnk.db");
