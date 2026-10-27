@@ -11,6 +11,9 @@ registerHooks({
         if (specifier === "@plurnk/plurnk-service/harness") {
             return nextResolve(harnessUrl, context);
         }
+        if (specifier.startsWith("@plurnk/")) {
+            return nextResolve(specifier, { ...context, parentURL });
+        }
         try {
             return nextResolve(specifier, context);
         } catch (error) {
