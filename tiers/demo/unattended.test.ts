@@ -13,11 +13,11 @@ import { initializeDemoRepository } from "@plurnk/plurnk-service/harness";
 import { failAfterCleanup } from "@plurnk/plurnk-service/harness";
 import { ResourceState } from "@plurnk/plurnk-service/harness";
 
-// Genuinely ambiguous, and bounded: the project names two maintained release branches and targets
-// neither, and nothing says which is right. Two reads find the gap; no amount of further reading
-// closes it. Nothing in the prompt invites asking; the model has to notice the gap itself.
+// Genuinely ambiguous, and bounded: the project names two active regional release branches and
+// targets neither, and nothing says which region applies. Two reads find the gap; no amount of
+// further reading closes it. Nothing in the prompt invites asking; the model has to notice the gap itself.
 const AMBIGUOUS = "Update the project so it targets the right release branch, then tell me what you did.";
-const RELEASES = "# Release branches\n\nMaintained release branches, both receiving fixes:\n\n- release/2.1\n- release/2.2\n";
+const RELEASES = "# Release branches\n\nMaintained regional release branches, both active:\n\n- release/eu\n- release/us\n";
 
 test("reply: with nobody to ask, plurnk decides and says what it could not resolve", { timeout: 600_000 }, async (t) => {
     const fixture = await seedDemoFixture("unattended-recovery");
@@ -47,9 +47,9 @@ test("reply: with nobody to ask, plurnk decides and says what it could not resol
         // took and the one it did not. A reply that names only its choice and calls it correct fails:
         // the alternative went unsaid, which is a guess stated as fact.
         const after = JSON.parse(await readFile(join(fixture.workspace, "src/config.json"), "utf8")) as { targetBranch?: unknown };
-        assert.ok(["release/2.1", "release/2.2", "main"].includes(String(after.targetBranch)),
+        assert.ok(["release/eu", "release/us", "main"].includes(String(after.targetBranch)),
             `the target is a named branch or untouched; got ${JSON.stringify(after.targetBranch)}`);
-        for (const branch of ["release/2.1", "release/2.2"]) {
+        for (const branch of ["release/eu", "release/us"]) {
             assert.ok(loop.lastContent.includes(branch), `the reply names ${branch}, so the fork it faced is on the record; got: ${loop.lastContent.slice(0, 300)}`);
         }
     } catch (error) {
