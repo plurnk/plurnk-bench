@@ -11,14 +11,18 @@ registerHooks({
         if (specifier === "@plurnk/plurnk-service/harness") {
             return nextResolve(harnessUrl, context);
         }
-        if (
-            !specifier.startsWith(".")
-            && !specifier.startsWith("/")
-            && !specifier.startsWith("file:")
-            && !specifier.startsWith("node:")
-        ) {
-            return nextResolve(specifier, { ...context, parentURL });
+        try {
+            return nextResolve(specifier, context);
+        } catch (error) {
+            if (
+                !specifier.startsWith(".")
+                && !specifier.startsWith("/")
+                && !specifier.startsWith("file:")
+                && !specifier.startsWith("node:")
+            ) {
+                return nextResolve(specifier, { ...context, parentURL });
+            }
+            throw error;
         }
-        return nextResolve(specifier, context);
     },
 });

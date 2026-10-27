@@ -60,7 +60,7 @@ test("topo probe: answer a multi-part task that invites fan-out", async (t) => {
         signal: t.signal,
         label: "fanout",
         prompt: "src/config.json has three settings: db, pool, and host. Have a separate session look up each one, then give me all three values together.",
-        // {§turn-cap-counts-the-tree} — the ceiling counts every model call in the session tree (#838): three children at two
+        // {§operator-config-workspace-settings} — the ceiling counts every model call in the session tree (#838): three children at two
         // or three calls each plus the parent is ten to thirteen, and a rail retry is one more.
         maxTurns: 20,
     });
