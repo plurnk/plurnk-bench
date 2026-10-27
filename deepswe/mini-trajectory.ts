@@ -1,4 +1,4 @@
-// {§pair-mini-digest} — a mini-swe-agent trial read into the same per-step shape the plurnk digest
+// {§pair-sheet} — a mini-swe-agent trial read into the same per-step shape the plurnk digest
 // gives a turn: the model's words, its command, what came back, and what it cost. Read from the
 // trial's `agent/mini-swe-agent.trajectory.json` (OpenAI Responses objects interleaved with
 // `function_call_output` observations); rendered as `steps.md` and `steps.json` beside the plurnk

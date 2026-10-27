@@ -21,7 +21,7 @@ import json, sys
 from datasets import load_dataset
 from huggingface_hub import HfApi
 want = set(sys.argv[1:])
-# {§swebench-corpus}: the ids and the dataset revision are pinned together.
+# {§swebench-evaluator}: the ids and the dataset revision are pinned together.
 revision = HfApi().dataset_info(${JSON.stringify(DATASET)}).sha
 ds = load_dataset(${JSON.stringify(DATASET)}, split="test")
 fields = ("instance_id","repo","base_commit","environment_setup_commit","version","image","problem_statement","FAIL_TO_PASS","PASS_TO_PASS")

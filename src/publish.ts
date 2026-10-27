@@ -1,4 +1,4 @@
-// SPEC §publish / §results-canon. Publish a bench run to the one shared, human-referenceable
+// SPEC §publish / {§publish}. Publish a bench run to the one shared, human-referenceable
 // tree so anyone can inspect it by name: <home>/run<N>-<harness>-<task>-<model>/{plurnk.db,
 // digest/, record.json}. Copies the run's DB through the report package's Share.snapshot
 // ({§share-packet-names}: SQLite, never the filesystem, so committed WAL pages are kept), renders
@@ -32,9 +32,9 @@ const WATCH_INTERVAL_MS = 15_000;
 
 export const defaultBenchmarksDir = (): string => benchmarksHome();
 
-// SPEC §publish-numbering. run<N>-<harness>-<task>-<model>: the task's last path segment
+// SPEC {§publish}. run<N>-<harness>-<task>-<model>: the task's last path segment
 // and the model's alias, so the tree reads like the benchlets' own.
-// SPEC §publish-numbering — one naming rule, whether the folder is allocated at launch or at publication.
+// SPEC {§publish} — one naming rule, whether the folder is allocated at launch or at publication.
 export const runLabelsFor = (harness: string, taskId: string, model: string): string[] => [
     harness,
     taskId.split("/").at(-1) ?? taskId,
@@ -43,7 +43,7 @@ export const runLabelsFor = (harness: string, taskId: string, model: string): st
 
 export const runLabels = (record: BenchRecord): string[] => runLabelsFor(record.harness, record.taskId, record.model);
 
-// SPEC §publish-launch-folder — a runner may allocate the run folder at launch and run the daemon in it, so the
+// SPEC {§publish} — a runner may allocate the run folder at launch and run the daemon in it, so the
 // folder is live from the first turn; publication then finalizes that folder in place instead of copying.
 export interface PublishOptions {
     readonly runDir?: string;
@@ -56,17 +56,17 @@ const digestTurns = (digestDir: string): Array<{ producer?: string }> => {
     return Array.isArray(turns) ? turns : [];
 };
 
-// SPEC §publish-turnless-gate. A published run must hold a real loop. An infra failure (daemon never looped) copies a
+// SPEC {§publish}. A published run must hold a real loop. An infra failure (daemon never looped) copies a
 // turn-less DB; the digest (bench's own artifact) confirms 0 turns → not worth the tree.
 export const digestHasTurns = (digestDir: string): boolean => digestTurns(digestDir).length > 0;
 
-// SPEC §publish-model-attempt-gate. The DB's own evidence decides: at least one model turn.
+// SPEC {§publish}. The DB's own evidence decides: at least one model turn.
 // Setup/maintenance turns alone are no attempt; a trial whose client record died mid-loop
 // still publishes, because its model turns are in the DB.
 export const digestHasModelTurns = (digestDir: string): boolean =>
     digestTurns(digestDir).some((turn) => turn.producer === "model");
 
-// SPEC §publish-self-referential. The record persisted into the run dir: the joined record with its
+// SPEC {§publish}. The record persisted into the run dir: the joined record with its
 // digest handle re-pointed at the published (copied) DB, so it never references jobs/ scratch.
 export const publishedRecord = (record: BenchRecord, dbPath: string, digest: DigestAccountingInput): BenchRecord => {
     summarizeDigestAccounting(digest);
@@ -94,7 +94,7 @@ export const publishRun = (record: BenchRecord, benchmarksDir: string, options: 
     const digestDir = join(runDir, "digest");
     const db = join(runDir, "plurnk.db");
     if (options.runDir !== undefined) {
-        // The daemon ran here ({§publish-launch-folder}): consolidate its database in place, committed
+        // The daemon ran here ({§publish}): consolidate its database in place, committed
         // WAL pages kept and no sidecars left, through the same snapshot a copy would take.
         const consolidated = `${db}.consolidated`;
         Share.snapshot(record.run.dbPath, consolidated);
@@ -103,7 +103,7 @@ export const publishRun = (record: BenchRecord, benchmarksDir: string, options: 
     } else {
         Share.snapshot(record.run.dbPath, db);
     }
-    // SPEC §publish-digest-provenance: a digest is read by the runtime that wrote the database. The
+    // SPEC {§publish}: a digest is read by the runtime that wrote the database. The
     // candidate rendered its own beside the database; that copy is the published one. Only a run
     // without one is rendered here, by this checkout's installed service.
     // In a launch folder the candidate's own digest already sits where the published one goes.
@@ -111,7 +111,7 @@ export const publishRun = (record: BenchRecord, benchmarksDir: string, options: 
     if (record.run.digestDir !== undefined && !own) {
         cpSync(record.run.digestDir, digestDir, { recursive: true });
     } else if (record.run.digestDir === undefined) {
-        // {§publish-workspace-scope}: retain workspace and child-worker evidence.
+        // {§publish}: retain workspace and child-worker evidence.
         Digest.run({
             openEvidence: EvidenceReader.open,
             dbPath: db,
@@ -130,7 +130,7 @@ export const publishRun = (record: BenchRecord, benchmarksDir: string, options: 
     return runDir;
 };
 
-// SPEC §publish-requiem-accounting. The interview re-invokes the model; that spend is part
+// SPEC {§publish}-accounting. The interview re-invokes the model; that spend is part
 // of the run. record.json carries the requiem accounting summary so a corpus tally reads
 // one file per run instead of discovering digest/requiem.json.
 export const foldRequiemAccounting = (dir: string): void => {
@@ -141,7 +141,7 @@ export const foldRequiemAccounting = (dir: string): void => {
     writeFileSync(recordPath, JSON.stringify({ ...record, requiem: summary }, null, 4) + "\n");
 };
 
-// SPEC §publish-live. One finished trial → one published run, exactly once: the marker in
+// SPEC {§publish}. One finished trial → one published run, exactly once: the marker in
 // the trial dir names the run dir (or is empty when the trial had nothing to publish).
 export const publishTrial = async (trialDir: string, harness: string, benchmarksDir: string, options: PublishOptions = {}): Promise<string | null> => {
     const marker = join(trialDir, PUBLISHED_MARKER);
@@ -151,7 +151,7 @@ export const publishTrial = async (trialDir: string, harness: string, benchmarks
     }
     const record = readTrialDir(trialDir, { harness });
     if (record === null) return null;
-    // {§publish-launch-folder} — a trial that opened its run folder at launch recorded it; finalize there.
+    // {§publish} — a trial that opened its run folder at launch recorded it; finalize there.
     const provenancePath = join(trialDir, "provenance.json");
     const recorded = existsSync(provenancePath) ? (JSON.parse(readFileSync(provenancePath, "utf8")) as { runDir?: string | null }).runDir ?? undefined : undefined;
     const dir = publishRun(record, benchmarksDir, options.runDir === undefined && recorded !== undefined ? { ...options, runDir: recorded } : options);
@@ -160,7 +160,7 @@ export const publishTrial = async (trialDir: string, harness: string, benchmarks
         console.log(`skipped ${record.taskId} (no model turn to publish)`);
         return null;
     }
-    // SPEC §publish-requiem. The model's exit interview is an investigation instrument,
+    // SPEC {§publish}. The model's exit interview is an investigation instrument,
     // banked only on request (PLURNK_BENCH_REQUIEM=1): it re-invokes the model once per
     // published run. When requested it stays best-effort — a missing witness is a skip,
     // never a publish failure — the run is already published.
@@ -176,7 +176,7 @@ export const publishTrial = async (trialDir: string, harness: string, benchmarks
         } catch (e) {
             note = ` (requiem skipped: ${(e as Error).message.slice(0, 70)})`;
         }
-        // SPEC §publish-requiem-accounting (#461): a banked interview's spend belongs to
+        // SPEC {§publish}-accounting (#461): a banked interview's spend belongs to
         // the run's ledger; a fold failure is a defect and fails hard.
         if (note === " + requiem") foldRequiemAccounting(dir);
     }
@@ -204,7 +204,7 @@ const processAlive = (pid: number): boolean => {
     }
 };
 
-// SPEC §publish-live. Follow a running job: publish each trial as its result lands, until
+// SPEC {§publish}. Follow a running job: publish each trial as its result lands, until
 // the harness process exits; one final sweep catches the trials that finished last.
 export const watchJob = async (jobDir: string, pid: number, harness: string, benchmarksDir: string): Promise<void> => {
     while (processAlive(pid)) {
@@ -230,7 +230,7 @@ if (import.meta.main) {
     } else if (values.jobs !== undefined) {
         console.log(jobsRoot(values.jobs));
     } else {
-        // SPEC §config-bench-namespace: the harness label is a bench knob, never daemon config.
+        // SPEC {§config-carry}: the harness label is a bench knob, never daemon config.
         const harness = process.env.PLURNK_BENCH_HARNESS ?? "deepswe";
         const benchmarksDir = positionals[1] ?? defaultBenchmarksDir();
         if (values.watch !== undefined) {

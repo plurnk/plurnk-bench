@@ -60,7 +60,7 @@ def agent(**extra_env):
 
 
 class PlainTaskTreeTest(unittest.TestCase):
-    """[§frontier-parity] a task directory outside any repository is admitted as service members."""
+    """{§frontier-evidence} a task directory outside any repository is admitted as service members."""
 
     def test_run_admits_the_tree_only_outside_a_repository(self):
         environment = types.SimpleNamespace()
@@ -86,7 +86,7 @@ class PlainTaskTreeTest(unittest.TestCase):
 
 
 class InstallationEvidenceTest(unittest.TestCase):
-    """{§frontier-setup-evidence}: retained output exists before setup finishes."""
+    """{§frontier-evidence}: retained output exists before setup finishes."""
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory(prefix="plurnk-install-test-")

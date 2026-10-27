@@ -1,4 +1,4 @@
-// SPEC §swebench-corpus. Draw the campaign's task sample from the official Lite dataset
+// SPEC {§swebench-evaluator}-corpus. Draw the campaign's task sample from the official Lite dataset
 // reproducibly: a seed plus a plain hash order, never an RNG whose stream can drift between
 // library versions. The draw is a CORPUS record — ids, dataset identity, algorithm, seed — so a
 // later run is reproducible or restrictable to exactly the same tasks. A seeded draw is OUR
@@ -22,7 +22,7 @@ const python = process.env.PLURNK_SWEBENCH_PYTHON ?? resolve(benchRoot, ".cache/
 
 // "cited" is not a draw: a published study names its own ids, so the corpus records WHERE they
 // came from instead of how they were picked. Parity with such a study is impossible under any
-// seed — {§swebench-corpus}.
+// seed — {§swebench-evaluator}.
 export type SampleMode = "uniform" | "stratified" | "cited";
 
 export interface CorpusCitation {

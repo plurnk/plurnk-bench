@@ -1,4 +1,4 @@
-// {§swebench-matrix}: profile scheduling only; run.sh owns each complete trial.
+// {§swebench-comparison}: profile scheduling only; run.sh owns each complete trial.
 import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join, resolve } from "node:path";

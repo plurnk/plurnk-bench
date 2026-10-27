@@ -152,7 +152,7 @@ export const readPlurnkSide = (pairDir: string): SideFacts => {
     const notes = [
         candidate.timedOut ? "candidate timed out" : null,
         candidate.error,
-        // {§benchlet-candidate-exit} — a run that changed nothing is not a near-miss (#41).
+        // {§benchlet-diagnostic} — a run that changed nothing is not a near-miss (#41).
         oracle.submissionEvidence?.emptyPatch === true ? "the candidate produced no patch" : null,
         submission.applyFailed ? "submission patch did not apply" : null,
         result.harnessStatus === "complete" ? null : `harness status ${result.harnessStatus}`,
@@ -193,7 +193,7 @@ interface MiniResult {
     finished_at?: string;
 }
 
-// {§pair-mini-digest} — the trajectory read into steps.md / steps.json under <trial>/digest, the
+// {§pair-sheet} — the trajectory read into steps.md / steps.json under <trial>/digest, the
 // same place the plurnk run keeps its digest, so both sides are read by one reader.
 export const digestMiniTrial = (trialDir: string): MiniTrajectory => {
     const trajectory = MiniTrajectoryReader.read(resolve(trialDir, "agent", "mini-swe-agent.trajectory.json"));
@@ -288,7 +288,7 @@ export const renderSheet = (pair: PairRecord, plurnk: SideFacts, mini: SideFacts
         "|---|---|---|",
         ...rows.map(([label, left, right]) => `| ${label} | ${left} | ${right} |`),
         "",
-        "Read the plurnk side in its run directory's `digest/` and the mini side in `mini/<trial>/digest/steps.md` ({§pair-mini-digest}).",
+        "Read the plurnk side in its run directory's `digest/` and the mini side in `mini/<trial>/digest/steps.md` ({§pair-sheet}).",
         "",
     ].join("\n");
 };

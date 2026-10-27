@@ -1,4 +1,4 @@
-// {§benchlet-container-exec} — the long-lived task container the candidate's commands run in.
+// {§benchlet-diagnostic} — the long-lived task container the candidate's commands run in.
 // One container per run: created from the pinned image with the manifest's network and resource
 // limits, the candidate repository mounted at its own host path (so cwd and every path in output
 // line up) and at /app (where the image's own tooling expects it), started idle, and removed once
@@ -8,7 +8,7 @@
 // caches live: /root/.cargo, /root/go/pkg/mod) is handed to that user at start; the verifier runs
 // as the image's own user and sees the same home. Origin (2026-09-17): with HOME=/tmp, wasmi's
 // `cargo` was "Permission denied" and participle's Go module cache was empty under network none.
-// {§benchlet-container-scratch} — the daemon's executor scratch is the run's own directory,
+// {§benchlet-diagnostic} — the daemon's executor scratch is the run's own directory,
 // mounted at the same absolute path on both sides and named to the daemon by
 // PLURNK_SERVICE_EXEC_SCRATCH, so a realized source's host path resolves inside the container.
 
@@ -25,7 +25,7 @@ export interface ContainerEnvironment {
 export type ContainerRunner = (command: string, args: string[], options?: { allowFailure?: boolean }) => string;
 
 // The candidate repository, mounted at its own host path and at `containerRoot`, and the daemon's
-// executor scratch, mounted at its own absolute host path ({§benchlet-container-scratch}).
+// executor scratch, mounted at its own absolute host path ({§benchlet-diagnostic}).
 export interface ContainerMounts {
     readonly repository: string;
     readonly scratch: string;

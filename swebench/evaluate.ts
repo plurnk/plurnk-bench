@@ -1,4 +1,4 @@
-// SPEC §swebench-evaluator. Grade ONE instance's candidate patch with the benchmark's OWN
+// SPEC {§swebench-evaluator}-evaluator. Grade ONE instance's candidate patch with the benchmark's OWN
 // official evaluator and translate its per-instance report into the `verifier/reward.json`
 // the shared core joins (src/ingest.ts) — the verifier half of a trial. The harness owns
 // grading end to end: it ensures the instance's eval image, resets the tree, applies the

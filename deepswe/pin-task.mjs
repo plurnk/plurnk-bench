@@ -2,7 +2,7 @@
 // docker-backed benchlet manifest: repository and base commit from the task's Dockerfile, the task image by
 // its ext_id, and the sha256 of every task file the benchlet snapshots. Fails hard when anything is missing.
 //        node deepswe/pin-task.mjs --terminal-bench <task>... — pins a cached Terminal-Bench 2.1 task
-// (.cache/terminal-bench-2-1/terminal-bench-2-1/<task>) as a tree manifest ({§benchlet-tree}): the image, budgets,
+// (.cache/terminal-bench-2-1/terminal-bench-2-1/<task>) as a tree manifest ({§benchlet-diagnostic}): the image, budgets,
 // and resources from task.toml, the sha256 of the instruction, task.toml, Dockerfile, and every tests/ file.
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";

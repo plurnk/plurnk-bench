@@ -1,12 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {
-    addSettledUsd,
-    cacheEffectivenessOf,
-    summarizeDigestAccounting,
-    summarizeRequiemAccounting,
-} from "./accounting.ts";
+import { addSettledUsd, cacheEffectivenessOf, summarizeDigestAccounting, summarizeRequiemAccounting, type ProviderUsageProjection } from "./accounting.ts";
+import { bootstrapMean, holm, median, seededUniform, signFlipP } from "./statistics.ts";
 
+// ─── accounting.test.ts ───
+{
 const request = (model: string, inputTokens = 75, cacheReadTokens = 5) => ({
     provider: "provider:fixture",
     model,
@@ -19,7 +17,7 @@ const request = (model: string, inputTokens = 75, cacheReadTokens = 5) => ({
     },
 });
 
-test("bench accounting copies the one workspace's authoritative physical-request projection", () => {
+test("{§accounting-cost-completeness} bench accounting copies the one workspace's authoritative physical-request projection", () => {
     const requests = [request("provider/model"), request("provider/model")];
     assert.deepEqual(summarizeDigestAccounting({
         workspaces: [{
@@ -60,7 +58,7 @@ test("bench accounting copies the one workspace's authoritative physical-request
     });
 });
 
-test("an unsettled physical request remains cardinal while aggregate accounting stays unknown", () => {
+test("{§accounting-cost-completeness} an unsettled physical request remains cardinal while aggregate accounting stays unknown", () => {
     assert.deepEqual(summarizeDigestAccounting({
         workspaces: [{ accounting: null }],
         provider_requests: [{ kind: "emission", accounting: null }],
@@ -136,7 +134,7 @@ test("{§accounting-cost-completeness} estimates, explicit zero, and non-USD evi
     }
 });
 
-test("digest accounting rejects ambiguous scope and inconsistent source cardinality", () => {
+test("{§accounting-cost-completeness} digest accounting rejects ambiguous scope and inconsistent source cardinality", () => {
     assert.throws(
         () => summarizeDigestAccounting({
             workspaces: [],
@@ -161,7 +159,7 @@ test("digest accounting rejects ambiguous scope and inconsistent source cardinal
     );
 });
 
-test("requiem composes worker projections with exact decimals and unknown-field propagation", () => {
+test("{§accounting-cost-completeness} requiem composes worker projections with exact decimals and unknown-field propagation", () => {
     assert.deepEqual(summarizeRequiemAccounting({
         workers: [{
             accounting: {
@@ -212,7 +210,7 @@ test("requiem composes worker projections with exact decimals and unknown-field 
     assert.equal(addSettledUsd("0.1", "0.2"), "0.3");
 });
 
-test("{§accounting-cache-effectiveness}: cache reporting is token-weighted, exact about zero, and rejects impossible evidence", () => {
+test("{§accounting-cost-completeness}: cache reporting is token-weighted, exact about zero, and rejects impossible evidence", () => {
     assert.deepEqual(cacheEffectivenessOf({
         inputTokens: 100,
         inputTokenDetails: { cacheReadTokens: 75, cacheWriteTokens: 10 },
@@ -239,7 +237,7 @@ test("{§accounting-cache-effectiveness}: cache reporting is token-weighted, exa
     );
 });
 
-test("bench accounting rejects malformed token and exact-decimal evidence", () => {
+test("{§accounting-cost-completeness} bench accounting rejects malformed token and exact-decimal evidence", () => {
     const malformed = {
         workspaces: [{
             accounting: {
@@ -260,3 +258,153 @@ test("bench accounting rejects malformed token and exact-decimal evidence", () =
         /canonical non-negative decimal string/,
     );
 });
+}
+
+// ─── accounting-cache.test.ts ───
+{
+const request = (kind: string, usage?: ProviderUsageProjection) => ({
+    kind,
+    accounting: { model: "fixture", cost: { kind: "charged", amount: { amount: "0.1", currency: "USD" }, source: "fixture" }, ...(usage === undefined ? {} : { usage }) },
+});
+
+const cached = (inputTokens: number, cacheReadTokens: number): ProviderUsageProjection => ({
+    inputTokens,
+    inputTokenDetails: { cacheReadTokens },
+});
+
+const digest = (requests: Array<{
+    kind: string;
+    accounting: { model: string; usage?: ProviderUsageProjection } | null;
+}>) => ({
+    workspaces: [{ accounting: requests.some(({ accounting }) => accounting === null) ? null : {
+        requests: requests.map(({ accounting }) => accounting),
+        usage: cached(350, 220),
+        costUsd: "12.34",
+    } }],
+    provider_requests: requests,
+    turn_attempts: [{ accepted: false }, { accepted: true }],
+});
+
+test("{§accounting-cost-completeness} cache and task accounting include every model request", () => {
+    const evidence = digest([
+        request("emission", cached(100, 80)),
+        request("emission", cached(200, 100)),
+        request("bare", cached(50, 40)),
+    ]);
+    const summary = summarizeDigestAccounting(evidence);
+    assert.deepEqual(summary.cacheEffectiveness, {
+        inputTokens: 350,
+        cacheReadTokens: 220,
+        cacheReadTokenRatio: 220 / 350,
+    });
+    assert.equal(summary.usage, evidence.workspaces[0]!.accounting!.usage);
+    assert.equal(summary.costUsd, "12.34");
+    assert.equal(summary.providerRequests, 3);
+    assert.equal(summary.rejectedEmissions, 1);
+});
+
+test("{§accounting-cost-completeness} missing model evidence is unknown, never an excluded request", () => {
+    for (const missing of [
+        request("bare"),
+        request("emission", { inputTokens: 100 }),
+        request("emission", { inputTokenDetails: { cacheReadTokens: 10 } }),
+        { kind: "emission", accounting: null },
+    ]) {
+        assert.equal(summarizeDigestAccounting(digest([
+            request("emission", cached(100, 80)), missing,
+        ])).cacheEffectiveness, null);
+    }
+});
+
+test("{§accounting-cost-completeness} unsettled evidence leaves task cost, usage and cache unknown", () => {
+    const summary = summarizeDigestAccounting(digest([
+        request("emission", cached(100, 80)),
+        { kind: "bare", accounting: null },
+    ]));
+    assert.equal(summary.costUsd, null);
+    assert.equal(summary.usage, null);
+    assert.equal(summary.cacheEffectiveness, null);
+});
+
+test("{§accounting-cost-completeness} zero model input differs from no model requests", () => {
+    assert.deepEqual(summarizeDigestAccounting(digest([
+        request("emission", cached(0, 0)),
+    ])).cacheEffectiveness, { inputTokens: 0, cacheReadTokens: 0, cacheReadTokenRatio: null });
+    assert.equal(summarizeDigestAccounting(digest([])).cacheEffectiveness, null);
+});
+
+test("{§accounting-cost-completeness} validates each model request before aggregating", () => {
+    assert.throws(() => summarizeDigestAccounting(digest([
+        request("emission", cached(100, 0)),
+        request("bare", cached(1, 2)),
+    ])), /cache-read tokens cannot exceed total input tokens/);
+    assert.throws(() => summarizeDigestAccounting(digest([
+        request("unrecognized", cached(100, 80)),
+    ])), /unknown provider request kind/);
+    assert.throws(() => summarizeDigestAccounting(digest([
+        request("emission", cached(Number.MAX_SAFE_INTEGER, 0)),
+        request("emission", cached(1, 0)),
+    ])), /aggregate cache tokens must be a non-negative safe integer/);
+});
+
+test("{§accounting-cost-completeness} cache writes require complete evidence while explicit misses count", () => {
+    const written = (cacheWriteTokens?: number) => request("emission", {
+        inputTokens: 100,
+        inputTokenDetails: { cacheReadTokens: 0, ...(cacheWriteTokens === undefined ? {} : { cacheWriteTokens }) },
+    });
+    assert.deepEqual(summarizeDigestAccounting(digest([
+        written(5), written(10),
+    ])).cacheEffectiveness, {
+        inputTokens: 200, cacheReadTokens: 0, cacheWriteTokens: 15, cacheReadTokenRatio: 0,
+    });
+    assert.deepEqual(summarizeDigestAccounting(digest([
+        written(5), written(),
+    ])).cacheEffectiveness, {
+        inputTokens: 200, cacheReadTokens: 0, cacheReadTokenRatio: 0,
+    });
+});
+
+test("{§accounting-cost-completeness} requiem cache also requires every physical request's evidence", () => {
+    const summary = summarizeRequiemAccounting({ workers: [{ accounting: {
+        requests: [request("emission", cached(100, 80)).accounting, request("emission").accounting],
+        usage: cached(100, 80),
+        costUsd: "0.1",
+    } }] });
+    assert.equal(summary.cacheEffectiveness, null);
+    assert.equal(summary.costUsd, "0.1");
+});
+}
+
+// ─── statistics.test.ts ───
+{
+test("{§swebench-comparison} median: the middle value, the mean of the two middles, nothing from nothing", () => {
+    assert.equal(median([]), null);
+    assert.equal(median([3, 1, 2]), 2);
+    assert.equal(median([4, 1, 3, 2]), 2.5);
+});
+
+test("{§swebench-comparison} the generator is seeded: one seed draws one stream, so intervals are reproducible", () => {
+    const first = seededUniform("x"); const second = seededUniform("x");
+    const draws = Array.from({ length: 5 }, () => first());
+    assert.deepEqual(Array.from({ length: 5 }, () => second()), draws);
+    assert.ok(draws.every((value) => value >= 0 && value < 1));
+    const values = Array.from({ length: 30 }, (_, index) => index % 2);
+    const one = bootstrapMean(values, 2_000, seededUniform("ci"));
+    assert.deepEqual(bootstrapMean(values, 2_000, seededUniform("ci")), one);
+    assert.equal(one.mean, 0.5);
+    assert.ok(one.low < 0.5 && 0.5 < one.high, `the interval brackets the mean: ${one.low}–${one.high}`);
+    assert.ok(one.low > 0.25 && one.high < 0.75, "thirty coin flips do not admit an interval wider than a quarter each side");
+    const flat = bootstrapMean([0.4, 0.4, 0.4], 200, seededUniform("flat"));
+    assert.ok([flat.low, flat.mean, flat.high].every((value) => Math.abs(value - 0.4) < 1e-12), "identical tasks have no sampling variance");
+    assert.throws(() => bootstrapMean([], 10, seededUniform("e")), /no values/u);
+});
+
+test("{§swebench-comparison} the paired test: no difference reads as p = 1, a uniform difference as significant, and Holm is step-down", () => {
+    assert.equal(signFlipP([0, 0, 0], 100, seededUniform("z")), 1);
+    assert.equal(signFlipP([], 100, seededUniform("z")), 1);
+    assert.ok(signFlipP(Array.from({ length: 30 }, () => 1 / 3), 2_000, seededUniform("s")) < 0.01);
+    assert.deepEqual(holm([0.01, 0.04, 0.03]), [0.03, 0.06, 0.06]);
+    assert.deepEqual(holm([0.5]), [0.5]);
+    assert.deepEqual(holm([0.4, 0.4]), [0.8, 0.8], "a corrected p never exceeds one and never falls below an earlier rank");
+});
+}

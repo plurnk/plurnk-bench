@@ -8,14 +8,14 @@
 # and forwards the MINIMAL manifest to the in-container daemon via --agent-env: the model layer for
 # the run's alias plus its provider credentials, nothing else. The benchmark declares its own MCP
 # services (mcp.json) and Harbor hands them to the driver, which re-hosts them for a Linux host and
-# declares them as plurnk HTTP MCP servers. The operator's MCP fleet never rides (SPEC §enterprise-mcp-carry).
+# declares them as plurnk HTTP MCP servers. The operator's MCP fleet never rides (SPEC {§enterprise}).
 #
 # Usage: enterprise/smoke.sh [task|all]
 #   task         one task directory name (default: eng-l1-a); `all` runs the 14-task corpus
 #   model        selected by the ordinary PLURNK_MODEL cascade
 #
-# Bench's own knobs are namespaced PLURNK_BENCH_ (SPEC §config-bench-namespace — never forwarded to the daemon):
-#   PLURNK_BENCH_PROFILE      single (1 trial/task, default) | comparison (3) | canonical (10) — SPEC §enterprise-profiles
+# Bench's own knobs are namespaced PLURNK_BENCH_ (SPEC {§config-carry} — never forwarded to the daemon):
+#   PLURNK_BENCH_PROFILE      single (1 trial/task, default) | comparison (3) | canonical (10) — SPEC {§enterprise}
 #   PLURNK_BENCH_JOBS         concurrent trials (default 3 — each task container reserves 2 GB)
 #   PLURNK_BENCH_TIMEOUT_SEC  override the client timeout (default: task's [agent] budget − headroom)
 #   PLURNK_BENCH_FORCE_BUILD  =1 to force an agent-image rebuild
@@ -23,7 +23,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-# SPEC §enterprise-provenance — the exact upstream corpus this family measures.
+# SPEC {§enterprise} — the exact upstream corpus this family measures.
 BENCH_REPOSITORY="https://github.com/devrev/enterprise-bench"
 BENCH_COMMIT="5a79ad04237d786414be0473da79fb1754574aff"
 BENCH_ROOT=".cache/enterprise-bench"
@@ -51,7 +51,7 @@ source_env_file ".env.defaults"
 
 [ "$#" -le 1 ] || { echo "usage: enterprise/smoke.sh [task|all]" >&2; exit 2; }
 TASK="${1:-eng-l1-a}"
-# SPEC §config-model-default: shell, then XDG operator config, then the committed floor.
+# SPEC {§config-carry}: shell, then XDG operator config, then the committed floor.
 MODEL="$PLURNK_MODEL"
 PROFILE="${PLURNK_BENCH_PROFILE:-single}"
 case "$PROFILE" in
@@ -62,12 +62,12 @@ case "$PROFILE" in
 esac
 JOBS="${PLURNK_BENCH_JOBS:-3}"
 # The judge is the benchmark's, not ours: refuse before any spend rather than score a
-# missing key as an agent failure (SPEC §enterprise-oracle).
+# missing key as an agent failure (SPEC {§enterprise}).
 [ -n "${OPENAI_API_KEY:-}" ] || { echo "enterprise: OPENAI_API_KEY is absent; the Enterprise-Bench judge cannot run" >&2; exit 1; }
 for tool in harbor docker node npm unzip; do
   command -v "$tool" >/dev/null 2>&1 || { echo "enterprise: $tool is required" >&2; exit 1; }
 done
-# SPEC §results-canon: Harbor's job scratch and the published runs share ONE tree.
+# SPEC {§publish}: Harbor's job scratch and the published runs share ONE tree.
 JOBS_ROOT="$(node src/publish.ts --jobs enterprise)"
 mkdir -p "$JOBS_ROOT"
 
@@ -92,7 +92,7 @@ services_up || make -C "$BENCH_ROOT" -s start-servers >/dev/null
 for _ in $(seq 1 60); do services_up && break; sleep 1; done
 services_up || { echo "enterprise: MCP services did not come up on $MCP_PORTS" >&2; exit 1; }
 
-# Give the agent the BENCHMARK's own budget, not an arbitrary cap (SPEC §config-budget):
+# Give the agent the BENCHMARK's own budget, not an arbitrary cap (SPEC {§config-carry}):
 # each task's [agent] timeout_sec, minus headroom (daemon boot + DB snapshot) — the model gets
 # the whole budget the benchmark grants; an arbitrary shorter cap understates every result.
 task_budget() {
@@ -100,7 +100,7 @@ task_budget() {
 }
 # Harbor runs one path with one agent configuration, so the corpus is grouped by budget into
 # dataset views (copies of the task directories — Harbor walks and checksums them) and each
-# group runs as its own job with its own client timeout (SPEC §enterprise-budget-groups).
+# group runs as its own job with its own client timeout (SPEC {§enterprise}).
 GROUPS_ROOT=".cache/enterprise-groups"
 declare -a RUN_PATHS=() RUN_TIMEOUTS=()
 if [ "$TASK" = all ]; then
@@ -155,10 +155,10 @@ done
 while IFS= read -r line; do
   [ -n "$line" ] && flags+=(--agent-env "$line")
 done <<< "$MANIFEST"
-# SPEC §config-gbnf-optout: forward =0 so no operator grammar setting reaches the container's daemon.
+# SPEC {§config-carry}: forward =0 so no operator grammar setting reaches the container's daemon.
 [ -n "${PLURNK_BENCH_NO_GBNF:-}" ] && flags+=(--agent-env "PLURNK_PROVIDERS_GBNF=0")
 
-# Resolve immutable versions before Harbor constructs the agent image (SPEC §config-package-version).
+# Resolve immutable versions before Harbor constructs the agent image (SPEC {§config-carry}).
 SERVICE_VERSION="$(npm view @plurnk/plurnk-service version 2>/dev/null)"
 CLIENT_VERSION="$(npm view @plurnk/plurnk version 2>/dev/null)"
 [ -n "$SERVICE_VERSION" ] && [ -n "$CLIENT_VERSION" ] || {
@@ -168,9 +168,9 @@ CLIENT_VERSION="$(npm view @plurnk/plurnk version 2>/dev/null)"
 
 echo "enterprise: model=$MODEL task=$TASK profile=$PROFILE trials=$TRIALS jobs=$JOBS service=$SERVICE_VERSION client=$CLIENT_VERSION mcp_host=$MCP_HOST groups=${#RUN_PATHS[@]} client_timeouts=${RUN_TIMEOUTS[*]}s${PLURNK_BENCH_FORCE_BUILD:+ [force-build]}" >&2
 # The default personality ships on; PLURNK_POLICY stays unset so the benchmark gets the product default.
-# SPEC §publish-live: each group's Harbor job runs in the background while the publisher
+# SPEC {§publish}: each group's Harbor job runs in the background while the publisher
 # follows it, publishing every trial (record + digest) the moment it finishes; the requiem
-# only with PLURNK_BENCH_REQUIEM=1 (SPEC §publish-requiem). The publisher's subshell carries
+# only with PLURNK_BENCH_REQUIEM=1 (SPEC {§publish}). The publisher's subshell carries
 # the full authoritative provider config for that case without leaking those defaults back
 # into the forwarding above.
 for i in "${!RUN_PATHS[@]}"; do

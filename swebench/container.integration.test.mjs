@@ -34,7 +34,7 @@ async function fixture(kind) {
     };
 }
 
-for (const kind of ["plurnk", "pi"]) test(`{§swebench-container-runtime} installed ${kind}: native/shell identity`, {
+for (const kind of ["plurnk", "pi"]) test(`{§swebench-evaluator} installed ${kind}: native/shell identity`, {
     skip: !process.env[`PLURNK_BENCH_${kind.toUpperCase()}_RUNTIME`], timeout: 180000,
 }, async (t) => {
     const request = await fixture(kind);
@@ -60,7 +60,7 @@ for (const kind of ["plurnk", "pi"]) test(`{§swebench-container-runtime} instal
     await rm(trial, { recursive: true });
 });
 
-test("{§swebench-executor-encoding} installed runtime preflight uses the task toolchain without inference or network", {
+test("{§swebench-evaluator} installed runtime preflight uses the task toolchain without inference or network", {
     skip: !process.env.PLURNK_BENCH_PLURNK_RUNTIME, timeout: 60000,
 }, async (t) => {
     const parent = join(benchmarksHome(), "jobs", "adapter-tests");
@@ -83,7 +83,7 @@ test("{§swebench-executor-encoding} installed runtime preflight uses the task t
     await rm(trial, { recursive: true });
 });
 
-test("{§swebench-container-runtime} cancellation drains only its candidate and preserves its digest", {
+test("{§swebench-evaluator} cancellation drains only its candidate and preserves its digest", {
     skip: !process.env.PLURNK_BENCH_PLURNK_RUNTIME || !process.env.PLURNK_BENCH_PI_RUNTIME,
     timeout: 180000,
 }, async (t) => {
@@ -150,7 +150,7 @@ test("{§swebench-container-runtime} cancellation drains only its candidate and 
     for (const request of requests) await rm(request.trial, { recursive: true });
 });
 
-for (const mode of ["allowlist", "none"]) test(`{§swebench-network} Harbor enforces ${mode} for hostnames and direct IPs`, {
+for (const mode of ["allowlist", "none"]) test(`{§swebench-evaluator} Harbor enforces ${mode} for hostnames and direct IPs`, {
     skip: !process.env.PLURNK_BENCH_PLURNK_RUNTIME, timeout: 60000,
 }, async (t) => {
     const parent = join(benchmarksHome(), "jobs", "adapter-tests");

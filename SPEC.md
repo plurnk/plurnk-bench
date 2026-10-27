@@ -1,685 +1,110 @@
 # plurnk-bench — Specification
 
-Canonical contracts the bench makes: what a `BenchRecord` asserts, what a published
-`benchmarks/run<N>` contains, and what the runner carries into a task container. The bench's
-complaints to the constellation are only as credible as these contracts — this file is what a
-skeptic audits before trusting a filed issue. `AGENTS.md` covers process; this file covers
-contract.
+Canonical contracts for `BenchRecord`, published `benchmarks/run<N>` artifacts, host-side benchlets, container execution, and benchmark corpora.
 
-The `§` sigil marks a stable terse tag (house convention, see plurnk-service SPEC.md): a
-section is a tag (`§verdicts`); a promise under it is a child tag (`§verdicts-oracle-outranks`)
-whose prefix names its section. Tests cite tags in their names (`test("[§<tag>] …")`). A
-contract line with no citing test says **uncovered** — visibly, not silently.
+## §verdicts 1. Verdicts, Turn Provenance, and Attempt Telemetry
 
----
+`BenchRecord` carries two independent judgments and never lets one set the other:
 
-## §verdicts Two verdicts, never conflated
+| Field / Group | Authority & Rule |
+| --- | --- |
+| `status` | Client terminal loop status: how the agent loop ended (`200` ok, `499` cancelled, `4xx`/`5xx` failed). |
+| `outcome` / `reward` / `testPassFraction` | Benchmark oracle score (e.g. Pier's verifier running repository tests against `model.patch`). A `200` loop can fail the oracle; the oracle never inherits loop optimism. |
+| Oracle ground truth for `pass` | `reward === 1` yields `outcome = "pass"` regardless of how the loop ended (including `499` cancelled or timed-out loops whose patch passes all tests). |
+| Non-pass failure classification | Precedence when `reward !== 1`: client Problem doc -> `error`; `timedOut` -> `timeout`; `finalStatus === 499` -> `cancelled`; oracle never graded (`reward.json` absent) -> `error`; else `fail`. Pier exceptions (`AgentTimeoutError`, `VerifierTimeoutError`) reclassify `error` to `timeout` without overwriting a landed loop doc verdict. |
+| Turn count provenance (`turns`) | Precedence: `turns[].length` -> `turnCount` -> `0` (client `turnCount` reports `0` on abnormal termination even when turns ran; error-only crash docs without `turns[]` report `0` in `record.json` while the digest retains the DB turn count). Never opens the daemon DB directly ({§digest-boundary}). |
+| `patchLines` | Textual lines in Pier's graded `model.patch`, excluding Git encoded binary payloads (`0` on empty patch). |
+| `filesModified` | Existing files changed (`diff --git` count minus `new file mode` count). New files alone modify `0` existing files (`NO-ATTEMPT`). |
+| `p2pRegressed` | `true` iff `p2p_passed < p2p_total`, `false` when the counted suite fully passes, absent only when `reward.json` carries no p2p counts ("not regressed" and "not measured" never share a spelling). |
+| `testPassFraction` | Meaningful only when `outcome` is `pass` or `fail`; on `error`/`timeout`/`cancelled` it reflects the base repository grade, not progress. |
+| Composed failure modes | `filesModified === 0` -> `NO-ATTEMPT`; `filesModified > 0 && p2pRegressed` -> `BROKE-THE-BUILD`; `filesModified > 0 && !p2pRegressed && testPassFraction < 1` -> `NEAR-MISS`. |
 
-The record carries two independent judgments and never lets one set the other:
+## §accounting-cost-completeness 2. Campaign Reporting, Cost Completeness, and Cache Effectiveness
 
-- **`status`** — the client's terminal loop status: how the *agent loop* ended (200 ok, 499
-  cancelled, 4xx/5xx failed). The loop's own claim about itself.
-- **`outcome` / `reward` / `testPassFraction`** — the *benchmark oracle*'s score (DeepSWE:
-  Pier's verifier running the repo's tests against the produced patch). A loop can end 200
-  and still fail the oracle; the oracle never inherits the loop's optimism.
+- **DeepSWE campaign reporting (`deepswe/report.ts <job-directory>`)**: Joins finished Pier trial records to published workspace digests. Binary oracle rewards determine pass rate; ungraded trials remain separate. Cost, cache, and duration medians are task-weighted and state reported/eligible coverage. Unknown accounting is never `0`. Request cost provenance distinguishes `charged`, `estimated`, and `unknown` amounts. Duration is client agent-loop wall time (`wallMs`). Saved runner counts are timestamped snapshots, not liveness assertions. Repeated attempts for one task require explicit selection rather than best-result picking.
+- **Upstream baseline comparison (`--baseline <trials.json> --profile <config>`)**: Matches graded candidate tasks to the exact selected upstream configuration. All upstream trials marked `included_in_score` contribute binary `score_value` (never best-attempt picking). Missing counterpart tasks remain explicit and are excluded from both matched denominators. Peer token and agent-time medians use that matched set. Historical USD figures are not silently compared under different rate cards.
+- **Cost completeness**: Reporting preserves the daemon's known USD subtotal as `knownCostUsd` and counts priced physical requests and `charged`/`estimated`/`unknown` cost evidence. `costUsd` is complete only when every request has USD evidence; unsettled requests, unknown costs, and non-USD costs without a supplied USD equivalent leave `costUsd` as `null`. Missing usage does not invalidate a directly reported charge; explicit `0` is a measured amount, not missing evidence. Campaign totals and cost-per-solve require complete trial costs; medians use complete trials only with coverage shown; task-averaged cost requires every attempt of that task. Reports retain partial known spend separately, never call catalog estimates provider bills, and never rewrite original request evidence. Requiem follows the same rule over its own request ledger. Historical digests whose `costUsd` is a subtotal are verified per request before accepting a complete cost. Missing token fields remain unknown; gross-token metrics require complete input and output counts with coverage shown.
+- **Cache effectiveness (`cacheEffectiveness`)**: Measures prompt caching across the physical request ledger (every `emission` and `bare` request across workers, retries, and rejected emissions; requiem interviews use their own ledger). Every included request must report `inputTokens` and `cacheReadTokens` (otherwise `null`). Reports token-weighted `cacheReadTokenRatio = cacheReadTokens / inputTokens` (`null` when no model requests or zero input) and includes `cacheWriteTokens` only when every included request reports them. Invalid per-request counts fail before aggregation.
 
-### §verdicts-oracle-outranks The oracle is ground truth for PASS
+## §digest-boundary 3. Evidence Boundary, Platform Packages, Record Schema, and Provenance
 
-`reward === 1` → `outcome = "pass"`, regardless of how the loop ended — a cancelled (499) or
-timed-out loop whose patch passes all tests still passed the benchmark.
-Covered: `ingest.test.ts [§verdicts-oracle-outranks]`.
+- **Daemon DB and package boundary**: DB interpretation belongs to `@plurnk/plurnk-service/evidence` (`EvidenceReader.open`); report and snapshot generation belong to `@plurnk/plurnk-digest` (`Digest.run`, `Share.snapshot`); runtime-neutral `Problems`, `Validator`, and types come from `@plurnk/plurnk-contracts`. Dependencies resolve from the public npm registry and committed lockfile, never a sibling checkout, workspace link, local path, or unpublished package.
+- **Handle and incremental digest rules**: Bench holds `RunRef.dbPath` and issues zero raw SQL. Loop doc with `workspace` + `workerId` -> scoped handle; crash/error doc with copied DB -> `dbPath`-only handle (whole-DB digest); no DB copied -> absent handle (`null`). Reporting reads `digest.json` incrementally, retaining accounting and outcome fields while omitting opaque provider response bodies. Invalid or unfinished JSON is an export failure, never a zero-cost or turnless result.
+- **`BenchRecord` schema and serialization**: `BenchRecord` round-trips 1:1 through `record.json` / JSONL. Accepted client-document schema is version `6`: its run reference uses `workspaceId`/`workerId`/`loopId`, ingest preserves its complete `usage` envelope, ordered physical requests are the accounting evidence ({§publish}), known aggregate token quantities remain optional, and `costUsd` is an exact decimal string or `null`. Curation `curationWeight`/`curationBudget`, physical context `contextTokens`/`contextCapacity`, and provider metadata remain sibling fields; bench never compares model-independent weight with provider tokens and does not project rates, tokens, or cost. Failed client documents preserve exact RFC 9457 `problem`; Pier exceptions map once to a `bench:pier` Problem. Earlier client schemas, legacy session/run coordinates, pico-USD, old `error` field, and flattened failure strings are rejected rather than translated.
+- **Job-tree provenance**: Any child of `jobs/<job>/` holding `result.json` with `trial_name` (absent on job-level `result.json`) is a trial directory, supplying `task_name`, `config.agent.model_name`, Pier timing, and exceptions in deterministic directory-name order.
 
-### §verdicts-failure-class Non-pass is classified by the loop's failure mode
+## §publish 4. Run Publication, Requiem Interviews, and Results Canon
 
-In order: client Problem doc -> `error`; `timedOut` -> `timeout`; `finalStatus 499` ->
-`cancelled`; oracle never graded (`reward.json` absent) → `error`; else `fail`. Pier-level
-exceptions (`AgentTimeoutError`, `VerifierTimeoutError`) reclassify an `error` outcome to
-`timeout` — but never overwrite a verdict a real loop doc already landed.
-Covered: `ingest.test.ts [§verdicts-failure-class]`, `[§provenance]`.
+`publishRun` writes `<benchmarksHome>/run<N>-<harness>-<task>-<model>/` as a plain folder (never an archive) containing `plurnk.db` (consolidated via `Share.snapshot` including `-wal` pages, {§share-packet-names}), `digest/` (rendered from the copy), and `record.json`.
 
-## §turns-provenance Turn count comes from the doc's own turns[] array
+| Aspect | Contract |
+| --- | --- |
+| Numbering & live launch folder | `run<N>-<harness>-<task>-<model>` sets `N = max + 1` (else `1`, non-run dirs ignored), task last path segment, and model alias. `allocateRunDirectory` may allocate the folder before daemon launch (with trial scratch `agent` linked to it) so `plurnk.db` is live from turn 1 and publication finalizes it in place (`swebench` prints `run=<folder>` at launch; preflight opens no run folder). |
+| Turnless & model-attempt gates | A turn-less DB (`0` digest turns) or a DB without at least one model turn (setup/maintenance turns only) is rolled back and not published. A trial whose client record died mid-loop still publishes if its DB holds model turns. No run handle returns `null`. |
+| Live watcher & self-reference | `publish.ts --watch <job> --pid <harness>` publishes each finished trial once (marking `.plurnk-bench-published`) and sweeps once more when the harness exits. `record.json` points its digest handle at the published copy, never into `jobs/`, without mutating input. |
+| Digest provenance & workspace scope | If the candidate rendered `agent/digest/digest.json` beside its DB, publication copies that digest verbatim; otherwise the installed service renders it. Published digests are workspace-scoped (never narrowed to `workerId`, preserving child worker evidence while `record.json` keeps `run.workerId` for drill-down). |
+| Task & requiem accounting | Published `record.json` copies the digest's sole workspace `accounting` projection verbatim under `usage.accounting` (including child, BARE, and failed physical requests; unsettled remains `null`; primary-loop context fields retain client values or `null`; ambiguous workspace scope or inconsistent request cardinality fails publication). When `PLURNK_BENCH_REQUIEM=1`, `publishRun` invokes the service's `requiem` command (best-effort on missing witness) and folds the banked interview's accounting summary (`workers`, `providerRequests`, `usage`, `cacheEffectiveness`, exact nullable USD) into `record.json` under `requiem` (failing hard if folding a banked interview fails). |
+| Results canon (`PLURNK_BENCH_HOME`) | `~/benchmarks` (or `PLURNK_BENCH_HOME`) holds published runs at its root and harness scratch under `jobs/<harness>/`. Nothing lands inside a repository; `jobs/` is read post-hoc only for the daemon log of a 0-turn boot failure. |
 
-The client doc's `turnCount` reports 0 on abnormal termination even when turns really ran;
-the doc's `turns[]` array is honest. Precedence: `turns[].length` → `turnCount` → 0. The
-bench never opens the daemon DB to count (see §digest-boundary).
-Covered: `ingest.test.ts [§turns-provenance]`.
-Known gap: on a bridge/crash run the doc is error-only (no `turns[]` at all) and the record
-reports 0 while the digest knows better (e.g. run42: record 0, digest 46). Open work: prefer
-the digest's count for error docs.
+## §benchlet-diagnostic 5. Pinned Host-Side Benchlet Diagnostics and Container Execution
 
-## §attempt-telemetry Failure-mode telemetry — a 0-reward must be legible
+`deepswe/benchlet.sh --task <task>` (and `atlas/benchlet.sh`) runs repeatable host-side diagnostics against checked-in task manifests (release gate specimens: `sqlite-db-truncate`, `fastapi-deprecation-response-headers`), atomically allocating `../benchmarks/run<N>-deepswe-<task>-<model>/`.
 
-Read from Pier's graded `model.patch`, never inferred from the loop's claims:
+- **Provenance & explicit client checkout**: Manifests pin upstream commit, task files/hashes, environment, verifier backend, and timeouts. Runs require clean bench, service, and client commits and copy the pinned task into the run artifact. Host candidates require explicit `PLURNK_BENCHLET_CLIENT_ROOT` (DeepSWE) or `PLURNK_BENCH_ATLAS_CLIENT_ROOT` (Atlas), resolving relative paths from bench root and failing before run allocation when missing or blank.
+- **Pristine baseline, tree manifests, & oracle exclusions**: Harnesses prove the pristine baseline before invoking a model (`grader.py prepare` + `go test -json` for ABS; pinned task image + `tests/test.sh` requiring consistent `reward.json` and `ctrf.json` for Docker). Terminal-Bench 2.1 tree manifests (`kind: "terminal-bench"`, pinned by `pin-task.mjs --terminal-bench`) copy `/app` out as the candidate tree, set `PLURNK_MEMBERS_task=**`, rewrite `/app` in the instruction to the host tree, grade sorted file sha256 state over a fresh container's `/app` via `tests/test.sh` (`reward.txt` and `ctrf.json` must agree), and require a pristine baseline grade of `0`. Baseline-failing `p2p_node_ids` leave the graded set for that run only (recorded in `oracle-exclusions.json` and `result.json.oracle.environmentExcludedP2p`, merged into `config.json`; `> 1` exclusion must not exceed `1/10` of the p2p set; f2p tests are never excused; `--preflight` lists exclusions).
+- **Container execution & scratch (`CandidateContainer`)**: For Docker manifests, `src/candidate-container.ts` starts one long-lived container with manifest network/CPU/memory limits, bind-mounts the repo at its host path and `/app`, `chown -R`s the image's default `$HOME` (never empty or `/`) to the host user, and places executor shims (`sh`, `bash`, `node`, `python3`, `npm`, `cargo`, `go`, ...) in front of the daemon's `PATH` carrying literal container id, repo path, user, and host `PATH` (forwarding commands into the container when cwd is inside the repo and running host binaries otherwise). It creates `0700` `<run>/exec-scratch` (`<trial>/exec-scratch` for SWE-bench, refusing relative paths), bind-mounts `-v <dir>:<dir>`, exports `PLURNK_SERVICE_EXEC_SCRATCH=<dir>` via `CandidateContainer.daemonEnvironment()` ({§exec-target-routing}), and writes `candidate-execution.json` (`kind: "task-container"` or `"host"`, `image`, `network`, `container`, `home`, `scratch`, `mounts`, and shim set).
+- **Candidate isolation (`src/candidate-isolation.ts`)**: Sets `<alias>_ENABLED=0` and family defaults `0` for operator MCP/A2A aliases and operator `PLURNK_SKILLS_<name>` definitions (including Unicode and digit-leading names) without blanking definitions, denies `web`, `mcp`, and `a2a` in `PLURNK_SERVICE_CAPABILITIES` ({§capability-admission}), sets `PLURNK_SCHEMES_HTTP_HOSTS=[]`, blanks `BRAVE_API_KEY` and `TAVILY_API_KEY`, and writes `candidate-isolation.json` (campaign sheets report web references taught in the first packet beside refused attempts).
+- **Two patches, exit classification, evidence, & requiem witness**: Grades both `model.patch` (`base..HEAD` committed submission) and `working.patch` (committed, tracked, and untracked working state) distinctly. `result.json` (schema version `2`) records `providerRequests` (physical cardinality), `rejectedEmissions` (admission evidence), native provider usage, exact decimal string or `null` USD totals, and sets `candidate.outcome = "finished"` only on clean exit; timeout, spawn failure, or non-zero exit sets `harnessStatus = "candidate_failed"`, and a zero-byte submission diff sets `oracle.submissionEvidence.emptyPatch`. `PLURNK_BENCHLET_CANDIDATE_TIMEOUT_SEC` accepts a positive cap or `-1` (no limit). Failure summaries count causal incidents (one per failed op or shared worker-owned stream address) and underlying observation rows. Asynchronous children share the benchlet cancellation signal, draining stdout/stderr before evidence is finalized while a harness watchdog is distinctly recorded as `timedOut`. Zero physical provider requests or interrupted runs record terminal infrastructure failure. Requiem requires explicit `PLURNK_BENCHLET_REQUIEM_MODEL` (never falling back to candidate alias) and both `requiem.md` and `requiem.json`.
 
-- `patchLines` — textual lines in the graded patch, excluding Git's encoded binary payload;
-  empty patch → 0.
-- §attempt-files-modified `filesModified` — EXISTING files changed (`diff --git` count minus
-  `new file mode` count). A junk dump (new .txt files into /app) is non-empty but modifies 0
-  existing files → still NO-ATTEMPT.
-  Covered: `ingest.test.ts [§attempt-files-modified]`.
-- §attempt-broke-build `p2pRegressed` — a base pass-to-pass test now fails: the patch broke
-  the build / existing behavior. `true` iff `p2p_passed < p2p_total`, `false` when the counted
-  suite fully passes, absent only when the reward carries no p2p counts — "not regressed" and
-  "not measured" never share a spelling.
-  Covered: `ingest.test.ts [§attempt-broke-build]`.
-- §attempt-partial-gated `testPassFraction` is ONLY meaningful when `outcome` says a loop ran
-  (pass/fail) — on error/timeout/cancelled it is the base repo's grade, not progress.
-  **Uncovered** (documented on the field; no test asserts the gating).
+## §pair-sheet 6. Paired Harness Comparison and Mini Trajectory Digest
 
-Failure modes these compose to: `filesModified 0` → NO-ATTEMPT · `filesModified>0 +
-p2pRegressed` → BROKE-THE-BUILD · `filesModified>0, no regress, fraction<1` → NEAR-MISS.
+- **Paired run (`deepswe/pair.sh --task <task>`)**: Runs a pinned DeepSWE task sequentially through the plurnk benchlet ({§benchlet-diagnostic}) and Pier's `mini-swe-agent` on the same model route under `<benchmarks>/jobs/pairs/<task>-<alias>-<stamp>/` (`plurnk/`, `mini/`, `pair.json`, `facts.json`, `PAIR.md`; a second run on either side is an error).
+- **Route, fact shape, budget, & flags**: Plurnk uses `--alias` (default `PLURNK_MODEL`); mini resolves `deepswe/pair.aliases.json` (`-m` model, endpoint, key env var name, reasoning effort; unmapped alias refused; `pair.json` records the key variable name). Both sides project into one fact shape (`state`: `complete`/`failed`/`skipped`/`absent`, `model`, `reward`/`f2p`/`p2p`/`partial`, `steps`, `providerRequests`, `tokens`, candidate `cost` excluding requiem, agent and harness wall time, loop exit; unsupplied facts are `absent`, never `0`). Mini uses task `[agent] timeout_sec`; plurnk uses `PLURNK_BENCHLET_CANDIDATE_TIMEOUT_SEC`. Supports `--preflight`, `--skip-plurnk`, `--skip-mini`, and `--sheet <pair>`.
+- **Mini trajectory digest (`deepswe/mini-trajectory.ts`)**: Reads `agent/mini-swe-agent.trajectory.json` (OpenAI Responses objects interleaved with `function_call_output` observations) into `<trial>/digest/steps.md` and `steps.json` (assistant words, reasoning summary, bash command, return code/line count/head, per-response and total usage, exit status, and submission; missing usage is `null`, never `0`).
 
-## §deepswe-report DeepSWE campaign reporting
-
-`deepswe/report.ts <job-directory>` joins finished Pier trial
-records to their published workspace digests. Binary oracle rewards determine
-pass rate; ungraded trials remain separate. Cost, cache, and duration medians are
-task-weighted and state their reported/eligible coverage. Unknown accounting is
-not zero. Request cost provenance distinguishes charged, estimated, and unknown
-amounts. Duration is the client's agent-loop wall time. The runner's saved counts
-are a timestamped snapshot, not a process-liveness assertion. Repeated attempts
-for one task require explicit selection rather than best-result picking.
-
-§deepswe-comparison Optional `--baseline <trials.json> --profile <config>`
-matches graded candidate tasks to the exact selected upstream configuration.
-All upstream trials marked `included_in_score` contribute their binary
-`score_value`; never select each task's best attempt. Missing counterpart tasks
-remain explicit and are excluded from both matched denominators. Peer token and
-agent-time medians use that same matched set. Historical USD figures are not
-silently compared under different rate cards.
-
-§accounting-cost-completeness Reporting preserves the daemon's known USD subtotal
-as `knownCostUsd` and counts priced physical requests and charged/estimated/unknown
-cost evidence. `costUsd` is complete only when every request has USD evidence;
-unsettled requests, unknown costs, and non-USD costs without a supplied USD
-equivalent leave it `null`. Missing usage does not invalidate a directly reported
-charge. Explicit zero is a measured amount, not missing evidence.
-
-Campaign totals and cost-per-solve require complete trial costs. Medians may use
-complete trials only, with their coverage shown; task-averaged cost requires every
-attempt of that task. Reports retain partial known spend separately and never
-call catalog estimates provider bills. Requiem follows the same rule over its
-own request ledger. Original request evidence is never rewritten by a report.
-Current daemon projections supply separate complete and known quantities. For
-historical digests whose `costUsd` is a subtotal, reporting still verifies every
-request before accepting a complete cost. Missing token fields remain unknown,
-never zero; gross-token metrics require both complete input and output counts,
-and their coverage is shown as cost's is.
-
-## §digest-boundary Bench never reads the daemon DB
-
-DB interpretation belongs to the service's public `EvidenceReader`; report and snapshot
-generation belong to `@plurnk/plurnk-digest`. Bench holds a **pointer**
-(`RunRef.dbPath`), renders through `Digest.run` when it publishes a run, and issues zero raw SQL. The handle rules:
-loop doc carried `workspace`+`workerId` -> scoped handle; crash/error doc but a DB was copied ->
-`dbPath`-only handle (digest renders the whole DB); no DB copied → no handle, honestly
-absent — the bench never fabricates one. Reporting reads the complete `digest.json`
-incrementally, retaining accounting and outcome fields but not opaque provider response
-bodies. Full evidence stays in the daemon's artifacts. Invalid or unfinished JSON is an
-export failure, never a zero-cost or turnless result.
-Covered: `ingest.test.ts [§digest-boundary]` ×2, `digest.test.ts [§digest-boundary]`,
-`record.test.ts [§digest-boundary]`.
-
-## §platform-package-boundary Public platform dependencies follow their owners
-
-The bench imports runtime-neutral Problems, operation-result validation, and their types
-directly from the independently published `@plurnk/plurnk-contracts` package. It imports
-report generation from `@plurnk/plurnk-digest` and supplies the service's public
-`EvidenceReader.open` from `@plurnk/plurnk-service/evidence`. These dependencies resolve
-from the public npm registry and the committed lockfile; a sibling checkout, workspace link,
-local path, or unpublished package is never part of the bench's install contract.
-
-## §record-serial The record is a store row
-
-`BenchRecord` round-trips through JSON without loss — it serializes 1:1 to `record.json` /
-a JSONL line.
-Covered: `record.test.ts [§record-serial]`, `[§verdicts]`.
-
-The accepted client-document schema is version 6. Its run reference uses
-`workspaceId`/`workerId`/`loopId`, and ingest preserves its complete `usage` envelope.
-Publication applies {§publish-task-accounting}: ordered physical requests are the accounting evidence, known aggregate
-token quantities remain optional, and `costUsd` is an exact decimal string or
-`null`. Curation `curationWeight`/`curationBudget`, physical context
-`contextTokens`/`contextCapacity`, and provider metadata remain sibling fields;
-bench never compares model-independent weight with provider tokens and does not
-project rates, tokens, or cost.
-A failed client document preserves its exact RFC 9457
-Problem under `problem`; Pier exceptions are mapped once to a `bench:pier`
-Problem. Earlier client schemas, legacy session/run coordinates, pico-USD, the
-old `error` field, and flattened failure strings are rejected rather than translated.
-
-§accounting-cache-effectiveness `cacheEffectiveness` measures model prompt caching
-from the daemon's physical request ledger: every `emission` and `bare` request,
-across workers, retries and rejected emissions. Requiem interviews
-use their own model-request ledger. Each included request must report input and
-cache-read tokens; otherwise the projection is `null`, not a selected complete
-subset. With complete evidence, sum those counts and report
-`cacheReadTokenRatio = cacheReadTokens / inputTokens`; include cache-write tokens
-only when every included request reports them. No model requests yields `null`;
-explicit zero input yields counts with a `null` ratio. Invalid per-request counts
-fail before aggregation. The ratio is token-weighted, not a request hit rate,
-and never substitutes for the retained accounting evidence.
-
-## §provenance Job-tree walking and trial identity
-
-A trial dir is any child of `jobs/<job>/` holding a `result.json` with a `trial_name` (the
-job-level result.json has none). `result.json` is the provenance source: `task_name`,
-`config.agent.model_name`, Pier timing and exceptions. Trials walk in directory-name order —
-deterministic output.
-Covered: `ingest.test.ts [§provenance]`.
-
-## §publish The published run is the complete, canonical result
-
-`publishRun` writes `<plurnk>/benchmarks/run<N>/` containing **`plurnk.db`** (the daemon DB,
-copied through `@plurnk/plurnk-digest`'s `Share.snapshot` — SQLite's consistent copy, so committed pages
-still in the trial's `-wal` file arrive, {§share-packet-names}), **`digest/`** (rendered from the
-COPY — the dir is self-contained), and **`record.json`** (the joined landing: the oracle side
-the DB+digest cannot carry). The run dir is a plain folder, never an archive; the bench's own
-layout sits over the report package's snapshot and digest, and adds no copy or zip of its own.
-Covered: `publish.test.ts [§publish] {§share-packet-names}`.
-
-- §publish-numbering `run<N>-<harness>-<task>-<model>`: N continues the tree (max existing + 1,
-- §publish-launch-folder **The run folder is live from launch.** A runner may allocate the run folder before the daemon starts (`allocateRunDirectory`, the same naming rule) and run the daemon with that folder as its own directory, so `plurnk.db` is there from the first turn and the operator watches the run where it will be read; the trial's scratch keeps `agent` as a link to it. Publication then finalizes that folder in place — the database consolidated through {§share-packet-names}, `digest/` and `record.json` written beside it — rather than copying from the scratch. A trial that opened its folder at launch is published nowhere else. The swebench runner does this for every graded trial and prints `run=<folder>` at launch; a preflight opens no run folder.
-  else 1; non-run dirs ignored), the task is its last path segment, the model its alias — the
-  same shape the benchlets allocate.
-- §publish-turnless-gate A turn-less DB (infra failure — the daemon never looped) is rolled
-  back, not published. Gate: the rendered digest's `turns`.
-  Covered: `publish.test.ts [§publish-turnless-gate]`.
-- §publish-model-attempt-gate The DB's own evidence decides: a published run holds at least
-  one model turn in its digest. Setup/maintenance turns alone are no attempt; a trial whose
-  client record died mid-loop (a bridge error stub) still publishes, because its model turns
-  are in the DB.
-- §publish-live Each trial publishes the moment it finishes: the runner starts its harness in
-  the background and `publish.ts --watch <job> --pid <harness>` follows the job, publishing
-  every finished trial (record + digest) and sweeping once more when the harness exits — a
-  corpus can be followed run by run while it is still going. A trial publishes exactly once:
-  its `.plurnk-bench-published` marker names the run dir (empty when nothing was publishable).
-- §publish-self-referential `record.json`'s digest handle points at the PUBLISHED copy,
-  never back into the gitignored `jobs/` scratch; the input record is not mutated.
-  Covered: `publish.test.ts [§publish-self-referential]`.
-- §publish-requiem The requiem (`digest/requiem.md` — the model's exit interview, which
-  re-invokes the model once per published run) is an investigation instrument, banked only
-  when the operator asks: `PLURNK_BENCH_REQUIEM=1` (SPEC §config-bench-namespace). When
-  requested it invokes the installed service's `requiem` command, which owns provider
-  selection and configuration. It is BEST-EFFORT: a missing witness is a
-  skip, never a publish failure. Covered: `src/publish.test.ts [§publish-requiem]` (the
-  opt-in gate); the live requiem itself is validated against real runs only.
-- §publish-digest-provenance A digest is read by the runtime that wrote the database. A trial whose
-  candidate rendered its own digest beside its database (`agent/digest/digest.json`) publishes
-  that digest, copied verbatim; only a run without one is rendered at publish time by this
-  checkout's installed service, whose digest may predate the schema the run was written under.
-  Covered: `src/publish.test.ts [§publish-digest-provenance]`.
-- §publish-workspace-scope The published digest is workspace-scoped, never worker-narrowed:
-  the trial container's DB holds one fresh workspace, and the workerId selector would
-  exclude child worker evidence. record.json keeps `run.workerId` as a
-  drill-down handle only. Covered: `src/publish.test.ts [§publish-workspace-scope]`.
-- §publish-task-accounting Published `record.json` uses the digest's sole workspace
-  `accounting` projection verbatim under `usage.accounting`, including child, BARE,
-  and failed physical requests. An unsettled projection remains `null`, never a
-  parent-only total or zero. Primary-loop context fields retain client values, or
-  `null` when absent. Ambiguous workspace scope and inconsistent request cardinality
-  fail publication. Client and provider source artifacts remain unchanged.
-  Covered: `src/publish.test.ts [§publish-task-accounting]`.
-- §publish-requiem-accounting A banked interview's spend is part of the run's ledger:
-  after the requiem lands, its accounting summary (workers, provider requests, usage,
-  cache effectiveness, exact nullable USD) folds into `record.json` under `requiem`, so
-  a corpus tally reads one file per run. A fold failure after a banked interview is a
-  defect and fails hard — never a silent skip. Skipped interviews fold nothing.
-  Covered: `src/publish.test.ts [§publish-requiem-accounting]`.
-- No run handle → nothing to publish (`null`) — the bench never fabricates a run dir.
-  Covered: `publish.test.ts [§publish]`.
-
-## §results-canon Where results are read
-
-ONE tree — the benchmarks home, `~/benchmarks` unless `PLURNK_BENCH_HOME` says otherwise —
-holds everything a run produces: published runs at its root
-(`run<N>-<harness>-<task>-<model>/`, landings from `record.json`, forensics through
-`digest/`), and each harness's job scratch under `jobs/<harness>/` (Pier's and Harbor's own
-trees, needed by their verifiers and resume). Nothing lands inside a repository or anywhere
-else. Published runs are the canonical results source; `jobs/` is scratch whose ONLY read is
-the daemon log of a 0-turn boot failure, which never publishes (§publish-turnless-gate).
-Covered: `host-paths.test.ts`, `publish.test.ts [§results-canon]`.
-
-## §benchlet-diagnostic Pinned host-side diagnostics
-
-`deepswe/benchlet.sh --task <task>` is the sole host-side entrypoint for
-iterative diagnosis against a checked-in task manifest; there is no default
-task. The release gate runs the two FrontierHarness specimens chosen for being
-awkward for Plurnk rather than generically hard (#22): `sqlite-db-truncate`
-(a binary the model must read) and `fastapi-deprecation-response-headers`
-(2,915 tracked files to admit and embed). A selected task, candidate model,
-source revisions, and policy snapshot remain fixed within a run. The benchlet is not a
-leaderboard result and does not replace Pier; its value is repeatability and
-complete evidence while changing one experimental variable at a time.
-
-- §benchlet-provenance The manifest pins the upstream repository commit, task
-  files and hashes, environment, verifier backend, and verifier timeouts. A run
-  requires clean bench, service, and client commits and records those
-  revisions. The complete pinned task is copied into the run artifact.
-- §benchlet-client-checkout Host-side candidates require an explicit outside
-  client checkout: `PLURNK_BENCHLET_CLIENT_ROOT` for DeepSWE and
-  `PLURNK_BENCH_ATLAS_CLIENT_ROOT` for Atlas. Portable defaults never guess a
-  sibling checkout. Missing or blank input fails before run allocation or
-  external activity; relative paths resolve from the bench root, and the exact
-  clean client revision remains part of run provenance.
-- §benchlet-oracle The harness proves the pristine baseline before invoking a
-  model. The ABS diagnostic delegates preparation to the task's
-  `grader.py prepare` and runs its selected suites through ordinary
-  `go test -json`. Docker-backed diagnostics run the pinned task image and
-  canonical `tests/test.sh`, then require consistent `reward.json` and
-  `ctrf.json` evidence. Malformed output is infrastructure failure; absent test
-  evidence fails rather than passing by omission.
-- §benchlet-candidate-exit **A run the clock or the provider killed never got to
-  try, and the record says so.** `result.json`'s `candidate.outcome` is `finished`
-  only for a clean exit; a timeout, a spawn failure and a non-zero exit each name
-  themselves, and any of them makes `harnessStatus` `candidate_failed` whatever the
-  requiem did. Separately, a submission diff of zero bytes is `oracle.submissionEvidence.emptyPatch`:
-  the model produced nothing, which is a real result and a graded loss, never an
-  ordinary near-miss and never an absent oracle. The pair sheet carries both as notes
-  beside the grade. Origin: three `dumbox-20260918` runs were cut off at 600 s before
-  the model issued a single edit and were recorded as complete runs that simply failed
-  the oracle, which would have read as the rail getting worse at the task. This is the
-  DeepSWE half of what {§swebench-trial} and {§swebench-evaluator} state for SWE-bench.
-
-- §benchlet-oracle-exclusion A pass-to-pass test that fails on the pristine
-  baseline in this environment cannot discriminate a candidate here, so it
-  leaves the graded set for that run only: the pinned task files stay
-  byte-identical, the verifier receives the pinned config merged with the
-  reduced `p2p_node_ids` (kept beside the grading artifacts as `config.json`),
-  and the run records every excluded id with its baseline output in
-  `oracle-exclusions.json` and under `oracle.environmentExcludedP2p` in
-  `result.json`. Fail-to-pass tests are never excused: a baseline where any
-  passes is a broken task. One exclusion is a flaky test; more than one must
-  stay within a tenth of the p2p set, otherwise the environment is broken and
-  the run stays an infrastructure failure. `--preflight` names what a run would
-  exclude. Origin: eicrud's own login rate limiter answered 425 to a test
-  expecting 401 because this host ran two attempts inside the framework's
-  minimum interval — three runs, the same test, no model involved.
-- §benchlet-container-exec The candidate's commands run inside the task image. For a
-  Docker manifest the run starts one long-lived container of the pinned image with
-  the manifest's network, CPU, and memory limits, the candidate repository
-  bind-mounted at its own host path and at `/app`, working directory that path,
-  and writes a shim directory in front of the candidate daemon's PATH for every
-  executor name the daemon spawns (`sh`, `bash`, `node`, `python3`, `npm`, `cargo`,
-  `go`, …). A shim whose working directory lies inside the repository forwards the
-  command into the container at the same path, as the host user with the image's own
-  `HOME`, stdin and exit status intact; any other working directory runs the real binary
-  through the saved host PATH, so the client build and the daemon's own tooling stay
-  host-side. Each shim carries the container id, repository path, user, and host PATH
-  as literals, because the daemon scrubs its own variables from subprocess
-  environments; only PATH reaches the command. At start, the image's own home (its default
-  user's `$HOME`, never empty or `/`) is handed to the host user with `chown -R`, because the
-  images install toolchains and dependency caches there (`/root/.cargo`, `/root/go/pkg/mod`)
-  and the verifier, running as the image's user, sees them. The container is removed when the candidate finishes or the run fails:
-  `CandidateContainer` (`src/candidate-container.ts`) owns the lifecycle behind an injected
-  runner, so the exact docker invocations, the single removal on stop, the idempotent stop, and
-  a failed start that removes what it created are unit witnesses without a daemon or an image.
-  `candidate-execution.json` records the image, network, container, home, mounts, and shim
-  set (`kind: "task-container"`; host manifests record `kind: "host"`). Origin: on
-  2026-09-08 the host lacked the images' optional test dependencies, toolchain
-  versions, and services; candidates met phantom test-collection errors and
-  repaired the machine instead of the task. On 2026-09-17 the shims ran with `HOME=/tmp`:
-  wasmi's `cargo` was "Permission denied" (the image's only toolchain is in mode-700 `/root`) and
-  participle's Go module cache was empty under network none, so neither candidate could run the
-  task's tests while the verifier could.
-- §benchlet-container-scratch The daemon's executor scratch is the run's own directory, seen at
-  one absolute path on both sides. The daemon writes the absolute host path of a realized
-  executor source into the command it hands the shim ({§exec-target-routing}); unset, that
-  path is `$XDG_RUNTIME_DIR/plurnk`, which the container does not mount. So every lane whose
-  daemon runs on the host and whose executors run in a task container (the Docker benchlet and
-  `swebench/run.ts`) names `<run>/exec-scratch` (`<trial>/exec-scratch` for a SWE-bench trial):
-  it is created `0700` on the host before the container is, bind-mounted beside the repository
-  mounts as `-v <dir>:<dir>`, exported to the candidate daemon as
-  `PLURNK_SERVICE_EXEC_SCRATCH=<dir>`, and recorded in `candidate-execution.json` as `scratch`
-  and among `mounts`. A relative directory is refused before docker is asked. Per-run, so it is
-  removed with the run. `CandidateContainer.daemonEnvironment()` is the one source of the knob,
-  so the mount and the export cannot name different directories. Covered:
-  `candidate-container.test.ts [§benchlet-container-scratch]`.
-- §benchlet-isolation A benchlet candidate reaches no network beyond its model.
-  The operator's MCP and A2A aliases (from files and the shell) receive explicit
-  `<alias>_ENABLED=0` controls, with both family defaults disabled. Definitions
-  remain inspectable and are never blanked. Alias-specific controls that precede
-  a definition are disabled too. The candidate reads no operator skill roots;
-  explicit operator `PLURNK_SKILLS_<name>` definitions, including standard Unicode
-  and digit-leading names, receive the same per-alias disable controls. The
-  service-provided Plurnk reference remains available under its normal defaults.
-  `PLURNK_SERVICE_CAPABILITIES` denies the `web` trait at the service ceiling, so the one
-  resolver that refuses a web operation also drops the `https` and `wss` references and
-  their survey rows ({§capability-admission}): the model is never taught a door it may not
-  open. The same ceiling denies the `mcp` and `a2a` families by name, so a masked family's
-  page and verbs leave the survey with it instead of standing there empty
-  (plurnk-service#842). `PLURNK_SCHEMES_HTTP_HOSTS=[]` is the daemon's own network boundary, a different
-  choice, and search credentials (`BRAVE_API_KEY`, `TAVILY_API_KEY`) are blanked.
-  `candidate-isolation.json` records the masked names and the ceiling; the campaign sheet
-  reports the web references the first packet taught beside the attempts it refused. Origin: on 2026-09-17 four
-  of ten deepdumb candidates read the upstream solution from GitHub through the
-  daemon's `https` scheme, and two queried Brave.
-- §benchlet-tree A Terminal-Bench 2.1 task is a tree manifest (`kind:
-  "terminal-bench"`, pinned by `pin-task.mjs --terminal-bench`): no repository,
-  the image's `/app` copied out as the candidate tree, the task's own `[agent]
-  timeout_sec` as the candidate budget, and the harness member definition
-  (`PLURNK_MEMBERS_task=**`) admitting the candidate tree relative to the
-  host-side workspace root. Its state is the sorted sha256 listing of every file, submission and
-  working state being one; grading copies the tree over a fresh task
-  container's `/app` and runs the canonical `tests/test.sh`, whose
-  `reward.txt` and `ctrf.json` must agree. The pristine image must grade 0
-  before a model is invoked. The instruction names the container path `/app`;
-  the host candidate reads it with that path rewritten to its own tree and the
-  rewrite recorded in provenance, since the tree lives in the run directory on
-  the host and at `/app` only inside the verifier's container.
-- §benchlet-two-patches `model.patch` is only `base..HEAD`, matching the
-  committed submission the canonical benchmark grades. `working.patch`
-  separately captures committed, tracked, and untracked working state. Both
-  are graded and named distinctly; an uncommitted solution is never reported
-  as the submitted score.
-- §benchlet-evidence Every command records raw stdout, raw stderr, exit status,
-  signal, and timeout state before the harness reads its output. A complete run
-  includes the database, digest, exact packet files, every physical provider
-  request plus logical emissions and their reasoning/admission errors, terminal
-  loop Problems, both oracle results, exact requiem request and response evidence,
-  usage, nullable daemon-reported USD cost, and the ordered
-  charged/estimated/unknown evidence from which the daemon derived it. Result
-  documents use schema version 2;
-  `providerRequests` is physical cardinality, `rejectedEmissions` is admission
-  evidence, native provider usage is preserved, and USD totals remain exact
-  decimal strings or `null`. Failure summaries count causal incidents rather
-  than log projections: a failed operation is one incident, and terminal
-  channel observations sharing one worker-owned stream address are one stream
-  incident whose channels remain listed as evidence. The summary reports both
-  incident counts by Problem type and the number of underlying observation rows.
-  Every asynchronous child shares the benchlet's cancellation signal; an operator
-  interruption terminates the child and drains both streams before evidence is finalized,
-  while a harness watchdog remains distinctly recorded as `timedOut`.
-- §benchlet-failure A run with no physical provider request is infrastructure, not a
-  model score. A requiem is complete only when its process succeeds and both
-  `requiem.md` and `requiem.json` exist. Infrastructure failures retain the
-  stage, error, provenance, and all artifacts written before the failure. An
-  interrupted allocated run is such a terminal infrastructure failure, never a
-  permanently `running` run.
-- §benchlet-requiem-witness The requiem is an independent forensic model call,
-  not another candidate turn. `PLURNK_BENCHLET_REQUIEM_MODEL` names its
-  required witness alias; the candidate alias is never an implicit fallback.
-  Provenance records both aliases, and the witness receives the complete
-  evidence without truncation or summarization.
-- §benchlet-location Runs are atomically allocated as sibling
-  `../benchmarks/run<N>-deepswe-<task>-<model>/` directories. Concurrent claims
-  advance to another number rather than nesting or reusing a run.
-- §benchlet-candidate-timeout `PLURNK_BENCHLET_CANDIDATE_TIMEOUT_SEC` accepts
-  the positive cap, or `-1` — the plurnk no-limit idiom — which removes the
-  candidate timer entirely; the overhead still applies to the run's records.
-
-Covered: `benchlet.test.ts [§benchlet-oracle]`, `[§benchlet-oracle-exclusion]`, `[§benchlet-candidate-exit]`
-(with `pair.test.ts [§pair-sheet]`), `[§benchlet-container-exec]`
-(shims; lifecycle in `candidate-container.test.ts`),
-`[§benchlet-evidence]`, `[§benchlet-failure]`, `[§benchlet-location]`,
-`[§benchlet-requiem-witness]`, `[§benchlet-candidate-timeout]`, and
-`client-checkout.test.ts [§benchlet-client-checkout]`. The real `--preflight`
-path covers task hashes, repository fetch, official verifier preparation, and
-the pristine baseline.
-
-## §pair-sheet One specimen through both harnesses, one fact sheet
-
-`deepswe/pair.sh --task <task>` runs a pinned DeepSWE task once through the
-plurnk benchlet ({§benchlet-diagnostic}) and once through Pier's
-`mini-swe-agent` on the same model route, one side after the other, and writes
-`PAIR.md` from the two harnesses' own `result.json` files. It is the forensic
-comparative reader for one specimen: the plurnk side keeps the benchlet's
-digest, the mini side gets `<trial>/digest/steps.md` ({§pair-mini-digest}),
-and the sheet puts both oracle verdicts and both cost shapes side by side.
-
-- §pair-route The plurnk side runs the alias (`--alias`, default `PLURNK_MODEL`)
-  through the daemon's own route registry. The mini side runs the explicit
-  equivalent from `deepswe/pair.aliases.json`: Pier's `-m` model, the
-  OpenAI-compatible endpoint, the name of the host variable holding its key,
-  and the reasoning effort. Nothing is derived from the plurnk alias; an alias
-  without a mini route is refused by name. The key reaches Pier through the
-  spawned environment only; `pair.json` records the variable's name.
-- §pair-location A pair lives at `<benchmarks>/jobs/pairs/<task>-<alias>-<stamp>/`
-  ({§results-canon}): `plurnk/` is the benchlet's runs root for exactly one run,
-  `mini/` is Pier's job directory for exactly one trial, `pair.json` is the
-  launch record, `facts.json` and `PAIR.md` are the reading. A second run on
-  either side is an error, never a merge.
-- §pair-facts Both sides read into one fact shape: state (complete, failed,
-  skipped, absent), the model the harness reports, the submission grade
-  (reward, f2p, p2p, partial), steps, provider requests, tokens (input, cached,
-  output), the candidate model's own cost (plurnk's requiem excluded), the
-  agent's own wall time beside the harness's, and how the loop ended. A fact
-  the harness did not supply is written `absent`, never zero; a side that did
-  not finish is `failed` with the harness's own reason and no grade. The sheet
-  states facts and names no winner; a pair is one specimen, never a corpus.
-- §pair-budget The task's `[agent] timeout_sec` governs the mini side (Pier);
-  the plurnk side runs on `PLURNK_BENCHLET_CANDIDATE_TIMEOUT_SEC`
-  ({§benchlet-candidate-timeout}), the operator's parity setting. Both appear
-  on the sheet. The benchlet records the candidate stage's own start, end and
-  duration in `result.json` so agent wall time is read, not inferred.
-- §pair-preflight `--preflight` resolves the route, confirms the task cache
-  entry, the key variable and `pier` on PATH, runs the benchlet's own
-  preflight, and prints the mini command it would run. `--skip-plurnk` and
-  `--skip-mini` run one side; `--sheet <pair>` rewrites `PAIR.md` and
-  `facts.json` from what a pair directory holds.
-
-### §pair-mini-digest The mini trajectory read as steps
-
-`deepswe/mini-trajectory.ts` reads a trial's
-`agent/mini-swe-agent.trajectory.json` (OpenAI Responses objects interleaved
-with `function_call_output` observations) into one record per response: the
-assistant's words, the provider's reasoning summary when one was returned, the
-bash command it called, the observation's return code, line count and head,
-and that response's usage; totals across responses; the exit status and
-submission. It is rendered as `steps.md` (one section per step, in the plurnk
-digest's register) and `steps.json` under `<trial>/digest/`. A response without
-a call has no observation; missing usage is null, never zero.
-
-Covered: `pair.test.ts [§pair-sheet]`, `mini-trajectory.test.ts [§pair-mini-digest]`.
-
-## §bench-confounds The known confounds, each with its fix or its status
-
-Every one of these was found by reading a run after the fact. They are listed
-so the next reader checks them first instead of rediscovering them.
+## §bench-relock 7. Known Confounds and Frozen Lane Relocking
 
 | Confound | Status |
-|---|---|
-| Host toolchain versus task image: the candidate's commands ran on the host while the oracle graded inside the image (2026-09-08). | Fixed. `{§benchlet-container-exec}`: commands run inside the pinned task image through PATH shims into one long-lived container; `candidate-execution.json` records it. |
-| Oracle exclusions: p2p tests that fail on the pristine baseline. | Recorded. `{§benchlet-oracle-exclusion}` excludes them from the grade and lists them in `result.json.oracle.environmentExcludedP2p`. |
-| Effort, service tier, and sampling per alias: two runs on "the same model" at different effort or temperature. | Recorded. `provenance.aliasConfiguration` keeps the alias's route knobs as the daemon reads them (`PLURNK_MODEL_<alias>`, `_EFFORT_`, `_SERVICE_TIER_`, `_TEMPERATURE_`, `_REPEAT_PENALTY_`, capacity knobs; never a credential); the served model id is on every digest model call; a pair's mini effort is in `pair.json`. Matching the two sides is the alias map's job (`{§pair-route}`), not inferred. |
-| Mini's provider: upstream DeepSWE rows ran a model name through a different provider than ours. | Fixed by construction inside a pair (both sides on the endpoint the alias map names). A comparison against the upstream `trials.json` remains provider-confounded and is read as such. |
-| Budget: the plurnk candidate timeout versus Pier's task timeout. | Recorded on the pair sheet (`{§pair-budget}`); `.env.defaults` sets the candidate timeout to the task budget minus boot headroom. |
-| Language version: which service and client revision the candidate ran. | Recorded in `provenance.sources` from clean commits; the lanes are relocked as one command (`{§bench-relock}`). Nothing before the fences language (plurnk-service `d88b3543`) is comparable with anything after it; those run directories are gone and the ledger (#37) starts after it. |
-| Image drift: a task image tag resolving to different bytes on different days. | Recorded. The manifest pins the image and provenance keeps the resolved `imageId`. |
-| Wall clock: two candidates sharing one host's docker daemon and CPU. | A pair runs its sides one after the other (`{§pair-sheet}`); lanes that must run in parallel are #9's concern. |
+| --- | --- |
+| Host toolchain vs task image | Fixed via PATH shims into one long-lived task container ({§benchlet-diagnostic}), recorded in `candidate-execution.json`. |
+| Baseline-failing p2p tests | Recorded and excluded per run in `oracle-exclusions.json` and `result.json.oracle.environmentExcludedP2p`. |
+| Per-alias effort, service tier, & sampling | Recorded in `provenance.aliasConfiguration` (`PLURNK_MODEL_<alias>`, `_EFFORT_`, `_SERVICE_TIER_`, `_TEMPERATURE_`, `_REPEAT_PENALTY_`, capacity knobs; never credentials) and `pair.json`. |
+| Upstream `trials.json` provider difference | Fixed inside a pair by sharing the endpoint in `pair.aliases.json` ({§pair-sheet}); upstream `trials.json` comparisons remain provider-confounded. |
+| Candidate timeout vs task timeout | Recorded on the pair sheet ({§pair-sheet}); `.env.defaults` sets candidate timeout to task budget minus boot headroom. |
+| Language & requiem version | Recorded in `provenance.sources` from clean commits (post-`d88b3543` fences boundary; lanes older than `24d9de148` set `PLURNK_BENCHLET_REQUIEM=0`). |
+| Image drift | Manifest pins image and provenance records resolved `imageId`. |
+| Wall-clock contention | A pair runs its two sides sequentially ({§pair-sheet}). |
 
-## §bench-relock Frozen lanes move with one command
+`deepswe/relock.sh <service-ref> <client-ref> [<lanes-root>]` points detached worktrees at `../bench-lanes/plurnk-service` and `../bench-lanes/plurnk` (or explicit `<lanes-root>`), runs `npm ci`, installs the built platform's projected contracts tarball into the client before building without mutating manifests or lockfiles, and prints `PLURNK_BENCHLET_SERVICE_ROOT` and `PLURNK_BENCHLET_CLIENT_ROOT`.
 
-`deepswe/relock.sh <service-ref> <client-ref> [<lanes-root>]` points the two detached
-worktrees beside the checkout (`../bench-lanes/plurnk-service`,
-`../bench-lanes/plurnk`) at exact commits, creating them on first use and
-moving them afterwards, runs `npm ci` in each, and prints the two exports a
-lane needs (`PLURNK_BENCHLET_SERVICE_ROOT`, `PLURNK_BENCHLET_CLIENT_ROOT`).
-An explicit lanes root selects another independent pair for simultaneous source
-comparisons; it does not move or rebuild the default pair. Never relock a pair
-while a run uses it.
-The client install defers lifecycle scripts until the selected, built platform's
-projected contracts tarball is installed; then it builds. SWE-bench runtime
-preparation uses the same contract-first client build. Neither preparation
-changes candidate source manifests or lockfiles.
-The candidate always runs from a lane, never from a checkout being edited
-(`{§benchlet-provenance}`); after a publication the lanes are relocked to the
-published commits before any comparative run. The requiem runs the lane's
-`plurnk-service requiem` subcommand, so a lane older than the service commit that
-introduced it (`24d9de148`) runs with `PLURNK_BENCHLET_REQUIEM=0`.
+## §config-carry 8. Authoritative Configuration Carriage and WAL Snapshots
 
-## §config-carry The runner carries authoritative config, re-declaring nothing
+`deepswe/smoke.sh` reads daemon configuration from the shell/XDG/committed-default cascade and `${XDG_CONFIG_HOME:-$HOME/.config}/plurnk/.env`, forwarding every set `PLURNK_*`, `*_BASE_URL` (rewriting `127.0.0.1`/`localhost` to host LAN IP), and `*_API_KEY` via `--agent-env`:
 
-`deepswe/smoke.sh` reads the daemon's config from its authoritative sources IN PLACE —
-model selection from the shell/XDG/committed-default cascade, alias tuning from
-`${XDG_CONFIG_HOME:-$HOME/.config}/plurnk/.env`, and provider env from the shell — and forwards every set
-`PLURNK_*` / `*_BASE_URL` / `*_API_KEY` to the in-container daemon via `--agent-env`. The one
-container-boundary transform: loopback (`127.0.0.1`/`localhost`) in a `*_BASE_URL` rewrites
-to the host LAN IP. Child contracts:
+| Contract | Rule |
+| --- | --- |
+| Unattended default | `.env.defaults` sets `PLURNK_EXECS_QUESTION=0`, removing the question tool and `question.md` across DeepSWE, Terminal-Bench, and host benchlets. |
+| Candidate model cascade | Resolves `PLURNK_MODEL` from invoking shell -> XDG operator file -> committed benchmark default; harnesses admit no positional candidate selector. |
+| Image prepull | `deepswe/prepull.sh [task-glob\|all]` pulls task images before `pier run` with bounded parallelism (default `3`), backoff retries, and a `40 GB` Docker disk floor. |
+| Egress allowlist | Derived from `providers.json` registry hosts, forwarded `PLURNK_BASEURL_<alias>` or `<PROVIDER>_BASE_URL`, and Tavily when routed; fails trial when no model egress is named. |
+| Digest version preflight | Installed `@plurnk/plurnk-service` must equal the corpus version or launch is refused. |
+| Decoupled live publisher | `publish.ts --watch` runs beside `pier`, followed by one idempotent final `publish.ts <job>` pass and trap cleanup of `pier`, publisher, and sampler. |
+| Failed setup & resource samples | 0-turn environment failures are listed in `<job>/failed-setup.txt`; `docker stats` is sampled once a minute into `<job>/docker-stats.jsonl` (`t` = UTC sample time). |
+| Bench namespace & GBNF opt-out | `PLURNK_BENCH_*` knobs (`PLURNK_BENCH_HOME`, `PLURNK_BENCH_HARNESS`, `PLURNK_BENCH_REQUIEM`, `TIMEOUT_SEC`, `CPUS`, `FORCE_BUILD`, `NO_GBNF`) are excluded from daemon forwarding; `PLURNK_BENCH_NO_GBNF=1` forwards `PLURNK_PROVIDERS_GBNF=0`. |
+| Budget, CPUs, surface, & versions | Client timeout is `[agent] timeout_sec` minus headroom; container uses native task CPUs unless `PLURNK_BENCH_CPUS` is set; client/daemon use default AG-UI HTTP/SSE (`PLURNK_HOST`, `PLURNK_PORT`, `PLURNK_AGUI_URL`); exact npm versions pass as driver kwargs. |
+| Tavily route & WAL snapshot | Forwards `TAVILY_API_KEY` when set and records configured/absent and `basic`/`advanced` depth. Snapshots live `plurnk.db` via SQLite online `backup()`, failing the trial if a consolidated WAL snapshot cannot be produced. |
 
-- §config-unattended Unattended runs default to
-  `PLURNK_EXECS_QUESTION=0` from `.env.defaults`. The ordinary executor switch
-  removes the question tool and its teaching, including `question.md`.
-  Host benchlets inherit the setting;
-  DeepSWE forwards it even in the official minimal manifest; Terminal-Bench carries
-  it alongside the model manifest. Explicit operator values retain normal precedence.
-  Enterprise's executor allowlist already excludes question; its independent
-  web restriction remains a capability policy.
-  Provider recovery inherits the product defaults unless explicitly overridden
-  through the ordinary operator cascade; the benchmark floor supplies no shorter window.
-- §config-model-default The candidate model uses the product's ordinary
-  `PLURNK_MODEL` cascade: an invoking-shell value, then the XDG operator file,
-  then the committed benchmark default. Harnesses admit no positional or
-  benchmark-specific candidate selector. Distinct actors such as a requiem
-  witness, judge, or child retain their named selector and deliberately inherit
-  the resolved candidate when their contract permits an unset value. Covered:
-  `host-paths.test.ts`, `smoke.test.ts`, and `[§config-model-default]` in
-  `benchlet.test.ts`.
-- §config-image-prepull Every task image is pulled outside the run — `deepswe/prepull.sh
-  [task-glob|all]`: bounded parallelism (default 3), retries with backoff, a docker-volume
-  disk floor (default 40 GB), a loud list of anything unresolvable — and the launcher runs it
-  before `pier run`, so an N-wide launch never stampedes the registry and no trial dies at
-  environment setup or spends its build timeout downloading (2026-08-30: ~50 of 113 trials
-  failed to resolve their ECR image at 38-wide). Covered: `[§config-image-prepull]` in
-  `smoke.test.ts`.
-- §config-egress `smoke.sh` derives the candidate's egress allowlist from the run's aliases:
-  each provider's registry host (`providers.json`), the host of every forwarded
-  `PLURNK_BASEURL_<alias>` or `<PROVIDER>_BASE_URL`, and Tavily when routed. The driver fails
-  the trial when no model egress is named. Covered: `[§config-egress]` in `smoke.test.ts`,
-  `test_driver.py`.
-- §config-digest-preflight The bench's installed `@plurnk/plurnk-service` must equal the
-  version the corpus installs: its digest reads the databases the in-container daemons write.
-  A mismatch refuses the launch (2026-08-30: a 1.11.0 digest crashed on 1.12.0 databases mid-run).
-- §config-publisher-decoupled The live publisher runs beside pier, never over it: its failure
-  is logged, pier is waited on regardless, one idempotent final `publish.ts <job>` pass
-  publishes every trial the live watch missed, and a trap ends pier, publisher, and sampler
-  with the launcher — nothing runs orphaned.
-- §config-failed-setup-report Trials that never reached a model turn because their environment
-  failed to start are listed in `<job>/failed-setup.txt` (task ids, a rerun list) and counted
-  on stderr at the end of the run.
-- §config-resource-samples Every run records `docker stats` for all containers once a minute,
-  for pier's lifetime, as JSON lines in `<job>/docker-stats.jsonl` (`t` = UTC sample time). The
-  record is the basis for sizing corpus concurrency (per-container CPU and memory under real
-  load) — never an estimate. Covered: `[§config-resource-samples]` in `smoke.test.ts`.
-- §config-bench-namespace Bench-invented knobs are namespaced `PLURNK_BENCH_*` (`PLURNK_BENCH_HOME`,
-  `PLURNK_BENCH_HARNESS`, `PLURNK_BENCH_REQUIEM`, …)
-  (TIMEOUT_SEC, CPUS, FORCE_BUILD, NO_GBNF) and are orchestration, never daemon config —
-  excluded from forwarding.
-- §config-gbnf-optout `PLURNK_BENCH_NO_GBNF=1` forwards `PLURNK_PROVIDERS_GBNF=0` and drops the
-  operator's grammar setting from the carried manifest — an explicit override for a route that
-  cannot carry a grammar. The service ships no grammar of its own (plurnk-service #588); the knob
-  is the path of an operator's file, so a manifest that carries one must also make that file
-  reachable inside the container, which the harness does not do today.
-- §config-budget The client timeout tracks the BENCHMARK's own budget: the task's
-  `[agent] timeout_sec` minus headroom — never an arbitrary cap that would starve the model
-  and understate results.
-- §config-native-cpus The container runs the task's native cpu allotment
-  (leaderboard-compliant; `--override-cpus` disqualifies). `PLURNK_BENCH_CPUS` is the
-  explicit opt-in override.
-- §config-client-surface The harness does not invent a transport target. Its
-  in-container daemon and `plurnk` client use the product's AG-UI HTTP/SSE
-  defaults; an explicit `PLURNK_HOST`, `PLURNK_PORT`, or `PLURNK_AGUI_URL`
-  remains ordinary daemon/client configuration.
-- §config-package-version Resolve exact current service/client npm versions and pass them
-  as driver kwargs. A publication changes Pier's image-build fingerprint; registry failure
-  aborts rather than reusing an unidentified cached image.
-  Covered: `smoke.test.ts [§config-package-version]`.
-- §config-tavily-route Tavily follows ordinary optional-provider carriage: a configured
-  `TAVILY_API_KEY` is forwarded, while no key remains the default. Pier and host-run
-  artifacts record only configured/absent and the effective `basic`/`advanced` depth.
-  Covered: `smoke.test.ts [§config-tavily-route]`, `test_driver.py`,
-  `web-materialization.test.ts`, and `ingest.test.ts`.
+## §enterprise 9. Enterprise-Bench L1–L2 Family and Specimens
 
-## §snapshot-wal The daemon DB artifact includes committed WAL state
+DevRev Enterprise-Bench runs through the ordinary plurnk client/service boundary under Harbor against `devrev/enterprise-bench` pinned at one clean detached commit (`truefoundry/trueforge@b11cfc3b` is a reproducibility reference only):
 
-The driver snapshots the live daemon database with SQLite's online `backup()`. It never falls
-back to copying the main file without its WAL and fails the trial if a consolidated
-snapshot cannot be produced.
-Covered: `test_driver.py [§snapshot-wal]`.
+- **Profiles & budget groups**: `single` (1 trial/task), `comparison` (3), and `canonical` (10, 140 observations) are never conflated. Tasks are grouped by `[agent] timeout_sec` (`600` s and `900` s for `sales-l2-a`/`sales-l2-d`) into `.cache/enterprise-groups/<budget>/` views and run with budget minus headroom.
+- **MCP carriage & candidate posture**: Harbor's `mcp.json` expands into `PLURNK_MCP_<alias>` complete `McpServerDefinition` JSON (alphanumeric alias e.g. `file-server` -> `fileserver`, `host.docker.internal` rewritten to host LAN IP, recorded in `agent/plurnk-mcp.json`, operator MCP fleet excluded). Candidate runs at `/workspace` (Git-free, web-free, non-interactive, shell + benchmark MCP executors only) and POSTs its answer to `/submit_agent_response` (retained as `agent/responses.jsonl`; harness never submits on model's behalf).
+- **Oracle, spend, & host specimen**: Graded by Harbor's `verifier/reward.txt` (binary at `1`, with `judge_result.json` retained and shell judge key required preflight); spend uses daemon accounting (`deepdumb` before `glm`). `enterprise/specimen.sh <task> [model]` runs one task against a host checkout daemon (`scripts/candidate.mjs` + `PLURNK_CLIENT_CHECKOUT`, isolated `XDG_CONFIG_HOME=<run>/config`, `PLURNK_SERVICE_ROOTS=plurnk`) into `run<N>-enterprise-specimen-<task>-<model>`.
 
-## §enterprise Enterprise-Bench L1-L2 is a first-class family beside DeepSWE and Atlas
+## §frontier-evidence 10. FrontierHarness Eval v1 Parity Lane and Egress Probe
 
-DevRev Enterprise-Bench measures cross-system retrieval and joins over three MCP services
-(Jira-style PM, Salesforce-style CRM, Drive-style file server), judged by the benchmark's
-own LLM judge against per-task criteria. The family drives each task through the ordinary
-plurnk client/service boundary under Harbor, the benchmark's execution harness; the bench
-never reproduces an agent loop.
-
-- §enterprise-provenance The runner pins `devrev/enterprise-bench` at one commit, checks it
-  out detached, refuses a modified checkout, and builds the benchmark's own base image and
-  MCP services from the pinned artifacts. TrueForge's published comparison kit
-  (`truefoundry/trueforge@b11cfc3b`) is a reproducibility reference only — never a
-  dependency, never an alternate corpus. Covered: `enterprise/smoke.test.ts [§enterprise-provenance]`.
-- §enterprise-profiles `single` (1 trial per task) is the diagnostic default; `comparison`
-  (3) reproduces the shape of TrueForge's published 14-task comparison; `canonical` (10)
-  follows Enterprise-Bench's reliability methodology (140 observations). Reporting never
-  conflates the three. Covered: `enterprise/smoke.test.ts [§enterprise-profiles]`.
-- §enterprise-mcp-carry Harbor hands the benchmark's `mcp.json` to the driver, which
-  declares each service as complete `McpServerDefinition` JSON in
-  `PLURNK_MCP_<alias>`, sets the family enabledness flag to `1`,
-  and expands exactly those, and derives the alias from the benchmark's server name by
-  keeping its letters and digits (`file-server` → `fileserver`). `host.docker.internal` is
-  rewritten to the host LAN IP for Linux Docker; the exact carriage is recorded as
-  `agent/plurnk-mcp.json`. The operator's own MCP fleet never rides. Covered:
-  `test_driver.py`, `enterprise/smoke.test.ts [§enterprise-mcp-carry]`.
-- §enterprise-posture The candidate runs with the task container's `/workspace` as its
-  project root (scratch files, payloads, and helper scripts land there; no repository, so
-  branch-tagged workers are refused), web-free and non-interactive, with executors limited
-  to the shell and the benchmark's MCP aliases.
-  The shell is the task's own submission path: every instruction tells the agent to POST
-  its answer to the container's `/submit_agent_response`. Covered: `test_driver.py`.
-- §enterprise-answer The harness never submits on the model's behalf. An unsubmitted or
-  duplicated answer is the model's failure and the benchmark's judge records it as such;
-  the submitted answer, when present, is kept beside the record as `agent/responses.jsonl`.
-  Covered: `test_driver.py`.
-- §enterprise-oracle The oracle is Harbor's `verifier/reward.txt` (binary at one), joined
-  like DeepSWE's `reward.json`; `judge_result.json` stays in the trial for forensics. The
-  judge key comes from the invoking shell (Harbor interpolates the task's `[verifier.env]`);
-  its absence refuses the run before any spend rather than scoring an agent failure.
-  Covered: `src/ingest.test.ts [§enterprise-oracle]`, `enterprise/smoke.test.ts [§enterprise-oracle]`.
-- §enterprise-budget-groups Tasks declare their own `[agent] timeout_sec` (600 s for twelve,
-  900 s for `sales-l2-a` and `sales-l2-d`). Harbor runs one path under one agent configuration,
-  so the corpus is grouped by budget into dataset views (`.cache/enterprise-groups/<budget>/`,
-  copies of the pinned task directories) and each group runs as its own job with that budget
-  minus headroom; every job is published. Covered: `enterprise/smoke.test.ts [§enterprise-budget-groups]`.
-- §enterprise-specimen `enterprise/specimen.sh <task> [model]` runs ONE task against a daemon
-  built from a checkout (the service repo's `scripts/candidate.mjs`, client from
-  `PLURNK_CLIENT_CHECKOUT`) — unreleased engine and teaching — while the benchmark keeps its
-  truth: the pinned task container hosts the submission endpoint and runs the official judge
-  over the pinned tests. The daemon runs on the host, so the model's shell runs on the host;
-  the run dir (`run<N>-enterprise-specimen-<task>-<model>`) records service/client/corpus
-  provenance, the client record, the digest, the submitted answer, and the verifier output.
-  The benchmark's three MCP services are complete `PLURNK_MCP_<alias>` environment
-  definitions. The candidate reads only its isolated configuration root
-  (`XDG_CONFIG_HOME=<run>/config`, `PLURNK_SERVICE_ROOTS=plurnk`), so operator-installed
-  plugins do not contribute configuration.
-  It is the iteration instrument; `enterprise/smoke.sh` remains the isolated, publishable one.
-  Covered: `enterprise/specimen.test.ts [§enterprise-specimen]`.
-- §enterprise-spend The live route and the judge are explicit spending decisions: the
-  candidate is the run's alias (`deepdumb` first — the whole corpus must complete before
-  any same-model comparison against TrueForge's GLM-5.2 figure on the `glm` alias), and
-  usage is the daemon's exact accounting; estimates stay classified as estimates.
-
-## §frontier-parity FrontierHarness Eval v1 is a parity lane, not a corpus
-
-`terminal_bench/frontier.manifest.json` names the frozen selection of [FrontierHarness Eval v1](https://github.com/runta-dev/frontier-harness-eval): 21 Terminal-Bench 2.1 tasks (Harbor dataset `terminal-bench/terminal-bench-2-1`) and 9 DeepSWE v1.1 tasks, each once, with the published model route. `terminal_bench/frontier.sh` runs them serially by default through the existing Harbor agent (`terminal_bench/plurnk_agent.py`), one Harbor job per task; `PLURNK_BENCH_JOBS` deliberately opts into concurrency. Every client timeout is that task's own `[agent] timeout_sec` minus the boot-and-shutdown headroom (`deepswe/smoke.sh`'s 120 s); a Harbor job carries one agent-kwarg set and the budgets differ per task. The plan is read from the task dirs before any launch (`--preflight` stops there), a run directory records manifest, plan, and provenance, and the summary reads Harbor's `verifier/reward.txt` per job: pass, fail, or missing — a task without a trial is never a fail. It reports pass rate over scored tasks and task-weighted medians for cost per successful task, cost per scored task, successful-task cache-read ratio, and successful-task Harbor trial wall time; incomplete telemetry remains visible as reported/eligible coverage rather than being imputed. The DeepSWE nine run through Harbor here for one mechanism per comparison; Pier remains the DeepSWE publication path ({§benchlet-diagnostic}, {§results-canon}), and a frontier run is a diagnostic beside published harness results, never a corpus record. Corpus state stays downloaded under `.cache/`, never committed.
-
-### §frontier-egress-probe Restricted inference connectivity
-
-`terminal_bench/network_probe.py` exercises the original task image and Harbor's
-phase-policy resolver without model inference or credentials. It installs the
-explicit published client/service versions, then compares public baseline,
-agent-only hostname allowance, the original agent restriction, and restored
-baseline. It records DNS and unauthenticated HTTPS results for the allowed and
-unrelated destinations; a pre-resolved-address probe distinguishes DNS failure
-from HTTPS filtering. Success requires both public controls to respond, the
-allowed provider to resolve and respond during its allowed phase, and denied
-HTTPS destinations to remain unreachable even with pre-resolved addresses.
-Harbor version, package pins, task-file hashes, phase policies, and results are
-retained. The probe never executes or modifies the task's verifier and is not
-an oracle result or proof of verifier isolation.
-
-### §frontier-task-root Container task membership
+`terminal_bench/frontier.manifest.json` pins 21 Terminal-Bench 2.1 and 9 DeepSWE v1.1 tasks run by `terminal_bench/frontier.sh` and `terminal_bench/plurnk_agent.py` (serial by default, `PLURNK_BENCH_JOBS` concurrency, timeout `[agent] timeout_sec - 120`, `--preflight`, summary over `verifier/reward.txt` reporting pass rate and task-weighted medians). `terminal_bench/network_probe.py` verifies public baseline, agent-only hostname allowance, original restriction, and restored baseline via DNS, unauthenticated HTTPS, and pre-resolved IP probes.
 
 | Task working directory | Plurnk root | Membership |
 | --- | --- | --- |
@@ -687,9 +112,7 @@ an oracle result or proof of verifier isolation.
 | Plain directory below `/` | `/` | Only that directory's subtree, expressed relative to `/` (e.g. `PLURNK_MEMBERS_task=app/**`); `app/x` and `/app/x` identify the same resource. |
 | Plain `/` | None | Reject before daemon startup; do not admit the entire container filesystem. |
 
-### §frontier-trial-state Trial state and oracle verdict are independent
-
-| Evidence | Reported state |
+| Trial Evidence | Reported State |
 | --- | --- |
 | No trial directory | `unstarted` |
 | Trial without a finished result | `unfinished` (not proof that a process is still running) |
@@ -698,266 +121,57 @@ an oracle result or proof of verifier isolation.
 | Other exception after agent execution began | `execution-error` |
 | Finished without exception | `completed` |
 
-Preserve the exception type alongside the state. Only `verifier/reward.txt` determines pass/fail; a passing oracle can coexist with a teardown error, and an installation-only result has no oracle verdict.
+Exception type is preserved alongside state; only `verifier/reward.txt` determines pass/fail. Daemon writes `plurnk.db` + WAL directly into Harbor's retained agent log dir (inspected mid-run via SQLite `backup()`). Installation streams stdout/stderr and phase markers to `agent/setup/install.log`, preserves failed installer exit status, supports `--install-only`, and uses verified HTTPS Debian/Ubuntu archive URLs.
 
-### §frontier-evidence Evidence survives agent termination
+## §swebench-evaluator 11. SWE-bench Lite Corpus, Official Evaluator, and Trial Runtime
 
-- The daemon writes `plurnk.db` directly into Harbor's retained agent log directory. Abrupt termination retains the database and its SQLite WAL sidecars; no post-run copy or signal trap is required to preserve committed records.
-- Normal exit and handled signals terminate and join the exact launched daemon. Startup failure remains a runner failure, not a completed agent trial. Client failure retains its exit code and any JSON record; the unchanged verifier determines success.
-- Mid-run inspection uses SQLite backup, never a raw copy of a live database. Keep WAL sidecars with an abruptly terminated database until SQLite recovers it.
-- Cost summaries preserve the service's recorded USD amounts and disclose request-level charged, estimated, and unknown cost counts. Estimates are not presented as bills; missing charges are not imputed.
+`swebench/` drives pinned SWE-bench Lite tasks through the ordinary plurnk client/service boundary and grades with the official evaluator (`swebench/evaluator.ts` -> `RewardJson`).
 
-### §frontier-setup-evidence Installation diagnostics
+- **Corpus & sampling**: `swebench/pin-task.mjs` writes `swebench/manifests/<instance>.json` including `datasetRevision` (cache in `.cache/swebench`). `swebench/sample.ts` draws deterministic hash-seeded `uniform` or `stratified` corpora under `swebench/corpora/<label>.json`.
+- **Official evaluator & recovery**: Translates official per-instance report (must name requested instance with boolean `resolved`) into `RewardJson`; empty prediction scores `{reward: 0, empty_patch: 1}`; absent report or infra failure is `null`. Evaluator-only recovery reuses the same instance, label, and patch SHA-256 without invoking a model (settling under `--halt-on clean` and Pi driver, or regrading/skipping abnormal evaluator exits under `--halt-on pass`).
 
-- Installation writes both output streams and phase markers directly to Harbor's retained `agent/setup/install.log` while running, including before a setup timeout or cancellation. No environment dump or shell tracing is recorded.
-- A completed installation records its actual exit status; pipeline logging must preserve a failed installer's status and stop subsequent steps. An interrupted log is not evidence of successful setup.
-- Installation compatibility probes use Harbor's `--install-only` path: the original task environment and installed-agent setup, without model inference or verification.
-- Official Debian/Ubuntu archive URLs use HTTPS with normal certificate verification. Repository hosts, suites, packages, and third-party source definitions remain unchanged; installation does not modify task instructions or verifiers.
-## §swebench SWE-bench Lite and native-harness comparisons
+| Evidence | Lifetime and Effect |
+| --- | --- |
+| `oracle/<runId>/` | One grading attempt: exact prediction, subprocess stdout/stderr, official reports, and `evaluation.json` recording running/finished state, exit status, diagnostics, and reward. |
+| `verifier/evaluation.json` | Latest attempt, including failure independently of the oracle verdict. A trial whose report exists publishes whatever that exit was ({§publish}); only an absent report leaves the trial ungraded and unpublished. |
+| `verifier/reward.json` | Latest valid oracle verdict. A failed reevaluation cannot erase an earlier verdict for the same candidate. |
 
-`swebench/` drives pinned SWE-bench Lite task ids through the ordinary plurnk
-client/service boundary and grades each attempt with the benchmark's OWN official
-evaluator, joining its per-instance report exactly as DeepSWE joins Pier's
-`reward.json` ({§verdicts}). It reproduces no agent loop and substitutes no host-only
-probe for the official evaluation image. Its purpose is to place plurnk as a fourth
-harness point in the HarnessTax study's cost/success frame. Explicit same-model
-comparisons use the other harness's native implementation ({§swebench-pi}), not a
-reimplementation of its agent loop or an assertion that the study was reproduced.
+- **Trial directory, provenance, & disk preflight**: Announces `artifact=` on allocation, uses unique evaluation run ids (`sweb.eval.<instance>.<run_id>`), writes `provenance.json` before and after publication, sets `result.json.exception_info = null` only on clean exit, checks `PLURNK_SWEBENCH_MIN_FREE_GB` (default `15`, `0` disables), and honors `PLURNK_SWEBENCH_PRUNE_IMAGE=1`.
+- **Network, container runtime, & model account**: Harbor enforces `PLURNK_SWEBENCH_MODEL_HOSTS` (JSON array), optional read-only `PLURNK_SWEBENCH_RESOLV_CONF` snapshot at `/etc/resolv.conf` (recorded with SHA-256), and `{§benchlet-diagnostic}` isolation. The whole candidate runs inside the task image at `/testbed` with UTF-8 process I/O preflight, provisioned Node at `/usr/local/bin/node`, `/opt/plurnk` at `0700`, `/var/lib/plurnk` owner-only, executor subprocesses running as `PLURNK_EXECS_SPAWN_USER=plurnk` (uid `60007`, home `/home/plurnk`), and group-writable `/testbed` (setgid directories, daemon umask `002`).
+- **Conditions & prompt**: Runs `--yolo` with `PLURNK_SERVICE_PROPOSALS=accept` and `PLURNK_PROVIDERS_EFFORT_<alias>`. Wraps the verbatim official issue in `<issue>` followed by repair/verification instructions and the no-network bound, recorded in `provenance.json`.
 
-- §swebench-corpus The 30 task ids and the dataset revision are pinned together;
-  downloaded corpus state lives under `.cache/swebench`, never in source.
-  `swebench/pin-task.mjs` writes `swebench/manifests/<instance>.json` from the
-  official dataset (repo, base and environment commits, eval image, budgets, and the
-  instance's FAIL_TO_PASS / PASS_TO_PASS), including the dataset's own revision sha
-  (`datasetRevision`, from the Hub's dataset info) so a re-pin against a moved dataset
-  is visible in the record rather than silent. `swebench/sample.ts` draws the campaign's
-  ids reproducibly from the dataset — a seed plus a plain hash order (no RNG whose stream
-  can drift between library versions), `uniform` or `stratified` across repos — and writes
-  the draw as a corpus record under `swebench/corpora/<label>.json`. Until the study's
-  trace release names its exact ids, a self-chosen 30 is a shape, not parity.
-- §swebench-evaluator The oracle is the official harness's per-instance report.
-  `swebench/evaluator.ts` translates that report into the shared `RewardJson`
-  ({§record-serial}) and the core join consumes it unchanged; the bench never
-  reimplements grading. An absent report and a recorded infrastructure failure are
-  the same honest `null` oracle, never a synthesized 0; a loop can end 200 and still
-  fail the oracle ({§verdicts-oracle-outranks}). A candidate that produced NO patch is
-  the one result the harness cannot report — it filters an empty prediction out of its
-  own dataset and writes no report — so the bench scores it `{reward: 0, empty_patch: 1}`
-  itself: a graded loss, never an absent oracle.
-  A report must name the requested instance and contain a boolean `resolved`;
-  another instance or an incomplete object is not a verdict.
+## §swebench-comparison 12. SWE-bench Campaigns, Matrix, Friction, and Statistical Comparison
 
-  | Evidence | Lifetime and effect |
-  | --- | --- |
-  | `oracle/<runId>/` | One grading attempt: exact prediction, subprocess stdout/stderr, official reports, and `evaluation.json` recording running/finished state, exit status, diagnostics and reward. Earlier attempts remain unchanged. |
-  | `verifier/evaluation.json` | Latest attempt, including failure independently of the oracle verdict. An abnormal evaluator exit remains an error even when its saved instance verdict is valid; it rides the verdict as its diagnostic. A trial whose report exists publishes whatever that exit was ({§publish-live}), so the campaign sheet keeps its run; only an absent report leaves the trial ungraded and unpublished, and the runner exits nonzero. |
-  | `verifier/reward.json` | Latest valid oracle verdict. A failed reevaluation cannot erase an earlier verdict for the same candidate. |
+- **Campaigns (`swebench/campaign.sh`, `swebench/plan.ts`)**: Runs 3 attempts x 30 tasks under `PLURNK_BENCH_JOBS` (default `1`), halting at the first non-clean pass or under `--halt-on clean` only on non-clean exit (decorating engine-ended passes as `pass (turn ceiling exhausted)` and verdictless engine terminals as `fail: <cause>`). `--resume` skips completed pairs and `--skip` ids persisted in `accepted`. Manifest turn cap bounds each attempt, with wall clock as a runaway guard.
+- **Profile matrix (`swebench/matrix.mjs`)**: Rotates profile order across instances and repetitions through `swebench/run.sh`, recording an immutable plan and append-only launch/results records while draining in-flight trials on missing evidence or interruption without auto-retry.
+- **Friction & statistical comparison (`swebench/friction.ts`, `swebench/report.ts`, `swebench/comparison.ts`, `src/statistics.ts`)**: Reports digest EDIT census (`count/refused/revisits` from `{§digest-forensic-fidelity}`) and overlapping friction views, followed by task-averaged pass rates, 10,000 hash-seeded bootstrap resamples for 95% confidence intervals, paired sign-flip permutation tests with Holm correction against K3 baselines (wins, losses, ties), cost per solve, and rollout medians (with catalog vs study direct-API pricing noted as a confound).
 
-  Evaluator-only recovery uses the same instance, label and patch SHA-256; a
-  different candidate requires a different trial. It invokes no model. Campaign
-  resume reads current grading evidence, preserves its earlier launch records and
-  requires evaluator-only recovery instead of repurchasing a captured candidate
-  whose grading failed. A saved verdict is the grading: under `--halt-on clean`, and
-  in the Pi driver, it settles the candidate as it stands whatever the evaluator's
-  exit; under `--halt-on pass`, which counts only a clean pass, an abnormal exit
-  beside the verdict is settled by the evaluator alone before the pair counts, so
-  the candidate is regraded or skipped, never bought again. Reports display
-  evaluator failure alongside any saved verdict; process failure alone never
-  produces a pass or a miss.
-- §swebench-trial One attempt is one trial directory, self-describing before it is
-  published. Its `artifact=` identity is announced immediately on allocation,
-  before setup or grading can fail. Each grading attempt takes its own evaluation run id (the harness names its
-  container `sweb.eval.<instance>.<run_id>`, so a shared id makes two attempts at one
-  instance kill each other under `PLURNK_BENCH_JOBS`). `provenance.json` — instance,
-  model, dataset and revision, image and resolved image id, start head, the clean
-  bench, service and client revisions ({§benchlet-provenance}: a dirty source is
-  refused before the candidate runs), timeout, and the candidate's exit — is written
-  BEFORE publication and rewritten after with the
-  published `runDir`, so an interrupted publish leaves a described trial rather than an
-  anonymous one. `result.json`'s `exception_info` is `null` only for a clean exit: a
-  timeout, external cancellation, a spawn failure, and a non-zero exit each name
-  themselves. An aborted running process is cancellation, not a spawn failure;
-  retained oracle results still grade its available patch. Terminal labels use the
-  client's root result, never a failed child's status or a guessed digest row.
-  Before pulling an
-  evaluation image the run requires free space on Docker's own root
-  (`PLURNK_SWEBENCH_MIN_FREE_GB`, default 15; `0` disables the check) and fails loudly
-  rather than half-way through a pull; `PLURNK_SWEBENCH_PRUNE_IMAGE=1` removes the
-  instance image afterwards for a small disk at the cost of re-pulling.
-- §swebench-network Harbor's Docker backend enforces an explicit model-host
-  allowlist (`PLURNK_SWEBENCH_MODEL_HOSTS`, JSON array). An empty list permits no
-  external network and is valid for model-free preflight only. No public-network
-  fallback or Docker socket is available to the candidate. Provider credentials
-  travel in the process environment, never in mounted configuration files.
-  The shared `{§benchlet-isolation}` policy additionally disables ambient MCP/A2A
-  services and web schemes. The official verifier retains the manifest's network
-  policy in its separate, fresh evaluation container.
-  Each candidate retains its own Compose network. An optional
-  `PLURNK_SWEBENCH_RESOLV_CONF` snapshots an explicitly selected resolver file,
-  mounted read-only at `/etc/resolv.conf` in the candidate and Harbor egress
-  sidecar; the trial records its source and SHA-256. Empty uses Docker's normal
-  DNS configuration. This changes name resolution only, never the allowlist,
-  network topology, verifier, or host firewall.
-- §swebench-container-runtime The whole candidate runs inside the pinned task
-  image: Plurnk's daemon, client, native file operations, executor discovery,
-  scratch files, and subprocesses; or stock Pi and all its tools. Both see one
-  repository at `/testbed`, the image's login-shell toolchain, and UTF-8 locale.
-  There are no executor forwarding shims or host-path aliases. Node and the
-  harness packages are explicitly provisioned prerequisites, recorded by version
-  and artifact hash; they do not replace the specimen's Python or other tools.
-  A read-only runtime bundle contains only installed package artifacts and the
-  adapter, not benchmark manifests, oracle code, source checkouts, or operator
-  configuration. Each trial owns its writable repository, evidence, home, and
-  container. The disposable checkout's ownership matches the image's agent user;
-  Harbor restores host ownership before teardown. Cancellation drains the
-  candidate before container teardown.
-- §swebench-model-account The model's commands run as an account of their own. Inside the task container the
-  daemon runs as the image's user; every executor subprocess runs as `plurnk` (uid 60007, home `/home/plurnk`),
-  set through the service's `PLURNK_EXECS_SPAWN_USER`. Every name the model can list is an ordinary plurnk
-  host's: the state directory `/var/lib/plurnk` closes to its owner and the install at `/opt/plurnk` is the
-  host's at 0700 (its node alone is exposed at `/usr/local/bin/node`, and the bundle stays off PATH, so a
-  missing command is "not found", never "permission denied"), so neither the daemon's
-  database nor the bundle's adapter files are readable from the model's shell. The trial copy at `/testbed`
-  belongs to the account, group-writable with set-group-id directories, and the daemon writes under umask 002,
-  so what the daemon creates stays writable to the model's commands; the daemon's own git trusts the root it
-  was pointed at by path. The Pi arm keeps the image's user for its own tools.
-- §swebench-executor-encoding Unicode arguments, stdin, and stream output remain
-  ordinary in-container process I/O. Model-free preflight verifies Node and the
-  task's Python, project cwd, UTF-8 round trips, and file visibility. Integration
-  coverage additionally exercises native READ/EDIT and shell access to the same
-  bytes, executor availability, network denial, and independent trial teardown.
-- §swebench-conditions The candidate uses the ordinary cascade
-  ({§config-model-default}); the study's effort setting is
-  `PLURNK_PROVIDERS_EFFORT_<alias>`. No positional or family-specific
-  candidate selector. The client uses `--yolo`; the benchmark environment declares
-  `PLURNK_SERVICE_PROPOSALS=accept` for all workers. Messages and schedules carry no
-  approval policy.
-- §swebench-prompt The task prompt asks for an ordinary repository repair: the
-  official issue, unchanged except for outer whitespace and delimited by `<issue>`,
-  followed by an instruction to implement the fix in the working tree and verify
-  the affected behavior, and one statement of the environment's bound: no network
-  access, the repository and its installed dependencies are all that is available
-  (both arms, identically). The wrapper names neither an upstream fix nor grading,
-  imposes no brevity constraint, and teaches no operation language (`plurnk.md`
-  owns that). The
-  official package supplies no agentic prompt; this harness-owned framing is
-  recorded exactly per trial in `provenance.json`. Prompt changes do not alter the
-  specimen or its official evaluator.
-- §swebench-profiles 3 attempts × 30 tasks, one trial at a time under `PLURNK_BENCH_JOBS`
-  (default 1): `swebench/campaign.sh` runs the order `swebench/plan.ts` draws and halts at the
-  first trial that is not a clean pass (oracle resolved, client exited 0), so a failure is read
-  before the next trial is paid for, or with `--halt-on clean` only at a trial that did not exit
-  cleanly, once the misses have been read as the model's. The oracle grades the patch whatever
-  ended the loop: a pass from a loop the engine ended is decorated, `pass (turn ceiling exhausted)`,
-  so the strict halt stops to read it and the clean halt runs on, and without a verdict an engine
-  terminal (turn ceiling, strike threshold, cycle, timeout) is `fail: <cause>`, the model's outcome,
-  never an agent verdict (#46); `--resume` continues past the trials its `--halt-on`
-  policy let run on (clean passes; under `clean` every graded trial) and past `--skip` ids,
-  which the campaign remembers in its `accepted` file so a read failure is never re-bought;
-  failed grading follows {§swebench-evaluator} rather than buying another candidate,
-  and `swebench/report.ts` reads the campaign friction first, including the digest's EDIT
-  census (the service's `§digest-edit-census`: EDITs by authored form, refused, revisits — a line under Friction
-  and a `count/refused/revisits` column per trial, `—` when the digest carries no census);
-  `BenchRecord.turns` carries plurnk's own count and is declared harness-different
-  ({§turns-provenance}). The bound on an attempt is the study's **turn cap**, carried
-  by the manifest and by the corpus citation; the wall clock is a runaway guard set
-  far above any plausible rollout. A rollout truncated on seconds records a timeout
-  where the study would have recorded a turn count.
-- §swebench-matrix `swebench/matrix.mjs` repeats one pinned instance or a pinned corpus across explicit,
-  non-secret environment profiles through `swebench/run.sh`. Every repetition visits
-  every instance/profile pair, rotating profile order by instance and repetition.
-  The immutable plan records the corpus, profiles, model, repetitions, concurrency
-  and each profile's source revisions; append-only launch/results
-  records retain every attempt and its trial path. Ordinary oracle misses continue.
-  Missing evidence or infrastructure failure stops new launches, not in-flight work;
-  interruption likewise drains existing trials. There is no automatic retry or resume.
-  Reports reuse the trial accounting and friction readers; missing evidence cannot
-  contribute a zero cost or a complete cost total. Profiles do not replace the runner's
-  isolation, candidate invocation, limits or evaluator.
-- §swebench-friction Friction reporting projects durable engine outcomes, not a second
-  parser. These views overlap and must not be summed as independent failures:
+| Friction View | Evidence and Meaning |
+| --- | --- |
+| Model turns | Distinct `turn_attempts.turn_id`; copied history and runtime turns are not new model work. |
+| Fence-free content | Raw `turn.program` has no backtick fence opener (format observation, not failed admission; missing source is unknown). |
+| Admitted fence-free content | Fence-free turn carrying an engine emission receipt (`attrs.kind=emission`, e.g. from native-call recovery). |
+| No-operation turns | Distinct attempted turns with an engine `error` receipt for `engine/rail/no-operation`. |
+| Failed receipts | Status `>= 400`, grouped by family and provenance (authored model work, automatic runtime, ambient, inherited history, or unknown; inheritance takes precedence). |
+| Failed execution streams | `READ` receipts carrying an `executor/*` Problem, grouped by resource URI without channel fragment within one trial. |
 
-  | View | Evidence and meaning |
-  | --- | --- |
-  | Model turns | Distinct `turn_attempts.turn_id`; copied history and runtime turns are not new model work. |
-  | Fence-free content | Raw `turn.program` has no backtick fence opener. This is a format observation, not failed admission. Missing source is unknown. |
-  | Admitted fence-free content | That turn has an engine emission receipt (`attrs.kind=emission`); exact native-call recovery may produce one. Reasoning-only operations need not. |
-  | No-operation turns | Distinct attempted turns with the engine's own `error` receipt for `engine/rail/no-operation`, regardless of their raw syntax; reading or observing someone else's failure is not such an outcome. |
-  | Failed receipts | Status ≥400, grouped by family and provenance: authored model work, automatic runtime observations, ambient observations, inherited history, or unknown. Inheritance takes precedence over origin; an original model row may itself carry an ambient event ID. |
-  | Failed execution streams | READ receipts carrying an `executor/*` Problem, grouped by resource URI without its channel fragment, within one trial. Repeated reads, stdout/stderr and observer copies remain receipts of one execution. Other READ failures are not producer failures. |
+### §swebench-pi 12.1 Native Pi Comparison
 
-  Missing digest sections remain unknown, and aggregate reports show their coverage.
-  Missing provenance fields in older exports are unclassified, never assumed to be
-  fresh authored work. Stream failures are execution evidence (for example, a red
-  test command), not automatically harness defects. Original receipts remain available
-  in the digest; grouping never alters their evidence or the oracle verdict.
-- §swebench-cost The study's fixed direct-API price list is a declared confound
-  against `plurnk-models` catalog rates; spend evidence is the daemon's own
-  accounting ({§record-serial}, {§digest-boundary}).
-- §swebench-comparison The sheet's statistics section reads one campaign the study's way:
-  attempts averaged within each task, then across tasks; 95% intervals from 10,000
-  bootstrap resamples of tasks under a declared seed (`swebench/comparison.ts` over a
-  hash-seeded generator of our own in `src/statistics.ts`, so one seed reads the same
-  intervals anywhere); each K3 baseline the corpus source carries ({§swebench-corpus})
-  compared per task, paired, by a sign-flip permutation test with Holm correction, with
-  task wins, losses and ties; cost per solve as total spend over resolved rollouts; tokens,
-  model calls and loop turns as medians per rollout. The per-task matrix sets the campaign's
-  rate beside each baseline's successes of three. The section follows friction, verdicts
-  and spend; dollars stay approximate under {§swebench-cost}.
-
-### §swebench-pi Native Pi comparison
-
-`swebench/pi.mjs` invokes the installed Pi CLI. `pi-campaign.mjs` schedules separate
-processes from the same corpus/attempt plan. Grading recovery appends a new observation
-of the retained candidate, without another model call ({§swebench-evaluator}); setup
-failures may run again. A changed profile requires a new campaign directory.
-
-A profile's `provider` is a hosted path (`openrouter`, `deepseek`, `fireworks`, each with its credential) or any name with a `baseUrl`, an `api` (`openai-completions` or `anthropic-messages`), `contextWindow` and `maxOutputTokens`: the comparator then writes Pi's own provider definition (`models.json`) in the agent's configuration directory, exactly as its native witness does, and a local server without a credential receives a placeholder key. The model-host allowlist admits the endpoint; nothing else changes.
+`swebench/pi.mjs` and `swebench/pi-campaign.mjs` run the installed Pi CLI (`PLURNK_BENCH_PI`) over the same corpus/attempt plan, supporting `openrouter`, `deepseek`, `fireworks`, or custom `baseUrl`/`api`/`contextWindow`/`maxOutputTokens` profiles (writing `models.json`).
 
 | Boundary | Contract |
-|----------|----------|
-| Agent | Stock system prompt, default tools, sampling, output and retry behavior, and stock compaction unless the profile declares a context partition (`contextWindow` with `compaction.reserveTokens` and `keepRecentTokens`), the comparator's analogue of the service's window cap, retained in the trial's profile. Select only provider, model and effort; the version and Pi's refreshed catalog are frozen and retained. No request-payload rewriting. |
-| Personal context | Fresh Pi configuration per trial; no operator/project extensions, skills, prompt templates or AGENTS/CLAUDE files. No Plurnk teaching. |
-| Environment | Reuse {§swebench-trial}, {§swebench-network} and {§swebench-container-runtime}. Stock Pi and all its native tools run inside the image, on the same provisioned Node runtime as Plurnk. |
-| Limits | A benchmark-only extension aborts before the next model turn beyond the declared cap. The common wall-clock guard still applies. Limits do not add model-facing instructions. |
-| Evidence | Observe, without changing, each native Chat Completions or Messages request and response. Retain raw streams, Pi JSON events, session files, configuration, errors, patch and official oracle. No synthetic Plurnk database or digest. |
-| Cost | OpenRouter response usage owns charged cost: `cost`, plus explicit `cost_details.upstream_inference_cost` when `is_byok` is true. Messages usage merges cumulative start/delta counters only after a terminal event; its input, cache-read and cache-write counts are disjoint. Missing billing, token breakdowns and reasoning breakdowns retain separate coverage. Native `deepseek` and `fireworks` responses without a charge use fixed-rate repricing, explicitly labeled rather than reported as billed cost. Fixed-rate repricing is separate from native catalog estimates and actual charges. |
-| Failure | Grade available work regardless of agent outcome. Native agent/provider errors, nonzero exits, time limits and incomplete response captures remain scored outcomes and permit the next trial. Adapter/setup failures, absent requests/verdicts, and evaluator process failures pause for review; a saved verdict survives an evaluator failure. Preserve errors, limits and incomplete accounting; an operator cancellation stops admission. |
+| --- | --- |
+| Agent | Stock system prompt, default tools, sampling, output/retry behavior, and stock compaction unless profile declares `contextWindow` with `compaction.reserveTokens` and `keepRecentTokens`; frozen version and catalog; no request-payload rewriting. |
+| Personal context | Fresh Pi configuration per trial; no operator/project extensions, skills, prompt templates, AGENTS/CLAUDE files, or Plurnk teaching. |
+| Environment | Reuses `{§swebench-evaluator}` trial, network, and container runtime (keeping image user for Pi tools) on the same provisioned Node runtime. |
+| Limits | Benchmark-only extension aborts before the next model turn beyond the declared cap; common wall-clock guard applies; no model-facing instructions added. |
+| Evidence | Observes native Chat Completions or Messages requests and responses without mutation; retains raw streams, Pi JSON events, session files, configuration, errors, patch, and official oracle. |
+| Cost | OpenRouter `cost` (+ `cost_details.upstream_inference_cost` when `is_byok` is true) owns charged cost; Messages usage merges cumulative counters after terminal event; native `deepseek`/`fireworks` responses without a charge use explicitly labeled fixed-rate repricing. |
+| Failure | Grades available work regardless of agent outcome; adapter/setup failures, absent requests/verdicts, and evaluator process failures pause for review while preserving saved verdicts. |
 
-Pi trial and campaign `chargedUsd` and `repricedUsd` are `null` unless every
-request supplies the respective charge or complete rate-card token breakdown.
-`knownChargedUsd` and `knownRepricedUsd` preserve available subtotals, or `null`
-when none is known. `usage` contains only complete per-field totals;
-`knownUsage` carries the available subtotals. An explicit charge survives missing
-token usage; neither price type substitutes for the other. Historical summaries
-are interpreted using their request-coverage counters, not a zero default.
+Pi trial and campaign `chargedUsd` and `repricedUsd` are `null` unless every request supplies the respective charge or complete rate-card token breakdown; `knownChargedUsd` and `knownRepricedUsd` preserve available subtotals (`null` when none is known); `usage` contains only complete per-field totals while `knownUsage` carries available subtotals.
 
-Coverage: `swebench/pi.test.mjs`; native installed-CLI checks require
-`PLURNK_BENCH_PI` and use a local fixture endpoint with no paid inference.
+## §tier-corpus 13. Live and Demo Specimen Tiers and Story Oracles
 
-Covered: `swebench/evaluator.test.ts [§swebench-evaluator]`, `swebench/run.test.ts [§swebench] [§swebench-trial] [§swebench-conditions] [§swebench-prompt] [§swebench-profiles]`, `swebench/sample.test.ts [§swebench-corpus]`, `swebench/plan.test.ts [§swebench-profiles]`, `swebench/report.test.ts [§swebench-profiles] [§swebench-trial] [§swebench-comparison] [§benchlet-isolation]`, `swebench/comparison.test.ts [§swebench-comparison] [§swebench-corpus]`, `src/statistics.test.ts [§swebench-comparison]`, `src/candidate-isolation.test.ts [§benchlet-isolation]`.
-
-## §tier-corpus Live and demo specimen tiers
-
-`tiers/` owns the paid real-model `live` (`tiers/live/`) and `demo` (`tiers/demo/`)
-specimen corpora (#81). `npm run tier:live` and `npm run tier:demo` run either the
-full tier or an exact `--specimen <name>` selection against the candidate checkouts
-named by `PLURNK_BENCHLET_SERVICE_ROOT` and `PLURNK_BENCHLET_CLIENT_ROOT`
-({§benchlet-provenance}, {§benchlet-client-checkout}). An unknown specimen name is
-refused before any model call. The loader resolves `@plurnk/plurnk-service/harness`
-and workspace packages from the selected service checkout so candidate evaluations
-and frozen `deepswe/relock.sh` lanes exercise the exact target revision. Each run
-writes `provenance.json`, `census.md`, `census.json`, `result.json`, and per-session
-`record.json` (`BenchRecord`) and `digest/` under `<benchmarksHome>/tier-<live|demo>-<stamp>/`.
-Covered: `tiers/runner.test.ts [§tier-corpus]`.
-
-### §demo-oracles Demo story oracles
-
-A demo story is graded by its oracle, never by the model's claim. The script oracle
-accepts an execution the daemon observed — a terminal receipt, a native script or a
-shell command with observed successful output — and rejects a claimed, unobserved,
-failed, unrelated or mismatched one; a model that verifies around the run is not
-failed for it. The web oracle takes the actual latest stable version: never arbitrary
-digits, a partial match, a newer maintenance date or an LTS label. The packet audit
-oracle accepts numbered findings under any Markdown emphasis.
-Covered: `tiers/oracles.test.ts [§demo-oracles]`.
+- **Live and demo tiers (`tiers/`)**: `npm run tier:live` (`tiers/live/`) and `npm run tier:demo` (`tiers/demo/`) run full tiers or `--specimen <name>` (refusing unknown names before any model call) against `PLURNK_BENCHLET_SERVICE_ROOT` and `PLURNK_BENCHLET_CLIENT_ROOT`, resolving `@plurnk/plurnk-service/harness` from the target service checkout and writing `provenance.json`, `census.md`, `census.json`, `result.json`, and per-session `record.json` and `digest/` under `<benchmarksHome>/tier-<live|demo>-<stamp>/`.
+- **Demo story oracles (`tiers/demo/_*-oracle.ts`)**: Graded by oracle, never model claims. Script oracle requires daemon-observed execution (terminal receipt, native script, or shell command with observed successful output) and rejects claimed, unobserved, failed, unrelated, or mismatched runs (allowing verification around the run). Web oracle requires the actual latest stable version (rejecting arbitrary digits, partial matches, newer maintenance dates, or LTS labels). Packet audit oracle accepts numbered findings under any Markdown emphasis.

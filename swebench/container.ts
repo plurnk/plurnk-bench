@@ -1,4 +1,4 @@
-// {§swebench-container-runtime} Host orchestration delegates lifecycle/network to Harbor.
+// {§swebench-evaluator} Host orchestration delegates lifecycle/network to Harbor.
 import { spawn } from "node:child_process";
 import { createWriteStream } from "node:fs";
 import { finished } from "node:stream/promises";

@@ -4,7 +4,7 @@
 # The lanes are detached worktrees beside this checkout (../bench-lanes/plurnk-service and
 # ../bench-lanes/plurnk), created on first use, moved on later ones, and installed with
 # `npm ci` and the selected platform contracts; the benchlet runs those trees, never a checkout being
-# edited ({§benchlet-provenance}). Prints the two exports a lane needs.
+# edited ({§benchlet-diagnostic}). Prints the two exports a lane needs.
 set -euo pipefail
 
 if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then

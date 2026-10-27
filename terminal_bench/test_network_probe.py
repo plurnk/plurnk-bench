@@ -20,7 +20,7 @@ def evidence():
 
 
 class NetworkProbeTest(unittest.TestCase):
-    """{§frontier-egress-probe}: a diagnostic must not call a failed allowlist green."""
+    """{§frontier-evidence}: a diagnostic must not call a failed allowlist green."""
 
     def test_reachable_provider_and_blocked_unrelated_hosts_pass(self):
         self.assertEqual(failures(evidence()), [])

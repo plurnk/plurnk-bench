@@ -1,12 +1,12 @@
-// SPEC §swebench. The family runner: drive one pinned SWE-bench Lite instance through the
+// SPEC {§swebench-evaluator}. The family runner: drive one pinned SWE-bench Lite instance through the
 // ordinary plurnk client/service boundary and grade the candidate's patch with the
 // benchmark's OWN official evaluator (swebench/evaluate.ts).
 //
-// {§swebench-container-runtime}: the complete candidate inhabits the task container.
+// {§swebench-evaluator}: the complete candidate inhabits the task container.
 // The host owns provisioning, evidence and the separate official evaluation only.
 //
 // The trial directory is the Pier-shaped layout the shared core reads:
-//   result.json            provenance (trial_name, task_name, model) — src/ingest.ts §provenance
+//   result.json            provenance (trial_name, task_name, model) — src/ingest.ts {§digest-boundary}
 //   agent/plurnk.json      the client's `--json` document
 //   agent/plurnk.db        the daemon database
 //   artifacts/model.patch  the candidate's diff, start HEAD..worktree
@@ -45,7 +45,7 @@ export interface Manifest {
     readonly problemStatement: string;
 }
 
-// {§swebench-prompt}
+// {§swebench-evaluator}
 export const taskPrompt = (problemStatement: string): string => [
     "Fix the following issue in the checked-out repository.",
     "",
@@ -57,7 +57,7 @@ export const taskPrompt = (problemStatement: string): string => [
     "This environment has no network access: the repository and its installed dependencies are all that is available.",
 ].join("\n");
 
-// {§swebench-conditions} {§swebench-profiles} — ordinary client invocation, local approval,
+// {§swebench-evaluator} {§swebench-comparison} — ordinary client invocation, local approval,
 // and the study's turn cap as the bound.
 export const candidateArgv = (
     repository: string,
@@ -89,7 +89,7 @@ export interface ExceptionInfo {
     readonly exception_message: string;
 }
 
-// §swebench-trial. A trial's result.json says how the candidate ended. Only a clean exit is `null`:
+// {§swebench-evaluator}-trial. A trial's result.json says how the candidate ended. Only a clean exit is `null`:
 // a spawn failure and a non-zero exit used to read as success here, so a run that never started
 // looked the same as one that finished and simply wrote no patch (#40).
 export const exceptionInfo = (result: CandidateExit, timeoutSeconds: number): ExceptionInfo | null => {
@@ -144,7 +144,7 @@ const writeJson = (path: string, value: unknown): void => {
     writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`);
 };
 
-// The eval images are 2-4 GB each. Nothing is deleted behind the operator's back ({§swebench});
+// The eval images are 2-4 GB each. Nothing is deleted behind the operator's back ({§swebench-evaluator});
 // the run refuses loudly when the disk cannot hold another image, and prunes only when asked.
 export const requireDiskRoom = (): void => {
     const minimumGb = Number(process.env.PLURNK_SWEBENCH_MIN_FREE_GB ?? 15);
@@ -300,7 +300,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         const sources = assertCleanSources({ bench: benchRoot, service: serviceRoot, client: clientRoot });
         const allowedHosts = modelHosts(process.env, values.preflight === true);
         const runtime = await prepareRuntime({ kind: "plurnk", serviceRoot, clientRoot, sources });
-        // SPEC §publish-launch-folder — the run folder exists from launch and is the daemon's own directory,
+        // SPEC {§publish} — the run folder exists from launch and is the daemon's own directory,
         // so the database is live there from the first turn; the trial dir keeps `agent` as a link to it.
         // A preflight publishes nothing and keeps its agent directory in the scratch.
         const runDir = values.preflight ? null : allocateRunDirectory(benchmarksHome(), runLabelsFor("swebench", manifest.instance, model));
@@ -310,7 +310,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             symlinkSync(runDir, join(trialDir, "agent"));
             process.stdout.write(`run=${runDir}\n`);
         }
-        // {§benchlet-isolation} — the candidate reaches no network beyond its model:
+        // {§benchlet-diagnostic} — the candidate reaches no network beyond its model:
         // the operator's MCP/A2A definitions are masked, search credentials blanked,
         // and the daemon's web schemes admit no host.
         const isolation = candidateIsolation(Object.keys(process.env));
@@ -373,12 +373,12 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             baseCommit: manifest.baseCommit,
             timeoutSeconds: timeout,
             repository,
-            // {§swebench-prompt}: the framing is a harness choice, so it is declared per trial.
+            // {§swebench-evaluator}: the framing is a harness choice, so it is declared per trial.
             taskPrompt: taskPrompt(manifest.problemStatement),
             candidate: { status: result.status, signal: result.signal, timedOut: result.timedOut },
         };
         // The published trial carries its provenance: written before publication, never after (#40).
-        // {§publish-launch-folder} — the run folder opened at launch is part of it, so a later
+        // {§publish} — the run folder opened at launch is part of it, so a later
         // publication (the watch path, a re-run) finalizes that folder rather than opening another.
         writeJson(join(trialDir, "provenance.json"), { ...provenance, runDir });
 

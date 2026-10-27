@@ -36,7 +36,7 @@ from harbor.models.trial.paths import EnvironmentPaths
 NODE_MAJOR = "26"
 APT_DIR = Path("/etc/apt")
 DAEMON_READY_TIMEOUT_S = 60
-# TB 4.0 calibrates every task to a FLAT 8h agent budget. §config-budget: a shorter
+# TB 4.0 calibrates every task to a FLAT 8h agent budget. {§config-carry}: a shorter
 # client timeout starves the model below the benchmark's allowance and understates
 # every result — the default matches the calibrated budget minus headroom for
 # install/boot/snapshot. Bounded specimens override via the client_timeout_sec kwarg.

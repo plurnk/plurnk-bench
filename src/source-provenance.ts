@@ -9,7 +9,7 @@ const git = (repository: string, args: string[], options: { allowFailure?: boole
     return result.stdout;
 };
 
-// {§benchlet-provenance}: a run names the exact source it ran, so a dirty tree is refused, not recorded.
+// {§benchlet-diagnostic}: a run names the exact source it ran, so a dirty tree is refused, not recorded.
 export const sourceProvenance = (repository: string): {
     path: string;
     head: string;

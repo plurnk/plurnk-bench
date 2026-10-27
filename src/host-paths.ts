@@ -24,7 +24,7 @@ export const operatorConfigPath = (
     return resolve(configHome, "plurnk", ".env");
 };
 
-// SPEC §results-canon. The ONE tree every harness writes into: published runs at its root,
+// SPEC {§publish}. The ONE tree every harness writes into: published runs at its root,
 // each harness's job scratch under jobs/<harness>/. PLURNK_BENCH_HOME overrides the
 // default ~/benchmarks; nothing lands inside a repository or elsewhere.
 export const benchmarksHome = (
@@ -43,7 +43,7 @@ export const jobsRoot = (
     home: string = homedir(),
 ): string => resolve(benchmarksHome(env, home), "jobs", harness);
 
-// SPEC §config-model-default. The invoking environment wins, then the XDG
+// SPEC {§config-carry}. The invoking environment wins, then the XDG
 // operator layer, then the committed benchmark defaults. Node's loadEnvFile is
 // set-if-unset, so loading those files in this order owns the precedence.
 export const loadBenchmarkEnvironment = (

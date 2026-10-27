@@ -1,24 +1,18 @@
-import { test, type TestContext } from "node:test";
+import test, { type TestContext } from "node:test";
 import { Digest } from "@plurnk/plurnk-digest";
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, mkdirSync, rmSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, rmSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve, basename } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { writeFileSync } from "node:fs";
-import {
-    defaultBenchmarksDir,
-    digestHasTurns,
-    runLabels,
-    digestHasModelTurns,
-    publishRun,
-    publishedRecord,
-    foldRequiemAccounting,
-} from "./publish.ts";
+import { defaultBenchmarksDir, digestHasTurns, runLabels, digestHasModelTurns, publishRun, publishedRecord, foldRequiemAccounting } from "./publish.ts";
 import type { BenchRecord } from "./record.ts";
 import { allocateRunDirectory } from "./run-directory.ts";
-import { benchmarksHome } from "./host-paths.ts";
+import { benchmarksHome, jobsRoot, loadBenchmarkEnvironment, operatorConfigPath, selectedModel } from "./host-paths.ts";
+import { parseEnv } from "node:util";
 
+// ─── publish.test.ts ───
+{
 // A WAL-mode database whose committed rows still sit in its -wal file: the shape a trial's
 // daemon leaves behind, and the one a filesystem copy loses.
 const walDatabase = (path: string, rows: number): DatabaseSync => {
@@ -35,7 +29,7 @@ const mockDigest = (t: TestContext, digestJson: unknown): void => {
     });
 };
 
-test("[§publish] {§share-packet-names} the published plurnk.db is SQLite's consistent copy: committed WAL pages arrive, the source is untouched", (t) => {
+test("{§publish} {§share-packet-names} the published plurnk.db is SQLite's consistent copy: committed WAL pages arrive, the source is untouched", (t) => {
     const root = mkdtempSync(join(tmpdir(), "bench-pub-snapshot-"));
     t.after(() => rmSync(root, { recursive: true, force: true }));
     const dbPath = join(root, "agent", "plurnk.db");
@@ -63,7 +57,7 @@ test("[§publish] {§share-packet-names} the published plurnk.db is SQLite's con
     });
 });
 
-test("[§publish-launch-folder] a folder allocated at launch is finalized in place: the database consolidated, digest and record beside it, nothing copied", (t) => {
+test("{§publish} a folder allocated at launch is finalized in place: the database consolidated, digest and record beside it, nothing copied", (t) => {
     const root = mkdtempSync(join(tmpdir(), "bench-pub-launch-"));
     t.after(() => rmSync(root, { recursive: true, force: true }));
     const runDir = allocateRunDirectory(join(root, "runs"), ["swebench", "fixture", "fixture"]);
@@ -87,7 +81,7 @@ test("[§publish-launch-folder] a folder allocated at launch is finalized in pla
     assert.ok(existsSync(join(runDir, "record.json")) && existsSync(join(runDir, "digest")), "record and digest sit beside the database");
 });
 
-test("[§publish-task-accounting] publication includes child requests and preserves the primary context", (t) => {
+test("{§publish} publication includes child requests and preserves the primary context", (t) => {
     const root = mkdtempSync(join(tmpdir(), "bench-pub-accounting-"));
     t.after(() => rmSync(root, { recursive: true, force: true }));
     const dbPath = join(root, "source.db");
@@ -127,7 +121,7 @@ test("[§publish-task-accounting] publication includes child requests and preser
 });
 
 // run<N> auto-increments off the highest existing run, ignoring non-run dirs.
-test("[§publish-numbering] a published run is named run<N>-<harness>-<task>-<model>, N continuing the tree", () => {
+test("{§publish} a published run is named run<N>-<harness>-<task>-<model>, N continuing the tree", () => {
     const labels = runLabels({ harness: "enterprise", taskId: "Enterprise-Bench/eng-l1-a", model: "plurnk/deepdumb" } as BenchRecord);
     assert.deepEqual(labels, ["enterprise", "eng-l1-a", "deepdumb"]);
     const root = mkdtempSync(join(tmpdir(), "bench-pub-"));
@@ -141,7 +135,7 @@ test("[§publish-numbering] a published run is named run<N>-<harness>-<task>-<mo
     }
 });
 
-test("[§publish] publishRun returns null when the record has no run handle", () => {
+test("{§publish} publishRun returns null when the record has no run handle", () => {
     const record: BenchRecord = {
         harness: "deepswe", taskId: "t", model: "m",
         durationMs: 0, status: 0, outcome: "error", turns: 0,
@@ -149,7 +143,7 @@ test("[§publish] publishRun returns null when the record has no run handle", ()
     assert.equal(publishRun(record, mkdtempSync(join(tmpdir(), "bench-pub-"))), null);
 });
 
-test("[§publish-model-attempt-gate] the DB's own model turn defines a benchmark attempt", () => {
+test("{§publish} the DB's own model turn defines a benchmark attempt", () => {
     const dir = mkdtempSync(join(tmpdir(), "bench-digest-"));
     try {
         assert.equal(digestHasModelTurns(dir), false);                                                           // no digest.json
@@ -162,7 +156,7 @@ test("[§publish-model-attempt-gate] the DB's own model turn defines a benchmark
     }
 });
 
-test("[§publish-turnless-gate] digestHasTurns is false for an absent or empty digest, true with turns", () => {
+test("{§publish} digestHasTurns is false for an absent or empty digest, true with turns", () => {
     const dir = mkdtempSync(join(tmpdir(), "bench-dig-"));
     try {
         assert.equal(digestHasTurns(dir), false);                                   // no digest.json
@@ -177,7 +171,7 @@ test("[§publish-turnless-gate] digestHasTurns is false for an absent or empty d
 
 // record.json makes benchmarks/run<N> self-sufficient: it re-points the digest handle at the
 // published DB and carries the oracle side (reward/outcome/filesModified) the DB+digest lack.
-test("[§publish-self-referential] publishedRecord re-points the DB handle and preserves the oracle fields", () => {
+test("{§publish} publishedRecord re-points the DB handle and preserves the oracle fields", () => {
     const record: BenchRecord = {
         harness: "deepswe", taskId: "abs-module-cache-flags", model: "plurnk/gbuild",
         durationMs: 1000, status: 499, outcome: "timeout", turns: 15,
@@ -198,7 +192,7 @@ test("[§publish-self-referential] publishedRecord re-points the DB handle and p
     assert.equal(record.run!.dbPath, "/jobs/scratch/agent/plurnk.db");   // input not mutated
 });
 
-test("[§publish-task-accounting] interrupted requests remain unknown rather than parent-only or zero", () => {
+test("{§publish} interrupted requests remain unknown rather than parent-only or zero", () => {
     const record: BenchRecord = {
         harness: "deepswe", taskId: "interrupted", model: "fixture", durationMs: 1,
         status: 499, outcome: "cancelled", turns: 1,
@@ -221,7 +215,7 @@ test("[§publish-task-accounting] interrupted requests remain unknown rather tha
 });
 
 // The shared tree is a sibling of the bench repo.
-test("[§results-canon] the one benchmarks home is ~/benchmarks unless PLURNK_BENCH_HOME says otherwise", () => {
+test("{§publish} the one benchmarks home is ~/benchmarks unless PLURNK_BENCH_HOME says otherwise", () => {
     assert.equal(benchmarksHome({}, "/home/ada"), "/home/ada/benchmarks");
     assert.equal(benchmarksHome({ PLURNK_BENCH_HOME: "~/runs" }, "/home/ada"), "/home/ada/runs");
     assert.equal(benchmarksHome({ PLURNK_BENCH_HOME: "/srv/bench" }, "/home/ada"), "/srv/bench");
@@ -230,14 +224,14 @@ test("[§results-canon] the one benchmarks home is ~/benchmarks unless PLURNK_BE
     assert.doesNotMatch(defaultBenchmarksDir(), /plurnk-bench\/benchmarks$|\/ptl\/benchmarks$/);
 });
 
-test("[§publish-requiem] the requiem is banked only on PLURNK_BENCH_REQUIEM=1", () => {
+test("{§publish} the requiem is banked only on PLURNK_BENCH_REQUIEM=1", () => {
     const source = readFileSync(new URL("./publish.ts", import.meta.url), "utf8");
     assert.match(source, /if \(process\.env\.PLURNK_BENCH_REQUIEM === "1"\) \{\s*try \{[\s\S]*?manifest\.bin\["plurnk-service"\]\), "requiem",/);
     assert.equal((source.match(/"requiem", join\(dir/g) ?? []).length, 1);
     assert.doesNotMatch(source, /loadActiveProvider|Digest\.requiem\(/, "the service CLI owns witness selection and configuration");
 });
 
-test("[§publish-requiem-accounting] a banked interview's spend folds into record.json under requiem", () => {
+test("{§publish} a banked interview's spend folds into record.json under requiem", () => {
     const dir = mkdtempSync(join(tmpdir(), "bench-requiem-fold-"));
     try {
         writeFileSync(join(dir, "record.json"), JSON.stringify({
@@ -298,14 +292,14 @@ test("[§publish-requiem-accounting] a banked interview's spend folds into recor
     }
 });
 
-test("[§publish-workspace-scope] the published digest is workspace-scoped, never worker-narrowed", () => {
+test("{§publish} the published digest is workspace-scoped, never worker-narrowed", () => {
     const source = readFileSync(new URL("./publish.ts", import.meta.url), "utf8");
     const call = source.match(/Digest\.run\(\{[\s\S]*?\}\);/)?.[0] ?? "";
     assert.match(call, /workspaceId/);
     assert.doesNotMatch(call, /workerId/, "worker narrowing excludes child worker evidence");
 });
 
-test("[§publish-digest-provenance] a trial's own digest is published verbatim; the installed service renders nothing", (t) => {
+test("{§publish} a trial's own digest is published verbatim; the installed service renders nothing", (t) => {
     const root = mkdtempSync(join(tmpdir(), "bench-pub-provenance-"));
     t.after(() => rmSync(root, { recursive: true, force: true }));
     const dbPath = join(root, "agent", "plurnk.db");
@@ -328,3 +322,96 @@ test("[§publish-digest-provenance] a trial's own digest is published verbatim; 
     assert.deepEqual(JSON.parse(readFileSync(join(output!, "digest", "digest.json"), "utf8")), own, "the census the candidate's runtime wrote survives publication");
     assert.equal(readFileSync(join(output!, "digest", "digest.md"), "utf8"), "# rendered by the candidate's runtime\n");
 });
+}
+
+// ─── host-paths.test.ts ───
+{
+test("{§config-carry} operatorConfigPath follows XDG while preserving an explicit bench override", () => {
+    assert.equal(operatorConfigPath(undefined, {}, "/home/ada"), "/home/ada/.config/plurnk/.env");
+    assert.equal(
+        operatorConfigPath(undefined, { XDG_CONFIG_HOME: "/cfg" }, "/home/ada"),
+        "/cfg/plurnk/.env",
+    );
+    assert.equal(
+        operatorConfigPath(undefined, { XDG_CONFIG_HOME: "relative" }, "/home/ada"),
+        "/home/ada/.config/plurnk/.env",
+    );
+    assert.equal(operatorConfigPath("~/operator.env", {}, "/home/ada"), "/home/ada/operator.env");
+    assert.equal(operatorConfigPath("/run/operator.env", {}, "/home/ada"), "/run/operator.env");
+});
+
+test("{§publish} jobsRoot keeps every harness's job scratch under the benchmarks home", () => {
+    assert.equal(benchmarksHome({}, "/home/ada"), "/home/ada/benchmarks");
+    assert.equal(jobsRoot("enterprise", {}, "/home/ada"), "/home/ada/benchmarks/jobs/enterprise");
+    assert.equal(jobsRoot("deepswe", { PLURNK_BENCH_HOME: "/srv/bench" }, "/home/ada"), "/srv/bench/jobs/deepswe");
+});
+
+test("{§config-carry} benchmark environment loads operator config before committed defaults", (t) => {
+    const root = mkdtempSync(resolve(tmpdir(), "plurnk-bench-env-"));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    const operator = resolve(root, "operator.env");
+    const defaults = resolve(root, "defaults.env");
+    writeFileSync(operator, "PLURNK_MODEL=operator\n");
+    writeFileSync(defaults, "PLURNK_MODEL=default\n");
+    const loadInto = (env: NodeJS.ProcessEnv, loaded: string[]) => (path: string) => {
+        loaded.push(path);
+        for (const [key, value] of Object.entries(parseEnv(readFileSync(path, "utf8")))) {
+            if (env[key] === undefined) env[key] = value;
+        }
+    };
+    const operatorSelected: NodeJS.ProcessEnv = {};
+    const operatorLoaded: string[] = [];
+
+    const resolved = loadBenchmarkEnvironment(
+        operator,
+        defaults,
+        operatorSelected,
+        loadInto(operatorSelected, operatorLoaded),
+    );
+
+    assert.equal(resolved, operator);
+    assert.deepEqual(operatorLoaded, [operator, defaults]);
+    assert.equal(selectedModel(operatorSelected), "operator", "XDG operator config wins over defaults");
+
+    const shellSelected: NodeJS.ProcessEnv = { PLURNK_MODEL: "shell" };
+    loadBenchmarkEnvironment(operator, defaults, shellSelected, loadInto(shellSelected, []));
+    assert.equal(selectedModel(shellSelected), "shell", "the invoking shell wins over both files");
+
+    const defaultSelected: NodeJS.ProcessEnv = {};
+    loadBenchmarkEnvironment(resolve(root, "absent.env"), defaults, defaultSelected, loadInto(defaultSelected, []));
+    assert.equal(selectedModel(defaultSelected), "default", "the committed floor fills an unset selection");
+});
+
+test("{§config-carry} the candidate selection is the ordinary PLURNK_MODEL", () => {
+    assert.equal(selectedModel({ PLURNK_MODEL: "deepdumb" }), "deepdumb");
+    assert.equal(selectedModel({ PLURNK_MODEL: " cloudflare-workers-ai/@cf/qwen/qwen3.8-27b " }), "cloudflare-workers-ai/@cf/qwen/qwen3.8-27b");
+    assert.throws(() => selectedModel({}), /PLURNK_MODEL/);
+    assert.throws(() => selectedModel({ PLURNK_MODEL: " " }), /PLURNK_MODEL/);
+});
+
+test("{§config-carry} the committed bench floor disables question through executor policy", () => {
+    const defaults = parseEnv(readFileSync(new URL("../.env.defaults", import.meta.url), "utf8"));
+    assert.equal(defaults.PLURNK_EXECS_QUESTION, "0");
+    assert.equal(defaults.PLURNK_SERVICE_PROVIDER_RECOVERY, undefined, "benchmarks inherit product recovery unless the operator overrides it");
+});
+}
+
+// ─── run-directory.test.ts ───
+{
+test("{§publish} numbered forensic runs share one flat, collision-safe namespace", () => {
+    const root = mkdtempSync(resolve(tmpdir(), "plurnk-bench-runs-"));
+    try {
+        mkdirSync(resolve(root, "run4-existing"));
+        assert.equal(
+            basename(allocateRunDirectory(root, ["atlas", "filesystem read", "grok"])),
+            "run5-atlas-filesystem-read-grok",
+        );
+        assert.equal(
+            basename(allocateRunDirectory(root, ["deepswe", "abs", "glm"])),
+            "run6-deepswe-abs-glm",
+        );
+    } finally {
+        rmSync(root, { recursive: true, force: true });
+    }
+});
+}

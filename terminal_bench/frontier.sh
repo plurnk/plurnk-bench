@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # FrontierHarness Eval v1 parity run (#22): the 30 tasks of terminal_bench/frontier.manifest.json
 # (21 Terminal-Bench 2.1 + 9 DeepSWE v1.1), one Harbor job per task through the plurnk agent,
-# each client timeout = the task's own [agent] budget minus headroom (SPEC §frontier-parity).
+# each client timeout = the task's own [agent] budget minus headroom (SPEC {§frontier-evidence}).
 #   PLURNK_MODEL=<alias> terminal_bench/frontier.sh [--preflight] [task ...]
 #   PLURNK_BENCH_JOBS      tasks in flight at once (default 1)
 #   PLURNK_BENCH_SERVICE_VERSION / _CLIENT_VERSION   the published @plurnk versions the agent installs

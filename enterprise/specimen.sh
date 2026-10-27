@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Enterprise-Bench specimen (SPEC §enterprise-specimen): run ONE task against a daemon built from
+# Enterprise-Bench specimen (SPEC {§enterprise}): run ONE task against a daemon built from
 # a CHECKOUT — unreleased engine and teaching — while the benchmark keeps its own truth: the task
 # container hosts the submission endpoint and runs the official judge over the pinned tests.
 #
@@ -66,7 +66,7 @@ for _ in $(seq 1 60); do curl -sf http://127.0.0.1:8000/health >/dev/null 2>&1 &
 curl -sf http://127.0.0.1:8000/health >/dev/null || { echo "specimen: task container did not become healthy" >&2; exit 1; }
 docker cp "$TASK_PATH/tests/." "$CONTAINER:/tests/"
 
-# The same posture the Harbor driver carries (SPEC §enterprise-posture), on a host daemon.
+# The same posture the Harbor driver carries (SPEC {§enterprise}), on a host daemon.
 export PLURNK_MODEL="$MODEL"
 # The run owns complete definitions, not plugin installations.
 CONFIG_ROOT="$RUN_DIR/config"

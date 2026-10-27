@@ -80,7 +80,7 @@ interface DockerManifest extends ManifestBase {
     };
 }
 
-// A Terminal-Bench 2.1 task ({§benchlet-tree}): no repository — the image's /app IS the task tree —
+// A Terminal-Bench 2.1 task ({§benchlet-diagnostic}): no repository — the image's /app IS the task tree —
 // and a verifier that grades that tree (tests/test.sh → /logs/verifier/reward.txt + ctrf.json).
 interface TreeManifest {
     schemaVersion: number;
@@ -479,7 +479,7 @@ export const parseGoTestEvents = (text: string): Map<string, TestObservation> =>
     return observations;
 };
 
-// {§benchlet-oracle-exclusion} — a pass-to-pass test that fails on the pristine baseline in THIS
+// {§benchlet-diagnostic} — a pass-to-pass test that fails on the pristine baseline in THIS
 // environment cannot discriminate a candidate here (2026-09-08: eicrud's own login rate limiter
 // answered 425 to a test that expects 401 because this host ran two attempts inside the framework's
 // minimum interval; three runs, same test, no model involved). Such tests leave the graded set for
@@ -621,7 +621,7 @@ const ensureRepositoryCache = (manifest: HostManifest, cache: string): void => {
     gitDir(cache, ["update-ref", "refs/heads/benchlet-base", manifest.baseCommit]);
 };
 
-// {§benchlet-tree} — the container path every Terminal-Bench instruction names for its tree.
+// {§benchlet-diagnostic} — the container path every Terminal-Bench instruction names for its tree.
 export const TREE_TASK_ROOT = "/app";
 export const treeInstruction = (instruction: string, root: string): string =>
     instruction.replaceAll(new RegExp(`${TREE_TASK_ROOT}(?=/|\\b)`, "g"), root);
@@ -668,7 +668,7 @@ const copyDockerBase = (manifest: DockerManifest, destination: string): void => 
     git(destination, ["config", "user.email", "plurnk@pm.me"]);
 };
 
-// {§benchlet-tree} — the image's /app is the task tree; it is copied out as-is, with no repository
+// {§benchlet-diagnostic} — the image's /app is the task tree; it is copied out as-is, with no repository
 // to assert: the candidate daemon admits it through the harness member definition instead.
 const copyDockerTree = (image: string, destination: string): void => {
     mkdirSync(destination, { recursive: true });
@@ -679,7 +679,7 @@ const copyDockerTree = (image: string, destination: string): void => {
         removeContainer(container);
     }
 };
-// {§benchlet-container-exec} — the candidate's commands run inside the task image, not on the host.
+// {§benchlet-diagnostic} — the candidate's commands run inside the task image, not on the host.
 // The daemon spawns every executor by name through PATH, so a shim directory in front of the
 // candidate's PATH forwards each one into a long-lived container of the task image when the command's
 // cwd is inside the candidate repository, mounted there at its own host path so cwd and every path in
@@ -708,7 +708,7 @@ export interface ContainerExec {
 const shq = (value: string): string => "'" + value.replaceAll("'", "'\\''") + "'";
 export const executorShim = (name: string, exec: ContainerExec): string => [
     "#!/bin/sh",
-    "# {§benchlet-container-exec} — inside the candidate repository the command runs in the task container",
+    "# {§benchlet-diagnostic} — inside the candidate repository the command runs in the task container",
     "# at the same path; anywhere else it runs on the host.",
     'case "${PWD}/" in',
     "    " + shq(exec.repository + "/") + '*) exec docker exec -i -u ' + shq(exec.user) + ' -w "${PWD}" -e HOME=' + shq(exec.home) + " " + shq(exec.container) + " " + name + ' "$@" ;;',
@@ -782,7 +782,7 @@ const capturePatches = async (
     };
 };
 
-// {§benchlet-tree} — a task tree has no patches: its state is the sorted listing of every file with
+// {§benchlet-diagnostic} — a task tree has no patches: its state is the sorted listing of every file with
 // its sha256, and the tree itself is what the verifier grades. Submission and working state are one.
 export const captureTree = (
     tree: string,
@@ -994,7 +994,7 @@ const gradeTaskPatch = async (
         shell("docker", ["start", container]);
         shell("docker", ["exec", container, "mkdir", "-p", "/tests", "/logs/artifacts", "/logs/verifier"]);
         shell("docker", ["cp", `${resolve(taskDir, "tests")}/.`, `${container}:/tests`]);
-        // {§benchlet-oracle-exclusion} — the verifier grades the run's whitelist: the pinned config
+        // {§benchlet-diagnostic} — the verifier grades the run's whitelist: the pinned config
         // merged with the derived p2p set, written beside the artifacts as evidence and copied over
         // the container's copy only when an id was excluded.
         const pinned = JSON.parse(readFileSync(resolve(taskDir, "tests", "config.json"), "utf8")) as Record<string, unknown>;
@@ -1041,7 +1041,7 @@ const gradeTaskPatch = async (
     }
 };
 
-// {§benchlet-tree} — Harbor's text reward ("1" | "0") and the CTRF the task's pytest wrote. Every
+// {§benchlet-diagnostic} — Harbor's text reward ("1" | "0") and the CTRF the task's pytest wrote. Every
 // test is fail-to-pass; the binary reward and the test evidence must agree.
 export const parseTreeVerifierArtifacts = (rewardText: string, ctrf?: CtrfReport): OracleResult => {
     const reward = Number(rewardText.trim());
@@ -1069,7 +1069,7 @@ export const parseTreeVerifierArtifacts = (rewardText: string, ctrf?: CtrfReport
         tests: observed,
     };
 };
-// {§benchlet-tree} — grade a task tree in a fresh task container: the tree replaces the image's /app
+// {§benchlet-diagnostic} — grade a task tree in a fresh task container: the tree replaces the image's /app
 // byte for byte (null grades the pristine image), then the canonical tests/test.sh runs.
 const gradeTaskTree = async (
     label: string,
@@ -1322,7 +1322,7 @@ export const requiemIsComplete = (
     reportExists: boolean,
 ): boolean => status === 0 && markdownExists && reportExists;
 
-// {§benchlet-candidate-timeout} — -1 is the no-limit idiom; the returned
+// {§benchlet-diagnostic} — -1 is the no-limit idiom; the returned
 // undefined means "no timer" for the spawn helper.
 export const candidateTimeoutMs = (
     candidateTimeout: number,
@@ -1331,7 +1331,7 @@ export const candidateTimeoutMs = (
     ? undefined
     : (candidateTimeout + candidateOverhead) * 1_000;
 
-// {§benchlet-candidate-exit} — a candidate the provider or the clock killed never got to try, and
+// {§benchlet-diagnostic} — a candidate the provider or the clock killed never got to try, and
 // the record has to say so: `harnessStatus: "complete"` used to cover a run whose model was cut off
 // mid-turn, making it indistinguishable from one that finished and simply failed the oracle (#41).
 // This is the DeepSWE half of the same hole closed for SWE-bench in #40.
@@ -1386,7 +1386,7 @@ export const requiemModelAlias = (
     candidateModel: string,
 ): string | null => {
     if (!enabled) return null;
-    // SPEC §config-model-default: the requiem witness is a distinct actor; unset
+    // SPEC {§config-carry}: the requiem witness is a distinct actor; unset
     // deliberately inherits the already-resolved candidate selection.
     return configured?.trim() || candidateModel;
 };
@@ -1426,7 +1426,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
     const preflightOnly = values.preflight;
     const model = selectedModel();
     const taskCache = resolveFrom(benchRoot, process.env.PLURNK_BENCHLET_TASK_CACHE ?? "");
-    // {§benchlet-tree} — a tree manifest names its own corpus; DeepSWE tasks use the configured cache.
+    // {§benchlet-diagnostic} — a tree manifest names its own corpus; DeepSWE tasks use the configured cache.
     const taskDir = resolve(isTreeManifest(manifest) ? resolveFrom(benchRoot, manifest.taskCache) : taskCache, manifest.task);
     const repositoryCacheRoot = resolveFrom(
         benchRoot,
@@ -1441,7 +1441,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         "PLURNK_BENCHLET_CLIENT_ROOT",
     );
     const candidatePolicy = candidatePolicyPath(serviceRoot);
-    // {§benchlet-tree} — a tree task runs on its own pinned agent budget (FrontierHarness parity).
+    // {§benchlet-diagnostic} — a tree task runs on its own pinned agent budget (FrontierHarness parity).
     const candidateTimeout = isTreeManifest(manifest)
         ? manifest.budgetSeconds
         : Number(process.env.PLURNK_BENCHLET_CANDIDATE_TIMEOUT_SEC);
@@ -1453,7 +1453,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         process.env.PLURNK_BENCHLET_REQUIEM_MODEL,
         model,
     );
-    // -1 is the plurnk "no limit" idiom ({§benchlet-candidate-timeout}).
+    // -1 is the plurnk "no limit" idiom ({§benchlet-diagnostic}).
     if (!Number.isSafeInteger(candidateTimeout) || candidateTimeout === 0 || candidateTimeout < -1) {
         throw new Error("PLURNK_BENCHLET_CANDIDATE_TIMEOUT_SEC must be a positive integer, or -1 for no limit");
     }
@@ -1549,7 +1549,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             verifier: manifest.verifier,
         },
         modelAlias: model,
-        // {§bench-confounds} — the alias's route knobs as the daemon will read them, so a run
+        // {§bench-relock} — the alias's route knobs as the daemon will read them, so a run
         // records which model, reasoning level, and sampling it actually asked for.
         aliasConfiguration: aliasConfiguration(model, process.env),
         sources,
@@ -1620,7 +1620,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
 
     const repository = resolve(runDir, "repo");
     prepareCandidateRepository(manifest, repositoryCache, repository);
-    // {§benchlet-tree} — a Terminal-Bench instruction names the container path `/app`; the host
+    // {§benchlet-diagnostic} — a Terminal-Bench instruction names the container path `/app`; the host
     // candidate's tree lives in the run directory, so the instruction names that path instead and the
     // rewrite is recorded. The verifier still sees the tree at /app inside its container.
     const instructionSource = readFileSync(resolve(taskDir, "instruction.md"), "utf8");
@@ -1633,11 +1633,11 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         ...(clientTimeout === -1 ? [] : ["--timeout", String(clientTimeout)]),
         instruction,
     ];
-    // {§benchlet-container-exec}
+    // {§benchlet-diagnostic}
     const containerExec = isDockerManifest(manifest)
         ? (() => {
             const user = process.getuid!() + ":" + process.getgid!();
-            // {§benchlet-container-scratch} — the daemon's executor scratch is per-run and mounted as-is.
+            // {§benchlet-diagnostic} — the daemon's executor scratch is per-run and mounted as-is.
             const mounts = { repository, scratch: resolve(runDir, "exec-scratch") };
             const container = candidateContainer.start(manifest.environment, mounts, user);
             const binDir = resolve(runDir, "bin");
@@ -1650,7 +1650,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         })()
         : { env: {}, record: { kind: "host" } };
     writeJson(resolve(runDir, "candidate-execution.json"), containerExec.record);
-    // {§benchlet-isolation} — the candidate reaches no network beyond its model.
+    // {§benchlet-diagnostic} — the candidate reaches no network beyond its model.
     const isolation = candidateIsolation([...envFileKeyNames(operatorEnv), ...Object.keys(process.env)]);
     writeJson(resolve(runDir, "candidate-isolation.json"), { masked: isolation.masked, webHosts: [], capabilities: isolation.capabilities });
     const candidateEnvironmentOverrides = {
@@ -1659,7 +1659,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         PLURNK_CANDIDATE_DIR: runDir,
         PLURNK_MODEL: model,
         PLURNK_CLIENT_CHECKOUT: clientRoot,
-        // {§benchlet-tree} — a task tree is no repository: the harness admits it as a service member
+        // {§benchlet-diagnostic} — a task tree is no repository: the harness admits it as a service member
         // definition, exactly as the Harbor agent does (terminal_bench/plurnk_agent.py).
         ...(isTreeManifest(manifest) ? { PLURNK_MEMBERS_task: "**", PLURNK_MEMBERS_ENABLED: "1" } : {}),
         PLURNK_SERVICE_POLICY: candidatePolicySnapshot,
@@ -1846,7 +1846,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
 
     activeStage = "finalize";
     const completedAt = new Date();
-    // {§benchlet-candidate-exit} — a killed candidate is never "complete", whatever the requiem did.
+    // {§benchlet-diagnostic} — a killed candidate is never "complete", whatever the requiem did.
     const candidateExit = candidateOutcome(candidate);
     const harnessStatus = candidateExit !== "finished"
         ? "candidate_failed"
@@ -1877,14 +1877,14 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         git: patchState,
         oracle: {
             baseline,
-            // {§benchlet-oracle-exclusion} — what this run did not grade, and why.
+            // {§benchlet-diagnostic} — what this run did not grade, and why.
             environmentExcludedP2p: excludedP2p.map(({ nodeId, output }) => ({ nodeId, baselineOutput: output })),
             working: workingOracle,
             submission: submissionOracle,
             submissionEvidence: {
                 reusedWorking: submissionReusedWorking,
                 patchSha256: patchState.submissionSha256,
-                // {§benchlet-candidate-exit} — "the model changed nothing" is its own result.
+                // {§benchlet-diagnostic} — "the model changed nothing" is its own result.
                 emptyPatch: producedNoPatch(patchState.submissionSha256),
             },
         },

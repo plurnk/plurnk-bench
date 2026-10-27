@@ -1,4 +1,4 @@
-// {§benchlet-isolation} Disable ambient endpoint/skill aliases without destroying definitions;
+// {§benchlet-diagnostic} Disable ambient endpoint/skill aliases without destroying definitions;
 // capability and HTTP ceilings independently prevent model-created outbound access.
 const RESOURCE = /^(PLURNK_(?:MCP|A2A|SKILLS)_[\p{Ll}\p{Lo}\p{Lm}\p{N}][\p{Ll}\p{Lo}\p{Lm}\p{N}_]*)(?:_[A-Z][A-Z0-9_]*)?$/u;
 const SEARCH_CREDENTIALS = Object.freeze(["BRAVE_API_KEY", "TAVILY_API_KEY"]);

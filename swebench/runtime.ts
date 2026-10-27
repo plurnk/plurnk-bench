@@ -1,4 +1,4 @@
-// {§swebench-container-runtime} Immutable, installed artifacts, never a source-tree mount.
+// {§swebench-evaluator} Immutable, installed artifacts, never a source-tree mount.
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";

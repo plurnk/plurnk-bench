@@ -1,50 +1,16 @@
 import assert from "node:assert/strict";
-import {
-    existsSync,
-    mkdirSync,
-    mkdtempSync,
-    readFileSync,
-    rmSync,
-    writeFileSync,
-} from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, resolve } from "node:path";
 import test from "node:test";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
-import {
-    aliasConfiguration,
-    allocateRun,
-    captureTree,
-    isTreeManifest,
-    treeInstruction,
-    parseTreeVerifierArtifacts,
-    candidateTimeoutMs,
-    candidateOutcome,
-    producedNoPatch,
-    EMPTY_SHA256,
-    candidatePolicyPath,
-    candidatePolicySnapshotPath,
-    candidateRecapSnapshotPath,
-    digestSummary,
-    baselineInvalidity,
-    EXECUTOR_SHIMS,
-    executorShim,
-    environmentExcludedP2p,
-    gradeObservations,
-    manifestPathForTask,
-    parseGoTestEvents,
-    parseTaskVerifierArtifacts,
-    recordInfrastructureFailure,
-    requiemIsComplete,
-    requiemModelAlias,
-    runToFiles,
-    summarizeFailures,
-    withoutExcluded,
-} from "./benchlet.ts";
+import { aliasConfiguration, allocateRun, captureTree, isTreeManifest, treeInstruction, parseTreeVerifierArtifacts, candidateTimeoutMs, candidateOutcome, producedNoPatch, EMPTY_SHA256, candidatePolicyPath, candidatePolicySnapshotPath, candidateRecapSnapshotPath, digestSummary, baselineInvalidity, EXECUTOR_SHIMS, executorShim, environmentExcludedP2p, gradeObservations, manifestPathForTask, parseGoTestEvents, parseTaskVerifierArtifacts, recordInfrastructureFailure, requiemIsComplete, requiemModelAlias, runToFiles, summarizeFailures, withoutExcluded } from "./benchlet.ts";
 
-test("[§benchlet-evidence] benchlet resolves and snapshots the service candidate policy", () => {
+// ─── benchlet.test.ts ───
+{
+test("{§benchlet-diagnostic} benchlet resolves and snapshots the service candidate policy", () => {
     assert.equal(
         candidatePolicyPath("/source/plurnk-service"),
         "/source/plurnk-service/plurnk-meta/POLICY.md",
@@ -60,7 +26,7 @@ test("[§benchlet-evidence] benchlet resolves and snapshots the service candidat
     );
 });
 
-test("[§benchlet-oracle] benchlet parses exact go test events and keeps failure output", () => {
+test("{§benchlet-diagnostic} benchlet parses exact go test events and keeps failure output", () => {
     const events = [
         JSON.stringify({ Action: "run", Package: "example.test/pkg", Test: "TestOne" }),
         JSON.stringify({ Action: "output", Package: "example.test/pkg", Test: "TestOne", Output: "failure detail\n" }),
@@ -80,14 +46,14 @@ test("[§benchlet-oracle] benchlet parses exact go test events and keeps failure
     });
 });
 
-test("[§benchlet-oracle] benchlet rejects malformed go test JSON instead of silently losing evidence", () => {
+test("{§benchlet-diagnostic} benchlet rejects malformed go test JSON instead of silently losing evidence", () => {
     assert.throws(
         () => parseGoTestEvents('{"Action":"pass"}\nnot-json'),
         /go test -json emitted malformed JSON on line 2/,
     );
 });
 
-test("[§benchlet-oracle] benchlet preserves a test interrupted before its terminal event", () => {
+test("{§benchlet-diagnostic} benchlet preserves a test interrupted before its terminal event", () => {
     const events = [
         JSON.stringify({ Action: "run", Package: "example.test/pkg", Test: "TestInterrupted" }),
         JSON.stringify({
@@ -111,12 +77,12 @@ test("[§benchlet-oracle] benchlet preserves a test interrupted before its termi
     });
 });
 
-test("[§benchlet-container-exec] an executor shim carries its container, repository, user, image home, and host PATH as literals and forwards only from inside the repository", () => {
+test("{§benchlet-diagnostic} an executor shim carries its container, repository, user, image home, and host PATH as literals and forwards only from inside the repository", () => {
     assert.ok(["sh", "node", "python3", "npm", "cargo", "go"].every((name) => EXECUTOR_SHIMS.includes(name)));
     const shim = executorShim("python3", { container: "c0ffee", repository: "/runs/run7/repo", user: "1000:1000", home: "/root", realPath: "/usr/bin:/bin" });
     assert.equal(shim, [
         "#!/bin/sh",
-        "# {§benchlet-container-exec} — inside the candidate repository the command runs in the task container",
+        "# {§benchlet-diagnostic} — inside the candidate repository the command runs in the task container",
         "# at the same path; anywhere else it runs on the host.",
         'case "${PWD}/" in',
         "    '/runs/run7/repo/'*) exec docker exec -i -u '1000:1000' -w \"${PWD}\" -e HOME='/root' 'c0ffee' python3 \"$@\" ;;",
@@ -126,7 +92,7 @@ test("[§benchlet-container-exec] an executor shim carries its container, reposi
     ].join("\n"));
 });
 
-test("[§benchlet-oracle-exclusion] a pass-to-pass test failing on the pristine baseline leaves this run's graded set with evidence", () => {
+test("{§benchlet-diagnostic} a pass-to-pass test failing on the pristine baseline leaves this run's graded set with evidence", () => {
     const config = {
         base_commit: "base",
         p2p_node_ids: ["pkg.Stable", "pkg.LoginTiming", "pkg.AlsoStable"],
@@ -154,7 +120,7 @@ test("[§benchlet-oracle-exclusion] a pass-to-pass test failing on the pristine 
     assert.equal(graded.p2pTotal, 2);
 });
 
-test("[§benchlet-oracle-exclusion] a passing fail-to-pass test or a tenth of p2p failing at baseline is still a broken environment", () => {
+test("{§benchlet-diagnostic} a passing fail-to-pass test or a tenth of p2p failing at baseline is still a broken environment", () => {
     const config = {
         base_commit: "base",
         p2p_node_ids: Array.from({ length: 20 }, (_, index) => `pkg.P${index}`),
@@ -170,7 +136,7 @@ test("[§benchlet-oracle-exclusion] a passing fail-to-pass test or a tenth of p2
     assert.match(baselineInvalidity(observe(0, true)) ?? "", /f2p 1\/1/u);
 });
 
-test("[§benchlet-oracle] benchlet grading distinguishes absent evidence from a pass", () => {
+test("{§benchlet-diagnostic} benchlet grading distinguishes absent evidence from a pass", () => {
     const result = gradeObservations({
         base_commit: "base",
         p2p_node_ids: ["example.test/pkg.TestBase"],
@@ -186,7 +152,7 @@ test("[§benchlet-oracle] benchlet grading distinguishes absent evidence from a 
     assert.equal(result.tests[1]?.output, "test absent from oracle output");
 });
 
-test("[§benchlet-oracle] benchlet grading rejects an unapplied patch without running tests", () => {
+test("{§benchlet-diagnostic} benchlet grading rejects an unapplied patch without running tests", () => {
     const result = gradeObservations({
         base_commit: "base",
         p2p_node_ids: ["example.test/pkg.TestBase"],
@@ -202,7 +168,7 @@ test("[§benchlet-oracle] benchlet grading rejects an unapplied patch without ru
     assert.ok(result.tests.every((entry) => entry.output === "submission patch did not apply"));
 });
 
-test("[§benchlet-evidence] benchlet summary preserves the terminal loop Problem", () => {
+test("{§benchlet-diagnostic} benchlet summary preserves the terminal loop Problem", () => {
     const summary = digestSummary({
         workspaces: [{
             accounting: {
@@ -291,7 +257,7 @@ test("[§benchlet-evidence] benchlet summary preserves the terminal loop Problem
     assert.deepEqual(summary.operationCounts, { PLAN: 1 });
 });
 
-test("[§benchlet-evidence] benchlet groups terminal stream channels into one causal failure", () => {
+test("{§benchlet-diagnostic} benchlet groups terminal stream channels into one causal failure", () => {
     const nonzeroExit = "https://problems.plurnk.xyz/executor/subprocess/nonzero-exit";
     const entryNotFound = "https://problems.plurnk.xyz/scheme/sh/entry-not-found";
     const summary = digestSummary({
@@ -408,7 +374,7 @@ test("[§benchlet-evidence] benchlet groups terminal stream channels into one ca
     });
 });
 
-test("[§benchlet-evidence] benchlet shell owns the operator environment bootstrap", () => {
+test("{§benchlet-diagnostic} benchlet shell owns the operator environment bootstrap", () => {
     const shell = readFileSync(new URL("./benchlet.sh", import.meta.url), "utf8");
 
     assert.match(shell, /PLURNK_BENCHLET_SHELL_READY/);
@@ -416,7 +382,7 @@ test("[§benchlet-evidence] benchlet shell owns the operator environment bootstr
     assert.match(shell, /exec node --conditions=plurnk-dev/);
 });
 
-test("[§benchlet-evidence] benchlet waits until complete stdout and stderr artifacts are durable", async () => {
+test("{§benchlet-diagnostic} benchlet waits until complete stdout and stderr artifacts are durable", async () => {
     const root = mkdtempSync(resolve(tmpdir(), "plurnk-benchlet-capture-"));
     try {
         const stdoutPath = resolve(root, "stdout.log");
@@ -441,7 +407,7 @@ test("[§benchlet-evidence] benchlet waits until complete stdout and stderr arti
     }
 });
 
-test("[§benchlet-evidence] benchlet marks and terminates a process that exceeds its harness watchdog", async () => {
+test("{§benchlet-diagnostic} benchlet marks and terminates a process that exceeds its harness watchdog", async () => {
     const root = mkdtempSync(resolve(tmpdir(), "plurnk-benchlet-timeout-"));
     try {
         const result = await runToFiles(process.execPath, [
@@ -461,7 +427,7 @@ test("[§benchlet-evidence] benchlet marks and terminates a process that exceeds
     }
 });
 
-test("[§benchlet-evidence] benchlet interruption terminates its child after durable output", async () => {
+test("{§benchlet-diagnostic} benchlet interruption terminates its child after durable output", async () => {
     const root = mkdtempSync(resolve(tmpdir(), "plurnk-benchlet-interruption-"));
     try {
         const stdoutPath = resolve(root, "stdout.log");
@@ -494,7 +460,7 @@ test("[§benchlet-evidence] benchlet interruption terminates its child after dur
     }
 });
 
-test("[§benchlet-failure] benchlet interruption closes its provenance and records the failed stage", () => {
+test("{§benchlet-diagnostic} benchlet interruption closes its provenance and records the failed stage", () => {
     const root = mkdtempSync(resolve(tmpdir(), "plurnk-benchlet-interruption-record-"));
     try {
         const startedAt = new Date("2026-09-03T12:00:00.000Z");
@@ -539,7 +505,7 @@ test("[§benchlet-failure] benchlet interruption closes its provenance and recor
     }
 });
 
-test("[§benchlet-location] benchlet allocates flat run numbers without reusing a claimed directory", () => {
+test("{§benchlet-diagnostic} benchlet allocates flat run numbers without reusing a claimed directory", () => {
     const root = mkdtempSync(resolve(tmpdir(), "plurnk-benchlet-numbering-"));
     try {
         mkdirSync(resolve(root, "run1-old"));
@@ -556,7 +522,7 @@ test("[§benchlet-location] benchlet allocates flat run numbers without reusing 
     }
 });
 
-test("[§benchlet-provenance] benchlet resolves only pinned, path-safe task manifests", () => {
+test("{§benchlet-diagnostic} benchlet resolves only pinned, path-safe task manifests", () => {
     assert.equal(
         basename(manifestPathForTask("happy-dom-abort-pending-body-reads")),
         "happy-dom-abort-pending-body-reads.json",
@@ -564,7 +530,7 @@ test("[§benchlet-provenance] benchlet resolves only pinned, path-safe task mani
     assert.throws(() => manifestPathForTask("../untracked-task"), /invalid benchlet task name/);
 });
 
-test("[§benchlet-oracle] benchlet preserves canonical task-verifier evidence", () => {
+test("{§benchlet-diagnostic} benchlet preserves canonical task-verifier evidence", () => {
     const result = parseTaskVerifierArtifacts({
         base_commit: "base",
         p2p_node_ids: ["base behavior"],
@@ -595,7 +561,7 @@ test("[§benchlet-oracle] benchlet preserves canonical task-verifier evidence", 
     });
 });
 
-test("[§benchlet-oracle] benchlet rejects inconsistent task-verifier summaries", () => {
+test("{§benchlet-diagnostic} benchlet rejects inconsistent task-verifier summaries", () => {
     assert.throws(() => parseTaskVerifierArtifacts({
         base_commit: "base",
         p2p_node_ids: ["base behavior"],
@@ -617,24 +583,24 @@ test("[§benchlet-oracle] benchlet rejects inconsistent task-verifier summaries"
     }), /CTRF and reward disagree on f2p passes/);
 });
 
-test("[§benchlet-failure] benchlet requires both requiem artifacts and a successful requiem process", () => {
+test("{§benchlet-diagnostic} benchlet requires both requiem artifacts and a successful requiem process", () => {
     assert.equal(requiemIsComplete(0, true, true), true);
     assert.equal(requiemIsComplete(1, true, true), false);
     assert.equal(requiemIsComplete(0, true, false), false);
     assert.equal(requiemIsComplete(0, false, true), false);
 });
 
-test("[§benchlet-requiem-witness] requiem selection is independent and explicit", () => {
+test("{§benchlet-diagnostic} requiem selection is independent and explicit", () => {
     assert.equal(requiemModelAlias(true, "glm", "deepdumb"), "glm");
     assert.equal(requiemModelAlias(false, undefined, "deepdumb"), null);
     assert.equal(requiemModelAlias(true, undefined, "deepdumb"), "deepdumb");
 });
-test("[§benchlet-candidate-timeout] -1 disables the candidate timer; positive values add the overhead", () => {
+test("{§benchlet-diagnostic} -1 disables the candidate timer; positive values add the overhead", () => {
     assert.equal(candidateTimeoutMs(-1, 900), undefined);
     assert.equal(candidateTimeoutMs(5280, 900), 6_180_000);
 });
 
-test("summarizeFailures: a child's reconciled EXEC does not collide with the parent's own stream at the same worker-relative coordinate (#464)", () => {
+test("{§benchlet-diagnostic} summarizeFailures: a child's reconciled EXEC does not collide with the parent's own stream at the same worker-relative coordinate (#464)", () => {
     const exec = (id: number, source: string | null, origin: string) => ({
         id, worker_id: 3, op: "EXEC", origin, state: "resolved", outcome: null,
         target: null, source, status_rx: 200, problem: null,
@@ -653,7 +619,7 @@ test("summarizeFailures: a child's reconciled EXEC does not collide with the par
     ] as never), /assigns stream/);
 });
 
-test("[§benchlet-tree] a tree manifest is recognised by its verifier alone", () => {
+test("{§benchlet-diagnostic} a tree manifest is recognised by its verifier alone", () => {
     const tree = { schemaVersion: 1, task: "t", kind: "terminal-bench", taskCache: ".cache/x", repositoryUrl: null, baseCommit: null, budgetSeconds: 900, environment: { kind: "docker", image: "i", network: "bridge", cpus: 1, memoryMb: 2048 }, verifier: { kind: "tree", timeoutSeconds: 900 }, files: {} } as never;
     const docker = { ...(tree as object), verifier: { kind: "task", timeoutSeconds: 900 } } as never;
     assert.equal(isTreeManifest(tree), true);
@@ -661,7 +627,7 @@ test("[§benchlet-tree] a tree manifest is recognised by its verifier alone", ()
     assert.match(allocateRun(mkdtempSync(resolve(tmpdir(), "benchlet-family-")), "sqlite-db-truncate", "kimi", "terminal-bench"), /run1-terminal-bench-sqlite-db-truncate-kimi$/);
 });
 
-test("[§benchlet-tree] the tree verifier's reward and CTRF must agree; every test is fail-to-pass", () => {
+test("{§benchlet-diagnostic} the tree verifier's reward and CTRF must agree; every test is fail-to-pass", () => {
     const passing = parseTreeVerifierArtifacts("1\n", { results: { tests: [{ name: "test_json_data", status: "passed" }, { name: "test_shape", status: "passed" }] } });
     assert.equal(passing.reward, 1);
     assert.deepEqual([passing.f2pPassed, passing.f2pTotal, passing.p2pTotal], [2, 2, 0]);
@@ -673,7 +639,7 @@ test("[§benchlet-tree] the tree verifier's reward and CTRF must agree; every te
     assert.equal(parseTreeVerifierArtifacts("0\n").f2pTotal, 0, "no CTRF is no evidence, never a pass");
 });
 
-test("[§benchlet-tree] a task tree's state is its sorted file listing; content changes move the hash", () => {
+test("{§benchlet-diagnostic} a task tree's state is its sorted file listing; content changes move the hash", () => {
     const root = mkdtempSync(resolve(tmpdir(), "benchlet-tree-"));
     try {
         const tree = resolve(root, "repo");
@@ -694,7 +660,7 @@ test("[§benchlet-tree] a task tree's state is its sorted file listing; content 
     }
 });
 
-test("[§benchlet-tree] the instruction's /app becomes the host tree; unrelated words survive", () => {
+test("{§benchlet-diagnostic} the instruction's /app becomes the host tree; unrelated words survive", () => {
     assert.equal(
         treeInstruction("Write to /app/recover.json; the db is /app/trunc.db (in /app).", "/tmp/run/repo"),
         "Write to /tmp/run/repo/recover.json; the db is /tmp/run/repo/trunc.db (in /tmp/run/repo).",
@@ -702,7 +668,7 @@ test("[§benchlet-tree] the instruction's /app becomes the host tree; unrelated 
     assert.equal(treeInstruction("the /application folder and /apps", "/x"), "the /application folder and /apps");
 });
 
-test("{§bench-confounds} provenance records the alias's route knobs by name, never a credential", () => {
+test("{§bench-relock} provenance records the alias's route knobs by name, never a credential", () => {
     const env = {
         PLURNK_MODEL_dumbox: "fireworks-ai/accounts/fireworks/models/glm-5p3-flash",
         PLURNK_PROVIDERS_EFFORT_dumbox: "medium",
@@ -718,8 +684,8 @@ test("{§bench-confounds} provenance records the alias's route knobs by name, ne
     assert.deepEqual(aliasConfiguration("unset", env), {});
 });
 
-// {§benchlet-candidate-exit} (#41) — the DeepSWE half of the two holes closed for SWE-bench in #40.
-test("[§benchlet-candidate-exit] only a candidate that exited cleanly finished; a kill is named", () => {
+// {§benchlet-diagnostic} (#41) — the DeepSWE half of the two holes closed for SWE-bench in #40.
+test("{§benchlet-diagnostic} only a candidate that exited cleanly finished; a kill is named", () => {
     const clean = { status: 0, signal: null, timedOut: false };
     assert.equal(candidateOutcome(clean), "finished");
     assert.equal(candidateOutcome({ ...clean, timedOut: true }), "timeout");
@@ -731,9 +697,107 @@ test("[§benchlet-candidate-exit] only a candidate that exited cleanly finished;
     assert.notEqual(candidateOutcome({ ...clean, timedOut: true }), candidateOutcome(clean));
 });
 
-test("[§benchlet-candidate-exit] a repository that never changed is recorded as producing no patch", () => {
+test("{§benchlet-diagnostic} a repository that never changed is recorded as producing no patch", () => {
     // git wrote a diff and the diff was zero bytes — the model changed nothing.
     assert.equal(EMPTY_SHA256, createHash("sha256").update("").digest("hex"));
     assert.equal(producedNoPatch(EMPTY_SHA256), true);
     assert.equal(producedNoPatch(createHash("sha256").update("diff --git a/x b/x\n").digest("hex")), false);
 });
+}
+
+// ─── smoke.test.ts ───
+{
+const smoke = readFileSync(new URL("./smoke.sh", import.meta.url), "utf8");
+
+test("{§config-carry} the official minimal manifest retains the executor switch", () => {
+    const official = smoke.split('if [ "$TASK" = all ]; then')[2]!.split("\nelse\n")[0]!;
+    assert.match(official, /--agent-env "PLURNK_EXECS_QUESTION=\$PLURNK_EXECS_QUESTION"/);
+    // Server approval covers the whole benchmark worker tree.
+    assert.match(official, /--agent-env "PLURNK_SERVICE_PROPOSALS=\$PLURNK_SERVICE_PROPOSALS"/);
+});
+
+test("{§config-carry} smoke pins resolved service and client publications", () => {
+    assert.match(smoke, /npm view @plurnk\/plurnk-service version/);
+    assert.match(smoke, /npm view @plurnk\/plurnk version/);
+    assert.match(smoke, /--agent-kwarg "service_version=\$SERVICE_VERSION"/);
+    assert.match(smoke, /--agent-kwarg "client_version=\$CLIENT_VERSION"/);
+    assert.doesNotMatch(smoke, /after a @plurnk version bump/);
+});
+
+test("{§config-carry} smoke carries configured Tavily like other optional web providers and records the route", () => {
+    assert.doesNotMatch(smoke, /PLAYWRIGHT/);
+    assert.match(smoke, /_BASE_URL\$\|_API_KEY\$/);
+    assert.doesNotMatch(smoke, /TAVILY_API_KEY\|PLURNK_SCHEMES_HTTP_TAVILY_DEPTH\) continue/);
+    assert.match(smoke, /TAVILY_CONFIGURED/);
+    assert.match(smoke, /--agent-kwarg "tavily_configured=\$TAVILY_CONFIGURED"/);
+    assert.match(smoke, /--agent-kwarg "tavily_depth=\$TAVILY_DEPTH"/);
+});
+
+test("{§config-carry} smoke derives the allowlist from the run's aliases and forwards it to the driver", () => {
+    assert.match(smoke, /providers\.json/);
+    assert.match(smoke, /--agent-kwarg "egress_domains=\$EGRESS_DOMAINS"/);
+    assert.match(smoke, /api\.tavily\.com/);
+});
+
+test("{§config-carry} the per-run recap rides into the container as a file, never as a tracked edit", () => {
+    assert.match(smoke, /PLURNK_BENCH_RECAP is not a readable file/);
+    assert.match(smoke, /--agent-kwarg "recap_path=\$\(readlink -f "\$PLURNK_BENCH_RECAP"\)"/);
+    assert.match(smoke, /"\$\{recap_flags\[@\]\}"/);
+});
+
+test("{§config-carry} the MCP fleet never rides into the container", () => {
+    assert.match(smoke, /PLURNK_MCP_\*\) continue;;/);
+});
+
+test("{§config-carry} `all` mode runs the corpus web-free on the minimal manifest", () => {
+    assert.match(smoke, /\[ "\$TASK" = all \] && TAVILY_API_KEY=""/);
+    assert.match(smoke, /select_flags=\(-i "\$PLURNK_BENCH_PREFLIGHT" --n-tasks 1\)/);
+    assert.match(smoke, /select_flags=\(--n-concurrent "\$\{PLURNK_BENCH_JOBS:-4\}"\)/);
+    assert.doesNotMatch(smoke, /\[ "\$TASK" = all \] && exit 0/);
+});
+
+test("{§config-carry} every run samples docker stats once a minute into the job directory until pier exits", () => {
+    assert.match(smoke, /while kill -0 "\$PIER_PID" 2>\/dev\/null; do/);
+    assert.match(smoke, /docker stats --no-stream --format '\{\{json \.\}\}'/);
+    assert.match(smoke, /"\$JOB\/docker-stats\.jsonl"/);
+    assert.match(smoke, /sleep 60/);
+});
+
+test("{§config-carry} every task image is pulled outside the run, with retries and a disk floor, before any trial starts", () => {
+    const prepull = readFileSync(new URL("./prepull.sh", import.meta.url), "utf8");
+    assert.match(smoke, /\ndeepswe\/prepull\.sh "\$TASK"\n/);
+    assert.ok(smoke.indexOf('deepswe/prepull.sh "$TASK"') < smoke.indexOf("pier run -p"), "images are local before pier starts");
+    assert.match(prepull, /docker_image \*= \*"/);
+    assert.match(prepull, /xargs -P "\$JOBS"/);
+    assert.match(prepull, /for attempt in \$\(seq 1 "\$ATTEMPTS"\)/);
+    assert.match(prepull, /FLOOR_GB/);
+    assert.match(prepull, /unresolved images — a run must not start trials without them/);
+});
+
+test("{§config-carry} the bench's installed service must equal the version the corpus installs", () => {
+    assert.match(smoke, /DIGEST_VERSION="\$\(node -e 'console\.log\(require\("@plurnk\/plurnk-service\/package\.json"\)\.version\)'\)"/);
+    assert.match(smoke, /\[ "\$DIGEST_VERSION" = "\$SERVICE_VERSION" \] \|\| \{/);
+});
+
+test("{§config-carry}{§config-carry} the publisher never owns pier's lifetime; a final pass publishes the rest; failed setups are listed", () => {
+    assert.match(smoke, /trap 'kill "\$PIER_PID" \$PUB_PID 2>\/dev\/null \|\| true' EXIT INT TERM/);
+    assert.match(smoke, /node src\/publish\.ts --watch "\$JOB" --pid "\$PIER_PID" \\\n\s+\|\| echo/);
+    assert.match(smoke, /\) &\nPUB_PID=\$!/);
+    assert.match(smoke, /wait "\$PIER_PID" \|\| pier_status=\$\?/);
+    assert.match(smoke, /PLURNK_BENCH_HARNESS=deepswe node src\/publish\.ts "\$JOB"\n/);
+    assert.match(smoke, /failed-setup\.txt/);
+});
+
+test("{§publish}{§publish} job scratch lives under the benchmarks home and every trial publishes as it lands", () => {
+    assert.match(smoke, /JOBS_ROOT="\$\(node src\/publish\.ts --jobs deepswe\)"/);
+    assert.match(smoke, /"\$\{select_flags\[@\]\}" -o "\$JOBS_ROOT" --env docker &/);
+    assert.match(smoke, /PLURNK_BENCH_HARNESS=deepswe node src\/publish\.ts --watch "\$JOB" --pid "\$PIER_PID"/);
+    assert.doesNotMatch(smoke, /ls -dt jobs\//);
+});
+
+test("{§config-carry} the runner uses the ordinary PLURNK_MODEL cascade", () => {
+    assert.match(smoke, /source_env_file "\$OPERATOR_ENV"\nsource_env_file "\.env\.defaults"/);
+    assert.match(smoke, /MODEL="\$PLURNK_MODEL"/);
+    assert.doesNotMatch(smoke, /PLURNK_BENCH_MODEL(?!_BASE_URL)|\$\{2:/, "no bench-side model selector; the base-url forward (#12) is not a selection");
+});
+}

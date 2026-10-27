@@ -135,7 +135,7 @@ export const compareBaselines = (rows: readonly TrialRow[], baselines: Baselines
     };
 };
 
-// The corpus source carries the study's per-task baselines beside the ids ({§swebench-corpus}).
+// The corpus source carries the study's per-task baselines beside the ids ({§swebench-evaluator}).
 export const baselinesFor = (corpus: string): Baselines | null => {
     const file = join(dirname(fileURLToPath(import.meta.url)), "corpora", `${corpus}.source.json`);
     if (!existsSync(file)) return null;

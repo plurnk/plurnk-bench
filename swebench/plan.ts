@@ -1,4 +1,4 @@
-// {§swebench-profiles} — the (instance, attempt) pairs one campaign launch runs, in corpus order:
+// {§swebench-comparison} — the (instance, attempt) pairs one campaign launch runs, in corpus order:
 // --only and --skip narrow the corpus, a resumed campaign drops every pair its trials.tsv already
 // records as done — the trials its --halt-on policy let run on: a clean pass under `pass`, every
 // graded trial under `clean` — and every id its accepted file names (a failure read and accepted

@@ -1,10 +1,16 @@
-import { test } from "node:test";
+import test from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from "node:fs";
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, closeSync, openSync, writeSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { deriveOutcome, joinRecord, readJob, readTrial, readTrialDir, type PlurnkDoc, type RewardJson } from "./ingest.ts";
+import { execFileSync } from "node:child_process";
+import { readDigest } from "./digest.ts";
+import type { BenchRecord } from "./record.ts";
+import { assertCleanSources, sourceProvenance } from "./source-provenance.ts";
 
+// ─── ingest.test.ts ───
+{
 const doc = (overrides: Partial<PlurnkDoc> = {}): PlurnkDoc => ({
     schemaVersion: 6,
     workspace: { id: 1, name: "s" },
@@ -38,11 +44,11 @@ const doc = (overrides: Partial<PlurnkDoc> = {}): PlurnkDoc => ({
 const reward = (r: number, extra: Partial<RewardJson> = {}): RewardJson => ({ reward: r, partial: r, ...extra });
 
 // The oracle is ground truth for PASS — reward===1 wins over any loop ending.
-test("[§verdicts-oracle-outranks] reward 1 is pass even when the loop was cancelled (499)", () => {
+test("{§verdicts} reward 1 is pass even when the loop was cancelled (499)", () => {
     assert.equal(deriveOutcome(doc({ finalStatus: 499 }), reward(1)), "pass");
 });
 
-test("[§verdicts-failure-class] non-pass is classified by the loop's failure mode", () => {
+test("{§verdicts} non-pass is classified by the loop's failure mode", () => {
     assert.equal(deriveOutcome({
         schemaVersion: 6,
         problem: {
@@ -59,7 +65,7 @@ test("[§verdicts-failure-class] non-pass is classified by the loop's failure mo
 });
 
 for (const oracle of [null, 0, 1]) {
-    test(`{§provenance} external cancellation remains distinct with oracle ${oracle}`, (t) => {
+    test(`{§digest-boundary} external cancellation remains distinct with oracle ${oracle}`, (t) => {
         const dir = mkdtempSync(join(tmpdir(), "bench-cancelled-"));
         t.after(() => rmSync(dir, { recursive: true, force: true }));
         mkdirSync(join(dir, "agent"));
@@ -76,7 +82,7 @@ for (const oracle of [null, 0, 1]) {
     });
 }
 
-test("[§verdicts] joinRecord maps loop side from the plurnk doc, oracle side from reward", () => {
+test("{§verdicts} joinRecord maps loop side from the plurnk doc, oracle side from reward", () => {
     const record = joinRecord({
         harness: "deepswe", taskId: "abs-module-cache-flags", model: "gemma",
         doc: doc(), reward: reward(1, { partial: 0.83 }), dbPath: "/jobs/t1/agent/plurnk.db",
@@ -108,7 +114,7 @@ test("[§verdicts] joinRecord maps loop side from the plurnk doc, oracle side fr
     assert.deepEqual(record.run, { workspaceId: 1, workerId: 9, loopId: 7, dbPath: "/jobs/t1/agent/plurnk.db" });
 });
 
-test("joinRecord rejects superseded client JSON instead of guessing its fields", () => {
+test("{§digest-boundary} joinRecord rejects superseded client JSON instead of guessing its fields", () => {
     assert.throws(
         () => joinRecord({
             harness: "deepswe",
@@ -122,7 +128,7 @@ test("joinRecord rejects superseded client JSON instead of guessing its fields",
     );
 });
 
-test("joinRecord rejects malformed monetary evidence instead of treating it as unknown", () => {
+test("{§digest-boundary} joinRecord rejects malformed monetary evidence instead of treating it as unknown", () => {
     assert.throws(
         () => joinRecord({
             harness: "deepswe",
@@ -144,7 +150,7 @@ test("joinRecord rejects malformed monetary evidence instead of treating it as u
     );
 });
 
-test("joinRecord rejects a terminal status without its matching Problem", () => {
+test("{§digest-boundary} joinRecord rejects a terminal status without its matching Problem", () => {
     assert.throws(
         () => joinRecord({
             harness: "deepswe",
@@ -160,7 +166,7 @@ test("joinRecord rejects a terminal status without its matching Problem", () => 
 
 // Turn count comes from the doc's own turns[] array — honest even when turnCount lies (0)
 // on abnormal termination — not a raw-DB read (SqlRite owns the DB post-refactor).
-test("[§turns-provenance] readTrial takes the turn count from the doc's turns[] array, not a DB query", () => {
+test("{§verdicts} readTrial takes the turn count from the doc's turns[] array, not a DB query", () => {
     const trialDir = mkdtempSync(join(tmpdir(), "bench-turns-"));
     try {
         mkdirSync(join(trialDir, "agent"), { recursive: true });
@@ -185,7 +191,7 @@ test("[§turns-provenance] readTrial takes the turn count from the doc's turns[]
 
 // Harbor's verifier writes reward.txt (Enterprise-Bench's judge); the oracle joins from it
 // when no reward.json exists, binary at one.
-test("[§enterprise-oracle] readTrial joins Harbor's reward.txt as the binary oracle", () => {
+test("{§enterprise} readTrial joins Harbor's reward.txt as the binary oracle", () => {
     const trialDir = mkdtempSync(join(tmpdir(), "bench-reward-text-"));
     try {
         mkdirSync(join(trialDir, "agent"), { recursive: true });
@@ -204,7 +210,7 @@ test("[§enterprise-oracle] readTrial joins Harbor's reward.txt as the binary or
     }
 });
 
-test("[§provenance] readTrial retains the credential-free web materialization route", () => {
+test("{§digest-boundary} readTrial retains the credential-free web materialization route", () => {
     const trialDir = mkdtempSync(join(tmpdir(), "bench-web-route-"));
     try {
         mkdirSync(join(trialDir, "agent"), { recursive: true });
@@ -229,7 +235,7 @@ test("[§provenance] readTrial retains the credential-free web materialization r
     }
 });
 
-test("[§provenance] readTrial rejects unowned fields in web materialization provenance", () => {
+test("{§digest-boundary} readTrial rejects unowned fields in web materialization provenance", () => {
     const trialDir = mkdtempSync(join(tmpdir(), "bench-web-route-invalid-"));
     try {
         mkdirSync(join(trialDir, "agent"), { recursive: true });
@@ -250,7 +256,7 @@ test("[§provenance] readTrial rejects unowned fields in web materialization pro
 });
 
 // Failure-mode telemetry: a pass-to-pass regression means the patch broke the build.
-test("[§attempt-broke-build] joinRecord flags p2pRegressed when a base pass-to-pass test fails", () => {
+test("{§verdicts} joinRecord flags p2pRegressed when a base pass-to-pass test fails", () => {
     const broke = joinRecord({
         harness: "deepswe", taskId: "t", model: "m", dbPath: "/x/plurnk.db",
         doc: doc({ finalStatus: 200 }), reward: reward(0, { p2p_total: 3, p2p_passed: 0 }),
@@ -270,7 +276,7 @@ test("[§attempt-broke-build] joinRecord flags p2pRegressed when a base pass-to-
 
 // readTrial reads the graded patch: patchLines (size) + filesModified (real source edits).
 // A junk dump (new .txt files) is non-empty but modifies 0 existing files → still no-attempt.
-test("[§attempt-files-modified] readTrial records patchLines + filesModified, distinguishing junk dumps from real edits", () => {
+test("{§verdicts} readTrial records patchLines + filesModified, distinguishing junk dumps from real edits", () => {
     const trialDir = mkdtempSync(join(tmpdir(), "bench-patch-"));
     const read = () => readTrial(trialDir, { harness: "deepswe", taskId: "t", model: "m" });
     const patch = join(trialDir, "artifacts", "model.patch");
@@ -311,7 +317,7 @@ test("[§attempt-files-modified] readTrial records patchLines + filesModified, d
 // A crashed loop emits an error doc with no workspace/worker identity, but the driver still copied
 // the daemon DB. Bench does NOT read that DB (digest owns DB→forensics) — it carries
 // the dbPath alone as the digest handle so the whole DB stays renderable.
-test("[§digest-boundary] readTrial carries a dbPath-only digest handle when the doc dropped the coordinate", () => {
+test("{§digest-boundary} readTrial carries a dbPath-only digest handle when the doc dropped the coordinate", () => {
     const trialDir = mkdtempSync(join(tmpdir(), "bench-trial-"));
     try {
         mkdirSync(join(trialDir, "agent"), { recursive: true });
@@ -335,7 +341,7 @@ test("[§digest-boundary] readTrial carries a dbPath-only digest handle when the
 });
 
 // No DB copied (daemon never started) → no handle, honestly absent.
-test("[§digest-boundary] readTrial leaves no handle when no DB was copied", () => {
+test("{§digest-boundary} readTrial leaves no handle when no DB was copied", () => {
     const trialDir = mkdtempSync(join(tmpdir(), "bench-nodb-"));
     try {
         mkdirSync(join(trialDir, "agent"), { recursive: true });
@@ -349,7 +355,7 @@ test("[§digest-boundary] readTrial leaves no handle when no DB was copied", () 
 
 // readJob walks a real Pier `jobs/<job>/` tree: provenance from each trial's
 // result.json, the artifact join from agent/+verifier/, deterministic dir order.
-test("[§provenance] readJob walks a job tree → one record per trial, provenance from result.json", () => {
+test("{§digest-boundary} readJob walks a job tree → one record per trial, provenance from result.json", () => {
     const root = mkdtempSync(join(tmpdir(), "bench-job-"));
     try {
         // A passing trial: full loop doc + reward 1.
@@ -406,7 +412,7 @@ test("[§provenance] readJob walks a job tree → one record per trial, provenan
     }
 });
 
-test("[§verdicts-failure-class] a client Problem doc yields an error record with no run handle", () => {
+test("{§verdicts} a client Problem doc yields an error record with no run handle", () => {
     const record = joinRecord({
         harness: "deepswe", taskId: "t", model: "gemma",
         doc: {
@@ -427,7 +433,7 @@ test("[§verdicts-failure-class] a client Problem doc yields an error record wit
     assert.equal(record.run, undefined);         // no workspace/worker identity -> no scoped digest handle
 });
 
-test("legacy client error documents are rejected instead of translated", () => {
+test("{§digest-boundary} legacy client error documents are rejected instead of translated", () => {
     assert.throws(
         () => joinRecord({
             harness: "deepswe",
@@ -448,3 +454,142 @@ test("legacy client error documents are rejected instead of translated", () => {
         /legacy plurnk client error field/,
     );
 });
+}
+
+// ─── digest.test.ts ───
+{
+test("{§digest-boundary} reporting retains summaries without retaining raw model responses", (t) => {
+    const root = mkdtempSync(join(tmpdir(), "bench-digest-reader-"));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    const path = join(root, "digest.json");
+    const facts = {
+        workspaces: [{ accounting: { costUsd: "0.123", requests: [], usage: null } }],
+        workers: [{ id: 1, name: "日本語" }], loops: [], turns: [{ producer: "model" }],
+        provider_requests: [], log_entries: [],
+    };
+    writeFileSync(path, JSON.stringify({ ...facts, model_calls: [{ response: "opaque" }], turn_attempts: [
+        { accepted: false, parse_errors: [{ message: "not admitted" }], response: { assistantRaw: "retained on disk" } },
+    ] }));
+    assert.deepEqual(readDigest(path), { ...facts, turn_attempts: [{ accepted: false, parse_errors: [{ message: "not admitted" }] }] });
+    writeFileSync(path, '{"workspaces":[],"turn_attempts":[]}');
+    assert.deepEqual(readDigest(path), { workspaces: [], turn_attempts: [] });
+    writeFileSync(path, '{"turns":[');
+    assert.throws(() => readDigest(path), /Parser ended in mid-parsing \(state: VALUE\)/);
+});
+
+test("{§digest-boundary} a report larger than the reader heap is inspected incrementally", (t) => {
+    const root = mkdtempSync(join(tmpdir(), "bench-digest-large-"));
+    t.after(() => rmSync(root, { recursive: true, force: true }));
+    const path = join(root, "digest.json");
+    const descriptor = openSync(path, "w");
+    try {
+        writeSync(descriptor, '{"turns":[{"producer":"model"}],"model_calls":[');
+        const row = JSON.stringify({ response: { reasoning: "😀".repeat(512 * 1024) } });
+        for (let index = 0; index < 32; index++) writeSync(descriptor, `${index === 0 ? "" : ","}${row}`);
+        writeSync(descriptor, '],"turn_attempts":[{"accepted":true,"response":');
+        writeSync(descriptor, row);
+        writeSync(descriptor, '}],"workspaces":[]}');
+    } finally { closeSync(descriptor); }
+    const stdout = execFileSync(process.execPath, ["--max-old-space-size=64", "--input-type=module", "--eval", `
+        import { readDigest } from ${JSON.stringify(new URL("./digest.ts", import.meta.url).href)};
+        console.log(JSON.stringify(readDigest(${JSON.stringify(path)})));
+    `], { encoding: "utf8", timeout: 20000 });
+    assert.deepEqual(JSON.parse(stdout), { turns: [{ producer: "model" }], turn_attempts: [{ accepted: true }], workspaces: [] });
+});
+}
+
+// ─── record.test.ts ───
+{
+const sample = (overrides: Partial<BenchRecord> = {}): BenchRecord => ({
+    harness: "deepswe",
+    taskId: "ts-go-001",
+    model: "gemma",
+    startedAt: "2026-06-21T00:00:00.000Z",
+    finishedAt: "2026-06-21T00:05:00.000Z",
+    durationMs: 300000,
+    status: 200,
+    outcome: "pass",
+    reward: 1,
+    testPassFraction: 1,
+    turns: 12,
+    run: { workspaceId: 1, workerId: 2, loopId: 3, dbPath: "/tmp/plurnk-task.db" },
+    ...overrides,
+});
+
+// The record's documented contract: it serializes 1:1 to a store row / JSONL line.
+test("{§digest-boundary} BenchRecord round-trips through JSON without loss", () => {
+    const record = sample();
+    const restored = JSON.parse(JSON.stringify(record)) as BenchRecord;
+    assert.deepEqual(restored, record);
+});
+
+// Loop verdict and oracle verdict are independent columns: a clean 200 loop can
+// still fail the benchmark oracle. The record must be able to express that.
+test("{§verdicts} status (loop verdict) is independent of outcome (oracle verdict)", () => {
+    const record = sample({ status: 200, outcome: "fail", reward: 0, testPassFraction: 0.4 });
+    assert.equal(record.status, 200);
+    assert.equal(record.outcome, "fail");
+    assert.equal(record.reward, 0);
+});
+
+// The forensic handle survives serialization - a skeptic reads its scope off a
+// stored record and runs `digest <dbPath>` to reconstruct the exact run.
+test("{§digest-boundary} digest drill-down handle is preserved", () => {
+    const restored = JSON.parse(JSON.stringify(sample())) as BenchRecord;
+    assert.deepEqual(restored.run, { workspaceId: 1, workerId: 2, loopId: 3, dbPath: "/tmp/plurnk-task.db" });
+});
+}
+
+// ─── source-provenance.test.ts ───
+{
+test("{§benchlet-diagnostic} (#21) untracked paths that touch no tracked directory are inert and recorded; tracked changes and untracked files inside tracked directories are dirt", () => {
+    const root = mkdtempSync(resolve(tmpdir(), "plurnk-benchlet-untracked-"));
+    // The host may install commit hooks globally; a fixture repository must not run them.
+    const git = (...args: string[]): string => execFileSync("git", ["-C", root, "-c", "core.hooksPath=/dev/null", ...args], { encoding: "utf8" });
+    try {
+        git("init", "-q");
+        git("config", "user.email", "bench@test");
+        git("config", "user.name", "bench");
+        mkdirSync(resolve(root, "pkg"));
+        writeFileSync(resolve(root, "pkg", "a.txt"), "a\n");
+        git("add", "pkg/a.txt");
+        git("commit", "-q", "-m", "base");
+        assert.deepEqual({ clean: sourceProvenance(root).clean, untracked: sourceProvenance(root).untracked }, { clean: true, untracked: [] });
+
+        writeFileSync(resolve(root, "shot.png"), "png");
+        mkdirSync(resolve(root, ".tool"));
+        writeFileSync(resolve(root, ".tool", "state.json"), "{}");
+        const inert = sourceProvenance(root);
+        assert.equal(inert.clean, true, "a root file and a directory with no tracked content cannot reach the build");
+        assert.deepEqual(inert.untracked.toSorted(), [".tool/", "shot.png"]);
+
+        writeFileSync(resolve(root, "pkg", "b.txt"), "b\n");
+        assert.equal(sourceProvenance(root).clean, false, "an untracked file inside a tracked directory is dirt");
+        rmSync(resolve(root, "pkg", "b.txt"));
+
+        writeFileSync(resolve(root, "pkg", "a.txt"), "changed\n");
+        assert.equal(sourceProvenance(root).clean, false, "a tracked modification is dirt");
+    } finally {
+        rmSync(root, { recursive: true, force: true });
+    }
+});
+
+test("{§benchlet-diagnostic} a dirty source is refused by name before a run; clean sources are returned for provenance", () => {
+    const root = mkdtempSync(resolve(tmpdir(), "plurnk-bench-sources-"));
+    const git = (...args: string[]): string => execFileSync("git", ["-C", root, "-c", "core.hooksPath=/dev/null", ...args], { encoding: "utf8" });
+    try {
+        git("init", "-q");
+        git("config", "user.email", "bench@test");
+        git("config", "user.name", "bench");
+        writeFileSync(resolve(root, "plurnk.md"), "taught\n");
+        git("add", "plurnk.md");
+        git("commit", "-q", "-m", "base");
+        assert.equal(assertCleanSources({ service: root }).service!.head, git("rev-parse", "HEAD").trim());
+
+        writeFileSync(resolve(root, "plurnk.md"), "uncommitted teaching\n");
+        assert.throws(() => assertCleanSources({ service: root }), { message: "service source is dirty; commit the exact source before a diagnostic run" });
+    } finally {
+        rmSync(root, { recursive: true, force: true });
+    }
+});
+}

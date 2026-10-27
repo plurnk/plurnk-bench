@@ -10,7 +10,7 @@ import signal
 import sys
 from pathlib import Path
 
-# {§swebench-model-account} — the account the model's commands run as inside the task container. Every name the
+# {§swebench-evaluator} — the account the model's commands run as inside the task container. Every name the
 # model can list is an ordinary plurnk host's: the account, its home, the install at /opt/plurnk, the state at
 # /var/lib/plurnk; nothing says harness, agent or model.
 MODEL_ACCOUNT = "plurnk"
@@ -71,7 +71,7 @@ def configuration(request):
         if not source.is_dir():
             raise ValueError(f"{name} is not a directory")
         mounts.append({"type": "bind", "source": str(source), "target": target, "read_only": readonly})
-    # {§swebench-model-account} — the bundle is closed to the model's account; its node alone is exposed at an
+    # {§swebench-evaluator} — the bundle is closed to the model's account; its node alone is exposed at an
     # ordinary path, so the node runtime and the model's shell find it without the bundle on PATH.
     node = Path(request["runtime"]).resolve(strict=True) / "bin" / "node"
     if not node.is_file():
@@ -118,7 +118,7 @@ async def run(request):
     try:
         await environment.start(force_build=False)
         started = True
-        # {§swebench-model-account} — the model's commands run as an account of their own, so the daemon's
+        # {§swebench-evaluator} — the model's commands run as an account of their own, so the daemon's
         # state under /var/lib/plurnk and the install under /opt/plurnk are not theirs to read: the
         # evidence folder closes to its owner, the bundle is the host's at 0700 already. The trial copy
         # belongs to that account, group-writable with set-group-id directories, so what the daemon writes
@@ -140,7 +140,7 @@ async def run(request):
         (root / "candidate-execution.json").write_text(json.dumps(record, indent=2) + "\n")
         argv = ["/opt/plurnk/bin/node", "/opt/plurnk/runner.mjs", *request["argv"]]
         # bash -l activates the specimen's own conda environment; node is at /usr/local/bin for both
-        # candidates and the closed bundle stays off PATH ({§swebench-model-account}).
+        # candidates and the closed bundle stays off PATH ({§swebench-evaluator}).
         # Read the image's login files BEFORE assigning the isolated candidate
         # home. Otherwise SWE-bench's conda activation silently disappears.
         command = (
@@ -153,7 +153,7 @@ async def run(request):
         env = {
             **request["env"], "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
             "NODE_OPTIONS": "", "NODE_USE_ENV_PROXY": "1",
-            "PLURNK_EXECS_SPAWN_USER": MODEL_ACCOUNT,  # {§swebench-model-account}
+            "PLURNK_EXECS_SPAWN_USER": MODEL_ACCOUNT,  # {§swebench-evaluator}
         }
         result = await environment.exec(command="bash -lc " + shlex.quote(command), cwd="/testbed", env=env)
         (Path(request["agent"]) / "runtime.log").write_text(result.stdout or result.stderr or "")

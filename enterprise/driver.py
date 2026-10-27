@@ -7,7 +7,7 @@ instruction as the prompt, and persists the client's ``--json`` record + the dae
 The task's own instruction tells the agent how to submit its answer (one POST to the
 container's ``/submit_agent_response``); the model does that itself through ``EXEC [sh]``.
 The harness never submits on the model's behalf — an unsubmitted answer is the model's
-failure and the benchmark's judge records it as such (SPEC §enterprise-answer).
+failure and the benchmark's judge records it as such (SPEC {§enterprise}).
 
 Run it (enterprise/smoke.sh is the carry-manifest runner):
     PLURNK_MODEL=<configured-alias> enterprise/smoke.sh <task|all>

@@ -1,4 +1,4 @@
-// {§swebench-profiles} — one campaign directory (swebench/campaign.sh) read into one sheet, friction
+// {§swebench-comparison} — one campaign directory (swebench/campaign.sh) read into one sheet, friction
 // first: refused operations by family, empty patches, harness exceptions, the isolation witness
 // (web references the first packet taught, model-issued web reads, MCP calls), then the oracle
 // verdicts, then spend. Every number comes from the trial's own record and the daemon's digest
@@ -292,10 +292,10 @@ export const render = (campaign: { corpus?: string; model?: string | null; servi
     "",
 ].join("\n");
 
-// {§swebench-trial} — the loop's halt rule. `pass` is a clean pass; anything else names what to read:
+// {§swebench-evaluator} — the loop's halt rule. `pass` is a clean pass; anything else names what to read:
 // `fail` the oracle refused a clean run, `agent` the candidate did not exit cleanly (struck out,
 // cancelled, out of time), `harness` the bench itself left no record or no verdict.
-// {§swebench-trial} — the halt rule. The oracle grades the patch, whatever ended the loop
+// {§swebench-evaluator} — the halt rule. The oracle grades the patch, whatever ended the loop
 // (plurnk-service#840): a reward is the verdict, and a loop the engine ended decorates it, so the strict
 // halt still stops to read it while the clean halt runs on. Without a reward, an engine terminal —
 // turn ceiling, strike threshold, cycle, timeout — is the model's outcome, never the agent's (#46).

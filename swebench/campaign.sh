@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# {§swebench-profiles} — one corpus through swebench/run.sh, one trial at a time by default, one
+# {§swebench-comparison} — one corpus through swebench/run.sh, one trial at a time by default, one
 # campaign directory that names every trial it launched. The runner owns each trial (unique
 # evaluation run id, provenance, publish); this loop owns the order (swebench/plan.ts), the record
 # of what ran (trials.tsv) and the halt: the first trial that is not a clean pass — oracle resolved

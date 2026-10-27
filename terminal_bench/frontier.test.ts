@@ -35,7 +35,7 @@ const fixture = () => {
     return { root, manifest };
 };
 
-test("[§frontier-parity] the checked-in manifest names 21 Terminal-Bench 2.1 and 9 DeepSWE tasks, each once", () => {
+test("{§frontier-evidence} the checked-in manifest names 21 Terminal-Bench 2.1 and 9 DeepSWE tasks, each once", () => {
     const { manifest, tasks } = readManifest();
     assert.equal(manifest.terminal_bench.tasks.length, 21);
     assert.equal(manifest.deep_swe.tasks.length, 9);
@@ -43,13 +43,13 @@ test("[§frontier-parity] the checked-in manifest names 21 Terminal-Bench 2.1 an
     assert.equal(manifest.model.route, "fireworks-ai/accounts/fireworks/models/kimi-k3");
 });
 
-test("[§frontier-parity] task.toml facts read by section: the agent budget, not the verifier's", () => {
+test("{§frontier-evidence} task.toml facts read by section: the agent budget, not the verifier's", () => {
     assert.equal(tomlValue(TOML, "agent", "timeout_sec"), "900.0");
     assert.equal(tomlValue(TOML, "environment", "docker_image"), "alexgshaw/chess-best-move:20251031");
     assert.equal(tomlValue(TOML, "solution", "timeout_sec"), null);
 });
 
-test("[§frontier-parity] the plan carries each task's own budget minus headroom and its image", () => {
+test("{§frontier-evidence} the plan carries each task's own budget minus headroom and its image", () => {
     const { manifest } = fixture();
     const rows = plan(manifest);
     assert.deepEqual(rows.map(({ task, budget, client_timeout_sec }) => ({ task, budget, client_timeout_sec })), [
@@ -59,7 +59,7 @@ test("[§frontier-parity] the plan carries each task's own budget minus headroom
     assert.equal(rows[0]?.image, "alexgshaw/chess-best-move:20251031");
 });
 
-test("[§frontier-parity] a manifest task without a corpus directory stops the plan by name", () => {
+test("{§frontier-evidence} a manifest task without a corpus directory stops the plan by name", () => {
     const { root, manifest } = fixture();
     writeFileSync(manifest, JSON.stringify({
         terminal_bench: { cache: join(root, "cache"), tasks: ["tb-one", "tb-absent"] },
@@ -68,7 +68,7 @@ test("[§frontier-parity] a manifest task without a corpus directory stops the p
     assert.throws(() => plan(manifest), /terminal_bench\/tb-absent: no task at/);
 });
 
-test("[§frontier-parity] the summary reads Harbor's reward.txt per job and counts pass, fail, and missing", () => {
+test("{§frontier-evidence} the summary reads Harbor's reward.txt per job and counts pass, fail, and missing", () => {
     const { root, manifest } = fixture();
     const run = join(root, "run");
     mkdirSync(join(run, "tb-one", "tb-one__abc", "verifier"), { recursive: true });
@@ -88,7 +88,7 @@ test("[§frontier-parity] the summary reads Harbor's reward.txt per job and coun
     assert.equal(summary(run, manifest).missing, 1, "a task with no trial dir is missing, never a fail");
 });
 
-test("[§frontier-parity] the summary reports task-level success, cost, cache, and duration medians", () => {
+test("{§frontier-evidence} the summary reports task-level success, cost, cache, and duration medians", () => {
     const { root, manifest } = fixture();
     const run = join(root, "run");
     const writeTrial = (task: string, reward: number, costUsd: string, inputTokens: number, cacheReadTokens: number, wallMs: number) => {
@@ -121,13 +121,13 @@ test("[§frontier-parity] the summary reports task-level success, cost, cache, a
     assert.deepEqual(result.metrics.medianTimePerSuccessfulTaskMs, { value: 240_000, reported: 1, eligible: 1 });
 });
 
-test("[§frontier-parity] medians are task-weighted and average the middle pair", () => {
+test("{§frontier-evidence} medians are task-weighted and average the middle pair", () => {
     assert.equal(median([]), null);
     assert.equal(median([9, 1, 5]), 5);
     assert.equal(median([10, 2, 8, 4]), 6);
 });
 
-test("[§frontier-parity] an active trial's empty client document is missing telemetry, not malformed evidence", () => {
+test("{§frontier-evidence} an active trial's empty client document is missing telemetry, not malformed evidence", () => {
     const { root, manifest } = fixture();
     const trial = join(root, "run", "tb-one", "tb-one__active");
     mkdirSync(join(trial, "agent"), { recursive: true });
@@ -155,7 +155,7 @@ test("{§frontier-evidence} cost reporting distinguishes charged, estimated, and
     assert.equal(result.metrics.medianCostPerTaskUsd.value, 0.5, "preserve the service's recorded cost, not a recomputation");
 });
 
-test("{§frontier-trial-state} missing rewards distinguish unstarted, unfinished, cancelled, and failed setup", () => {
+test("{§frontier-evidence} missing rewards distinguish unstarted, unfinished, cancelled, and failed setup", () => {
     const { root, manifest } = fixture();
     const run = join(root, "run");
     assert.equal(summary(run, manifest).rows[0]?.state, "unstarted");
@@ -182,7 +182,7 @@ test("{§frontier-trial-state} missing rewards distinguish unstarted, unfinished
     }
 });
 
-test("{§frontier-trial-state} a teardown error does not replace the verifier's passing reward", () => {
+test("{§frontier-evidence} a teardown error does not replace the verifier's passing reward", () => {
     const { root, manifest } = fixture();
     const trial = join(root, "run", "tb-one", "tb-one__trial");
     mkdirSync(join(trial, "verifier"), { recursive: true });

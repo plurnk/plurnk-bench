@@ -1,4 +1,4 @@
-// {§swebench-friction}
+// {§swebench-comparison}
 export interface DigestTurn {
     id?: number;
     artifact?: string | null;

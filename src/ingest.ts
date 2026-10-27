@@ -89,7 +89,7 @@ export interface RewardJson {
     empty_patch?: number;
 }
 
-// SPEC §verdicts-oracle-outranks / §verdicts-failure-class. The oracle is ground truth
+// SPEC {§verdicts} / {§verdicts}. The oracle is ground truth
 // for PASS: reward===1 wins regardless of how the loop
 // ended. A non-pass is then classified by the loop's own failure mode (client error
 // doc → error, timed out → timeout, final status 499 → cancelled, else fail).
@@ -125,7 +125,7 @@ export const joinRecord = ({ harness, taskId, model, doc, reward, dbPath }: Join
         durationMs: doc.wallMs ?? 0,
         status: doc.finalStatus ?? doc.problem?.status ?? 0,
         outcome: deriveOutcome(doc, reward),
-        // SPEC §turns-provenance: the doc's own turns[] array is honest even when turnCount lies (0) on abnormal
+        // SPEC {§verdicts}: the doc's own turns[] array is honest even when turnCount lies (0) on abnormal
         // termination; fall back to turnCount, then 0. No raw-DB read — SqlRite owns the DB.
         turns: doc.turns?.length ?? doc.turnCount ?? 0,
     };
@@ -272,10 +272,10 @@ export const readTrial = (trialDir: string, meta: { harness: string; taskId: str
     if (webMaterialization !== undefined) record.webMaterialization = webMaterialization;
     // Carry the DB pointer as the digest handle when the loop doc dropped the coordinate.
     if (existsSync(dbPath) && record.run === undefined) record.run = { dbPath };
-    // {§publish-digest-provenance} — the candidate's own digest, rendered by the runtime that wrote the database.
+    // {§publish} — the candidate's own digest, rendered by the runtime that wrote the database.
     const digestDir = join(trialDir, "agent", "digest");
     if (record.run !== undefined && existsSync(join(digestDir, "digest.json"))) record.run.digestDir = digestDir;
-    // SPEC §attempt-telemetry. Did the model actually edit the repo? Pier extracts `git diff base..HEAD` here; an
+    // SPEC {§verdicts}. Did the model actually edit the repo? Pier extracts `git diff base..HEAD` here; an
     // empty patch = NO-ATTEMPT (the loop edited plurnk scratch, never `/app`).
     const patchPath = join(trialDir, "artifacts", "model.patch");
     if (existsSync(patchPath)) {
@@ -291,7 +291,7 @@ export const readTrial = (trialDir: string, meta: { harness: string; taskId: str
     return record;
 };
 
-// SPEC §provenance. Walk a Pier `jobs/<job>/` tree → one BenchRecord per trial. A trial dir is any
+// SPEC {§digest-boundary}. Walk a Pier `jobs/<job>/` tree → one BenchRecord per trial. A trial dir is any
 // child holding a result.json with a `trial_name` (the job-level result.json has
 // none). result.json is the provenance source — task_name + model_name + Pier-level
 // timing/exception; the artifact join (loop doc + oracle) delegates to readTrial.
@@ -301,7 +301,7 @@ export const readTrial = (trialDir: string, meta: { harness: string; taskId: str
 export const isTrialDir = (dir: string): boolean =>
     readJson<PierTrialResult>(join(dir, "result.json"))?.trial_name !== undefined;
 
-// SPEC §provenance. One trial dir → one BenchRecord, or null when it is not a trial dir.
+// SPEC {§digest-boundary}. One trial dir → one BenchRecord, or null when it is not a trial dir.
 // result.json is the provenance source — task_name + model_name + harness-level
 // timing/exception; the artifact join (loop doc + oracle) delegates to readTrial.
 export const readTrialDir = (trialDir: string, { harness }: { harness: string }): BenchRecord | null => {
@@ -342,7 +342,7 @@ export const readTrialDir = (trialDir: string, { harness }: { harness: string })
     return record;
 };
 
-// SPEC §provenance. Walk a `jobs/<harness>/<job>/` tree → one BenchRecord per trial, in
+// SPEC {§digest-boundary}. Walk a `jobs/<harness>/<job>/` tree → one BenchRecord per trial, in
 // directory-name order for deterministic output.
 export const readJob = (jobDir: string, { harness }: { harness: string }): BenchRecord[] =>
     readdirSync(jobDir, { withFileTypes: true })

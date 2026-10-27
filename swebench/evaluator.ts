@@ -1,4 +1,4 @@
-// SPEC §swebench-evaluator. Pure adaptation of the OFFICIAL SWE-bench harness's
+// SPEC {§swebench-evaluator}-evaluator. Pure adaptation of the OFFICIAL SWE-bench harness's
 // per-instance report into the shared RewardJson shape (src/ingest.ts), so the family
 // reuses the core join and publication unchanged. The harness owns grading; the bench
 // owns only this translation.
@@ -63,18 +63,18 @@ const tally = (status: SweTestsStatus | undefined): { total: number; passed: num
     passed: status?.success.length ?? 0,
 });
 
-// §swebench-evaluator. A candidate that changed nothing scores zero: the official harness filters
+// {§swebench-evaluator}-evaluator. A candidate that changed nothing scores zero: the official harness filters
 // an empty prediction out of its dataset and writes no report for it, which is a real result — the
 // model produced no patch — not an infrastructure failure (#40).
 export const emptyPatchReward = (): RewardJson => ({ reward: 0, empty_patch: 1 });
 
-// §swebench-evaluator. The harness names its evaluation container `sweb.eval.<instance>.<run_id>`
+// {§swebench-evaluator}-evaluator. The harness names its evaluation container `sweb.eval.<instance>.<run_id>`
 // and Docker refuses a duplicate name, so every attempt gets its own id: two attempts at one
 // instance under PLURNK_BENCH_JOBS used to collide and kill each other's container (#40).
 export const evaluationRunId = (instance: string): string =>
     `swebench-${instance}-${randomUUID().slice(0, 8)}`.replaceAll(/[^A-Za-z0-9_.-]/g, "-");
 
-// §swebench-evaluator. Translate one instance's harness report into the core RewardJson.
+// {§swebench-evaluator}-evaluator. Translate one instance's harness report into the core RewardJson.
 // `null` means NO oracle verdict — the report is absent, or the harness recorded an
 // infrastructure failure — and is preserved as absence, never scored as 0.
 export const rewardFromInstanceReport = (report: SweInstanceReport | null | undefined): RewardJson | null => {

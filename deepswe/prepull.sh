@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pre-download the DeepSWE task images independently of any run (SPEC §config-image-prepull).
+# Pre-download the DeepSWE task images independently of any run (SPEC {§config-carry}).
 # A run then starts every trial from a local image: no ECR stampede at N-wide, no environment-
 # setup failures, no build timeout spent downloading. Bounded parallelism, retries with backoff,
 # a disk floor, and a loud list of anything unresolvable.

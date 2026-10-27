@@ -20,7 +20,7 @@
 # operator-config parity for diagnostics, minus the MCP fleet (structurally dead under the
 # schema-1.3 egress wall — booting servers whose traffic cannot pass only distorts runs).
 #
-# Bench's own knobs are namespaced PLURNK_BENCH_ (SPEC §config-bench-namespace — never forwarded to the daemon):
+# Bench's own knobs are namespaced PLURNK_BENCH_ (SPEC {§config-carry} — never forwarded to the daemon):
 #   PLURNK_BENCH_TIMEOUT_SEC  override the client timeout (default: task's [agent] budget − headroom)
 #   PLURNK_BENCH_CPUS         override container cpus (default: task native — leaderboard-compliant)
 #   PLURNK_BENCH_FORCE_BUILD  =1 to force an agent-image rebuild (base-image/debug escape hatch)
@@ -30,9 +30,9 @@
 #   PLURNK_BENCH_MODEL_BASE_URL  replaces LOOPBACK manifest base URLs only (local model via its published hostname)
 #   PLURNK_BENCH_RECAP        host file whose text becomes the container daemon's Recap footer
 #                             (PLURNK_SERVICE_RECAP) — e.g. the weak-model frame line a GBNF rail needs
-#   (every run samples docker stats once a minute into <job>/docker-stats.jsonl — SPEC §config-resource-samples)
-#   (every run first pre-pulls its task images via deepswe/prepull.sh — SPEC §config-image-prepull — and refuses
-#    to start trials without them; the bench's own @plurnk/plurnk-service must equal the corpus's — SPEC §config-digest-preflight)
+#   (every run samples docker stats once a minute into <job>/docker-stats.jsonl — SPEC {§config-carry})
+#   (every run first pre-pulls its task images via deepswe/prepull.sh — SPEC {§config-carry} — and refuses
+#    to start trials without them; the bench's own @plurnk/plurnk-service must equal the corpus's — SPEC {§config-carry})
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -72,14 +72,14 @@ if [ -n "${PLURNK_BENCH_RECAP:-}" ] && [ ! -r "$PLURNK_BENCH_RECAP" ]; then
 fi
 recap_flags=()
 [ -n "${PLURNK_BENCH_RECAP:-}" ] && recap_flags=(--agent-kwarg "recap_path=$(readlink -f "$PLURNK_BENCH_RECAP")")
-# SPEC §config-model-default: shell, then XDG operator config, then the committed floor.
+# SPEC {§config-carry}: shell, then XDG operator config, then the committed floor.
 MODEL="$PLURNK_MODEL"
 LAN_IP="$(hostname -I | awk '{print $1}')"
 
 # Give the agent the BENCHMARK's own budget, not an arbitrary cap: read the task's
 # [agent] timeout_sec and use it minus headroom (daemon boot + commit + DB copy). A
 # shorter client --timeout would starve the model below the benchmark's intended
-# allowance and understate every result (SPEC §config-budget). Override with PLURNK_BENCH_TIMEOUT_SEC for quick dev.
+# allowance and understate every result (SPEC {§config-carry}). Override with PLURNK_BENCH_TIMEOUT_SEC for quick dev.
 if [ "$TASK" = all ]; then
   # One global client timeout is only honest if every task grants the same budget.
   AGENT_BUDGET="$(awk -F= '/^\[/{s=$0} s=="[agent]" && $1 ~ /timeout_sec/ {v=$2; gsub(/[^0-9.]/,"",v); print int(v)}' .cache/deep-swe/tasks/*/task.toml | sort -u)"
@@ -192,11 +192,11 @@ else
     esac
     flags+=(--agent-env "$k=$v")
   done
-  # SPEC §config-gbnf-optout: forward =0 so no operator grammar setting reaches the container's daemon.
+  # SPEC {§config-carry}: forward =0 so no operator grammar setting reaches the container's daemon.
   [ -n "${PLURNK_BENCH_NO_GBNF:-}" ] && flags+=(--agent-env "PLURNK_PROVIDERS_GBNF=0")
 fi
 
-# SPEC §config-tavily-route: Tavily is ordinary optional provider configuration. Carry
+# SPEC {§config-carry}: Tavily is ordinary optional provider configuration. Carry
 # it when configured, retain the no-key default, and record only presence + effective depth.
 # The official corpus runs web-free: force the route absent in `all` mode.
 [ "$TASK" = all ] && TAVILY_API_KEY=""
@@ -212,7 +212,7 @@ TAVILY_ROUTE=absent
 # A configured tavily route is deliberate web egress: allowlist its API host too.
 [ "$TAVILY_CONFIGURED" = 1 ] && EGRESS_DOMAINS="${EGRESS_DOMAINS:+$EGRESS_DOMAINS,}api.tavily.com"
 
-# SPEC §config-native-cpus: use the task's native CPU allotment. An explicit
+# SPEC {§config-carry}: use the task's native CPU allotment. An explicit
 # PLURNK_BENCH_CPUS override is diagnostic, not leaderboard-compliant.
 cpu_flags=()
 [ -n "${PLURNK_BENCH_CPUS:-}" ] && cpu_flags+=(--override-cpus "$PLURNK_BENCH_CPUS")
@@ -228,7 +228,7 @@ CLIENT_VERSION="$(npm view @plurnk/plurnk version 2>/dev/null)"
   exit 1
 }
 
-# SPEC §config-digest-preflight: the publisher's digest reads the databases the in-container
+# SPEC {§config-carry}: the publisher's digest reads the databases the in-container
 # daemons write, so the bench's installed @plurnk/plurnk-service must be the version the corpus
 # installs — a mismatch is a refused launch, not a crashed publisher mid-run.
 DIGEST_VERSION="$(node -e 'console.log(require("@plurnk/plurnk-service/package.json").version)')"
@@ -237,7 +237,7 @@ DIGEST_VERSION="$(node -e 'console.log(require("@plurnk/plurnk-service/package.j
   exit 1
 }
 
-# SPEC §config-image-prepull: every task image is local before any trial starts — pulled with
+# SPEC {§config-carry}: every task image is local before any trial starts — pulled with
 # retries and bounded parallelism outside the run, so N-wide launches never stampede the registry
 # and no trial dies at environment setup or spends its build timeout downloading.
 deepswe/prepull.sh "$TASK"
@@ -261,7 +261,7 @@ fi
 
 echo "smoke: model=$MODEL task=$TASK service=$SERVICE_VERSION client=$CLIENT_VERSION tavily=$TAVILY_ROUTE egress=$EGRESS_DOMAINS cpus=${PLURNK_BENCH_CPUS:-native} client_timeout=${CLIENT_TIMEOUT_SEC}s (budget ${AGENT_BUDGET:-?}s)${PLURNK_BENCH_FORCE_BUILD:+ [force-build]}" >&2
 # The benchmark runs the product's default policy as-is: PLURNK_SERVICE_POLICY stays unset.
-# SPEC §results-canon: Pier's job scratch and the published runs share ONE tree.
+# SPEC {§publish}: Pier's job scratch and the published runs share ONE tree.
 JOBS_ROOT="$(node src/publish.ts --jobs deepswe)"
 mkdir -p "$JOBS_ROOT"
 before="$(ls -d "$JOBS_ROOT"/*/ 2>/dev/null | sort || true)"
@@ -281,7 +281,7 @@ PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
   "${select_flags[@]}" -o "$JOBS_ROOT" --env docker &
 PIER_PID=$!
 PUB_PID=""
-# SPEC §config-publisher-decoupled: whatever ends this launcher — a signal, a failed step — pier,
+# SPEC {§config-carry}: whatever ends this launcher — a signal, a failed step — pier,
 # the publisher, and the sampler end with it; nothing runs orphaned.
 trap 'kill "$PIER_PID" $PUB_PID 2>/dev/null || true' EXIT INT TERM
 JOB=""
@@ -292,7 +292,7 @@ for _ in $(seq 1 120); do
 done
 [ -n "$JOB" ] || { echo "smoke: pier opened no job directory under $JOBS_ROOT" >&2; kill "$PIER_PID" 2>/dev/null || true; exit 1; }
 
-# SPEC §config-resource-samples: once a minute, every container's CPU and memory for the run's
+# SPEC {§config-carry}: once a minute, every container's CPU and memory for the run's
 # duration, into the job directory — concurrency is sized from this record, not from estimates.
 # The loop ends itself when pier is gone.
 (
@@ -303,7 +303,7 @@ done
   done
 ) &
 
-# SPEC §publish-live: publish every trial (record + digest) the moment it finishes — single
+# SPEC {§publish}: publish every trial (record + digest) the moment it finishes — single
 # task or the whole corpus — so a run can be followed by name while it is still going. With
 # PLURNK_BENCH_REQUIEM=1 publish also banks the requiem (the model's exit interview), which
 # RE-INVOKES the model — so the publisher runs under the full authoritative provider config
@@ -320,7 +320,7 @@ done
     || echo "smoke: live publisher exited nonzero — the final pass below publishes whatever it missed" >&2
 ) &
 PUB_PID=$!
-# SPEC §config-publisher-decoupled: the publisher never owns pier's lifetime. Wait for pier, then
+# SPEC {§config-carry}: the publisher never owns pier's lifetime. Wait for pier, then
 # one idempotent final pass publishes every trial the live watch did not (already-published
 # trials skip by their marker).
 pier_status=0
@@ -332,7 +332,7 @@ wait "$PUB_PID" 2>/dev/null || true
   export PLURNK_MODEL="$MODEL"
   PLURNK_BENCH_HARNESS=deepswe node src/publish.ts "$JOB"
 )
-# SPEC §config-failed-setup-report: trials that never reached a model turn because their
+# SPEC {§config-carry}: trials that never reached a model turn because their
 # environment failed to start are named in <job>/failed-setup.txt — a rerun list, not a mystery.
 find "$JOB" -mindepth 2 -maxdepth 2 -name exception.txt -size +0 2>/dev/null \
   | sed -E 's#.*/([^/]+)__[A-Za-z0-9]+/exception.txt#\1#' | sort -u > "$JOB/failed-setup.txt" || true
