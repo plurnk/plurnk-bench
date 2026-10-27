@@ -4,7 +4,7 @@
 
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { summarizeTasks, type TaskReport } from "../deepswe/report.ts";
@@ -82,15 +82,19 @@ export const buildTierInvocation = ({
     env: Record<string, string>;
 } => {
     const serviceCore = resolve(serviceRoot, "plurnk-core");
+    const floorPath = resolve(serviceCore, "test/floor.ts");
     const envFiles = [
-        resolve(serviceCore, ".env.test"),
         resolve(serviceCore, ".env.defaults"),
+        resolve(serviceCore, ".env.test"),
     ].filter((file) => existsSync(file));
+    const base = basename(runDir);
+    const tierRun = base.startsWith("tier-") ? base.slice("tier-".length) : base;
     return {
         command: process.execPath,
         args: [
             "--conditions=plurnk-dev",
             `--import=${pathToFileURL(loaderPath).href}`,
+            ...(existsSync(floorPath) ? [`--import=${pathToFileURL(floorPath).href}`] : []),
             ...envFiles.map((file) => `--env-file-if-exists=${file}`),
             "--test",
             "--test-concurrency=1",
@@ -107,7 +111,9 @@ export const buildTierInvocation = ({
             PLURNK_TIERS_SERVICE_ROOT: serviceCore,
             PLURNK_SERVICE_CHECKOUT: serviceRoot,
             PLURNK_CLIENT_CHECKOUT: clientRoot,
-            PLURNK_BENCHMARKS: runDir,
+            PLURNK_SERVICE_POLICY: "../plurnk-meta/POLICY.md",
+            PLURNK_BENCHMARKS: base.startsWith("tier-") ? dirname(runDir) : runDir,
+            PLURNK_TIER_RUN: tierRun,
             PLURNK_TIER_RUN_DIR: runDir,
         },
     };
@@ -116,8 +122,10 @@ export const buildTierInvocation = ({
 interface CensusVerdict {
     readonly name: string;
     readonly file: string | null;
-    readonly status: "passed" | "failed" | "skipped" | "cancelled";
-    readonly durationMs: number;
+    readonly status?: "passed" | "failed" | "skipped" | "cancelled";
+    readonly verdict?: "pass" | "fail" | "skip" | "todo";
+    readonly durationMs?: number;
+    readonly duration_ms?: number | null;
     readonly reason: string | null;
 }
 
@@ -132,21 +140,30 @@ interface CensusSession {
 
 interface CensusDocument {
     readonly verdicts?: readonly CensusVerdict[];
-    readonly sessions?: readonly CensusSession[];
+    readonly specimens?: readonly CensusVerdict[];
+    readonly sessions?: readonly CensusSession[] | Readonly<Record<string, unknown>>;
 }
 
-const verdictOutcome = (status: CensusVerdict["status"]): { outcome: Outcome; reward?: 0 | 1 } => {
-    switch (status) {
+const verdictOutcome = (entry: CensusVerdict): { outcome: Outcome; reward?: 0 | 1 } => {
+    const key = entry.status ?? entry.verdict ?? "failed";
+    switch (key) {
         case "passed":
+        case "pass":
             return { outcome: "pass", reward: 1 };
         case "failed":
+        case "fail":
             return { outcome: "fail", reward: 0 };
         case "cancelled":
             return { outcome: "cancelled", reward: 0 };
         case "skipped":
+        case "skip":
+        case "todo":
             return { outcome: "error" };
     }
 };
+
+const verdictDurationMs = (entry: CensusVerdict | undefined): number =>
+    entry?.durationMs ?? entry?.duration_ms ?? 0;
 
 // {§tier-corpus} — fold session digests into BenchRecord (`record.json`) and summarize the tier run
 // under the shared `deepswe/report.ts` + `src/accounting.ts` contract.
@@ -168,13 +185,16 @@ export const publishTierSessions = ({
     const census: CensusDocument = existsSync(censusPath)
         ? (JSON.parse(readFileSync(censusPath, "utf8")) as CensusDocument)
         : {};
-    const verdicts = new Map((census.verdicts ?? []).map((verdict) => [verdict.name, verdict]));
+    const rawVerdicts = census.verdicts ?? census.specimens ?? [];
+    const verdicts = new Map(rawVerdicts.map((verdict) => [verdict.name, verdict]));
     const sessionsBySpecimen = new Map<string, CensusSession[]>();
-    for (const session of census.sessions ?? []) {
-        if (session.specimen === null) continue;
-        const list = sessionsBySpecimen.get(session.specimen) ?? [];
-        list.push(session);
-        sessionsBySpecimen.set(session.specimen, list);
+    if (Array.isArray(census.sessions)) {
+        for (const session of census.sessions) {
+            if (session.specimen === null) continue;
+            const list = sessionsBySpecimen.get(session.specimen) ?? [];
+            list.push(session);
+            sessionsBySpecimen.set(session.specimen, list);
+        }
     }
 
     const records: BenchRecord[] = [];
@@ -189,19 +209,26 @@ export const publishTierSessions = ({
         const dbPath = join(sessionDir, "plurnk.db");
         if (!existsSync(sessionCensusPath) || !existsSync(digestPath) || !existsSync(dbPath)) continue;
         const sessionMeta = JSON.parse(readFileSync(sessionCensusPath, "utf8")) as CensusSession;
+        if (sessionMeta.specimen !== null) {
+            const list = sessionsBySpecimen.get(sessionMeta.specimen) ?? [];
+            if (!list.some((item) => item.runDir === sessionMeta.runDir)) {
+                list.push(sessionMeta);
+                sessionsBySpecimen.set(sessionMeta.specimen, list);
+            }
+        }
         const digest = readDigest<DigestAccountingInput & { loops?: Array<{ status?: number }>; turns?: unknown[] }>(digestPath);
         if (!Array.isArray(digest.workspaces) || digest.workspaces.length === 0) continue;
         const accounting = summarizeDigestAccounting(digest);
         sessionAccounting.set(sessionDir, accounting);
 
         const verdict = sessionMeta.specimen === null ? undefined : verdicts.get(sessionMeta.specimen);
-        const { outcome, reward } = verdict === undefined ? { outcome: "pass" as const, reward: 1 as const } : verdictOutcome(verdict.status);
+        const { outcome, reward } = verdict === undefined ? { outcome: "pass" as const, reward: 1 as const } : verdictOutcome(verdict);
         const lastLoopStatus = digest.loops?.at(-1)?.status ?? (outcome === "pass" ? 200 : 500);
         const baseRecord: BenchRecord = {
             harness: `tier-${tier}`,
             taskId: sessionMeta.specimen ?? sessionMeta.label,
             model,
-            durationMs: Math.round(verdict?.durationMs ?? 0),
+            durationMs: Math.round(verdictDurationMs(verdict)),
             status: lastLoopStatus,
             outcome,
             ...(reward === undefined ? {} : { reward }),
@@ -219,18 +246,19 @@ export const publishTierSessions = ({
 
     const taskRows: TaskReport[] = [];
     const seenTasks = new Set<string>();
-    for (const verdict of census.verdicts ?? []) {
+    for (const verdict of rawVerdicts) {
         if (seenTasks.has(verdict.name)) continue;
         seenTasks.add(verdict.name);
         const sessions = sessionsBySpecimen.get(verdict.name) ?? [];
         const primarySession = sessions[0];
         const accounting = primarySession === undefined ? null : (sessionAccounting.get(primarySession.runDir) ?? null);
-        const { outcome, reward } = verdictOutcome(verdict.status);
+        const { outcome, reward } = verdictOutcome(verdict);
+        const durationMs = verdictDurationMs(verdict);
         taskRows.push({
             task: verdict.name,
             reward: reward ?? null,
             outcome,
-            durationMs: verdict.durationMs > 0 ? Math.round(verdict.durationMs) : null,
+            durationMs: durationMs > 0 ? Math.round(durationMs) : null,
             evidence: primarySession?.runDir ?? runDir,
             accounting,
             costEvidence: accounting?.costEvidence ?? null,
@@ -248,7 +276,7 @@ const collectNamesInSubprocess = (serviceRoot: string, files: readonly string[])
     const script = [
         `import { collectLiveTestNames } from "@plurnk/plurnk-service/harness";`,
         `const names = await collectLiveTestNames(${JSON.stringify(files)});`,
-        `process.stdout.write(JSON.stringify(names));`,
+        `process.stdout.write(JSON.stringify(names) + "\\n");`,
     ].join("\n");
     const result = spawnSync(
         process.execPath,
@@ -269,7 +297,11 @@ const collectNamesInSubprocess = (serviceRoot: string, files: readonly string[])
     if (result.status !== 0) {
         throw new Error(`specimen discovery failed (${result.status}): ${result.stderr || result.stdout}`);
     }
-    return JSON.parse(result.stdout.trim()) as string[];
+    const firstLine = result.stdout.split("\n").find((line) => line.trim().startsWith("["));
+    if (firstLine === undefined) {
+        throw new Error(`specimen discovery produced no JSON array: ${result.stdout}`);
+    }
+    return JSON.parse(firstLine.trim()) as string[];
 };
 
 const USAGE = `usage: npm run tier:live [-- --specimen <name> ...] | npm run tier:demo [-- --specimen <name> ...]
