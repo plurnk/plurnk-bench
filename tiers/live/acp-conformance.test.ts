@@ -1,4 +1,4 @@
-// {§acp-official-client-conformance} Optional real-model counterpart of the
+// {§acp-first-party-client-conformance} Optional real-model counterpart of the
 // deterministic official-client gate.
 
 import assert from "node:assert/strict";
