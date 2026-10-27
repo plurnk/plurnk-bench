@@ -5,7 +5,7 @@ import { liveLoop, liveWorkspace } from "@plurnk/plurnk-service/harness";
 test("{§op-methods-op-dispatch} live: delegate two isolated questions and consume their answers", async (t) => {
     const s = await liveWorkspace({ name: `live-bare-${crypto.randomUUID()}` });
     try {
-        // {§bare-statement} — the taught form only: BARE carries its prompt in the fence body (#848).
+        // {§op-shapes} — the taught form only: BARE carries its prompt in the fence body (#848).
         const { finalStatus, turnIds, lastContent } = await liveLoop(s, 2, {
             prompt: "Use two separate BARE calls, each with its own inline prompt: one asking for the capital of France, the other for the capital of Germany. Then report both answers.",
             maxTurns: 6,
