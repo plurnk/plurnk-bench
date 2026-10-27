@@ -18,7 +18,7 @@ test("live: cancellation settles an active model request", { requires: ["reasoni
             prompt: "Compare breadth-first and depth-first search, including their memory costs.", maxTurns: 1,
         }, { signal: AbortSignal.any([t.signal, cancellation.signal]) }), (error) => error === reason);
         assert.ok(loopId !== undefined, "reasoning was received before cancellation");
-        // {§provider-cancellation-evidence}: cancellation may precede reported usage, never the request identity.
+        // {§provider-failure-normalization}: cancellation may precede reported usage, never the request identity.
         const turns = await waitForDb(
             () => s.db.test_list_turns_in_loop.all<{ id: number; kind: string; status: number; completed_at: string | null }>({ loop_id: loopId }),
             (rows) => rows.some(({ kind }) => kind === "inference") && rows.every(({ completed_at }) => completed_at !== null),

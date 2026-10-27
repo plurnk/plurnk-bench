@@ -38,7 +38,7 @@ const provider = (): AiSdkProvider => new AiSdkProvider({
     grammarStyle: "llamacpp",
 });
 
-// {§llama-reasoning-request}
+// {§provider-effort}
 test("live llama-server honors PLURNK's request-scoped reasoning allowance", { requires: [...REQUIRES] }, async () => {
     const response = await provider().generate({
         sessionId: "llama-reasoning-contract",
@@ -57,7 +57,7 @@ test("live llama-server honors PLURNK's request-scoped reasoning allowance", { r
     assert.ok((timings!.predicted_n as number) < generationEnvelope, "reasoning ran to the generation envelope");
 });
 
-// {§provider-grammar-evidence} — the live adapter must preserve the raw sentence
+// {§provider-failure-normalization} — the live adapter must preserve the raw sentence
 // before separating reasoning and content itself.
 test("live llama-server returns exact pre-projection grammar evidence", { requires: [...REQUIRES] }, async () => {
     const prefix = envelope("verify");
