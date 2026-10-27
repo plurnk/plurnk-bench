@@ -1,4 +1,4 @@
-// Delegation ping/pong with a real model ({§session-scheme-spawn}, {§loop-completion}): the parent names
+// Delegation ping/pong with a real model ({§machine-processes}, {§loop-completion}): the parent names
 // a session, gives it a task, waits for its answer, then addresses the same session again by name, which is a
 // message to it rather than a second session, and waits again. Read friction first: a refused or failed model
 // operation in either session is a failure here even when the final reply is right, and so is a second
