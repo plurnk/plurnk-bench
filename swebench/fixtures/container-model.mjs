@@ -51,7 +51,7 @@ writeFileSync(join(evidence, "fixture.endpoint.json"), JSON.stringify({ port: se
 const baseUrl = `http://127.0.0.1:${server.address().port}/v1`;
 Object.assign(process.env, {
     PLURNK_MODEL: "fixture", PLURNK_MODEL_fixture: "fixture/fixture",
-    PLURNK_PROVIDERS_PROVIDER_FIXTURE_NPM: "@ai-sdk/openai-compatible",
+    PLURNK_PROVIDERS_PROVIDER_FIXTURE_ADAPTER: "openai-compatible",
     PLURNK_PROVIDERS_PROVIDER_FIXTURE_BASE_URL: baseUrl,
     PLURNK_PROVIDERS_PROVIDER_FIXTURE_REASONING_BUDGET_PATH: "/reasoning/max_tokens",
     PLURNK_PROVIDERS_CONTEXT_WINDOW_fixture: "65536", PLURNK_PROVIDERS_OUTPUT_BUDGET_fixture: "4096",

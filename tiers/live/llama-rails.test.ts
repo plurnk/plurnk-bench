@@ -7,7 +7,7 @@
 
 import assert from "node:assert/strict";
 import { liveTest as test } from "@plurnk/plurnk-service/harness";
-import { AiSdkProvider } from "@plurnk/plurnk-providers";
+import { ModelProvider } from "@plurnk/plurnk-providers";
 
 const baseUrl = process.env.PLURNK_LLAMA_URL ?? "http://127.0.0.1:11435";
 const REQUIRES = [`url:${baseUrl.replace(/\/$/, "")}/v1/models`] as const;
@@ -22,7 +22,7 @@ const sampled = (reasoning: string, content: string): string => railProfile === 
     ? `${reasoning}</think>${content}`
     : `${envelope(reasoning)}${content}`;
 
-const provider = (): AiSdkProvider => new AiSdkProvider({
+const provider = (): ModelProvider => new ModelProvider({
     model: "local-reasoning-contract",
     url: `${baseUrl.replace(/\/$/, "")}/v1/chat/completions`,
     contextWindow: 49_152,
