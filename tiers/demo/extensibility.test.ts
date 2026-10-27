@@ -1,4 +1,4 @@
-// {§plurnk-skill} — "integrate plurnk with X" requests, each pointing a different way (#972). The
+// {§tools-resource-materialization} — "integrate plurnk with X" requests, each pointing a different way (#972). The
 // plurnk skill's extensibility chapter is reachable only on demand; these stories record whether a
 // model finds it, which way it settles the request, and which surface it builds.
 

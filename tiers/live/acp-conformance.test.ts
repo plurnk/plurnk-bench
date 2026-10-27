@@ -13,7 +13,7 @@ import { bindListener, Daemon, liveProvider, liveRun, liveTest as test, openMigr
 test("live: the ACP client accepts the complete model response stream", async (t) => {
     serverProposals(t, "accept");
 
-    // {§tier-census} — the session's run directory holds its database, its own host and, at the end,
+    // {§test-artifact-retention} — the session's run directory holds its database, its own host and, at the end,
     // its digest and census row, like every other live session's.
     const run = await liveRun("live-acp-conformance");
     const db = await openMigrated(run.dbPath);

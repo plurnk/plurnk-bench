@@ -1,10 +1,10 @@
-// The context room, with a real model ({§context-budget}): two stories, each a live test of one
-// key rule the intg tier pins deterministically. The wall ({§context-wall}) stays intg-only: it
+// The context room, with a real model ({§tokenomics}): two stories, each a live test of one
+// key rule the intg tier pins deterministically. The wall ({§tokenomics}) stays intg-only: it
 // needs engineered output, not a model.
 //
 // Every story is read friction first: a refused or failed model operation is a failure here even
 // when the final text is right, and so is a turn that answers an over-budget packet with anything
-// but KILL, MOVE or NOTE ({§context-over-budget-row}).
+// but KILL, MOVE or NOTE ({§tokenomics}).
 
 import { liveTest as test } from "@plurnk/plurnk-service/harness";
 import assert from "node:assert/strict";
@@ -20,18 +20,18 @@ import { measureFloor } from "./_floor-probe.ts";
 import { assertContextFitEvidence, seedAttachmentFixture } from "@plurnk/plurnk-service/harness";
 import { initializeDemoRepository } from "@plurnk/plurnk-service/harness";
 
-const OVER_BUDGET = "Context exceeds budget. YOU MUST ONLY KILL, MOVE or NOTE this turn."; // {§pinned-wording-core}
+const OVER_BUDGET = "Context exceeds budget. YOU MUST ONLY KILL, MOVE or NOTE this turn."; // {§operation-results}
 const CURATION = new Set(["KILL", "MOVE", "NOTE"]);
 
 interface LoopRow { id: number; turn_id: number; op: string | null; origin: string; status_rx: number; rx: string; attrs: string }
 
-// {§context-over-budget-row} {§context-verbs} — the loop's discipline: every turn whose packet was
+// {§tokenomics} {§tokenomics} — the loop's discipline: every turn whose packet was
 // over, its head carrying the over-budget row, was answered with curation alone, and no model
-// operation was refused. Fit receipts ({§context-fit}) are outcomes, never friction.
+// operation was refused. Fit receipts ({§tokenomics}) are outcomes, never friction.
 const assertBudgetDiscipline = async (db: Db, loopId: number): Promise<{ overTurns: number; modelTurns: number }> => {
     const turns = await db.test_list_turns_in_loop.all<{ id: number; kind: string; status: number; packet: string | null }>({ loop_id: loopId });
     const rows = await db.test_log_entries_by_loop.all<LoopRow>({ loop_id: loopId });
-    assert.ok(turns.every(({ status }) => status !== 413), "{§context-wall}: no packet met the wall; the limit protects a loop, it never ends one");
+    assert.ok(turns.every(({ status }) => status !== 413), "{§tokenomics}: no packet met the wall; the limit protects a loop, it never ends one");
     const refused = rows.flatMap((row) => {
         if (row.origin !== "model" || row.status_rx < 400) return [];
         const type = (JSON.parse(row.rx) as { problem?: { type?: string } }).problem?.type ?? "";
@@ -65,7 +65,7 @@ const seedLedgerFixture = async (): Promise<{ workspace: string; cleanup: () => 
     return { workspace, cleanup: async () => { await rm(workspace, { recursive: true, force: true }); } };
 };
 
-// {§context-fit} {§context-verbs} — attachments beyond the room land as receipts, the longest prefix
+// {§tokenomics} {§tokenomics} — attachments beyond the room land as receipts, the longest prefix
 // of lines above each; the model retrieves an answer absent from its opening packet.
 test("budget: attachments beyond the room land as receipts; the model retrieves the recovery site", { requires: ["output-budget"] }, async (t) => {
     const fixture = await seedAttachmentFixture();
@@ -93,7 +93,7 @@ test("budget: attachments beyond the room land as receipts; the model retrieves 
     await lifetime.disposeAsync();
 });
 
-// {§context-fit} {§context-verbs} {§context-over-budget-row} — a task that demands a long NOTE in a
+// {§tokenomics} {§tokenomics} {§tokenomics} — a task that demands a long NOTE in a
 // tight room: the whole READ lands as a prefix above its receipt, the model curates with the verbs and
 // reaches the buried fact by FIND and a range READ; a packet that does go over budget is answered with
 // curation alone. A model that curates ahead of the pressure never sees the row, and that is the

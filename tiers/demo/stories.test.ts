@@ -69,7 +69,7 @@ const runStory = async (opts: StoryOpts): Promise<StoryResult> => {
         );
         const { finalStatus, hitMaxTurns, turnIds, modelSessionId, lastContent } = loop;
         console.error(`[story:${opts.label}] turns=${turnIds.length} finalStatus=${finalStatus} hitMaxTurns=${hitMaxTurns}`);
-        // {§fs-resource-state} — every demo story also audits the workspace the model leaves behind.
+        // {§test-artifact-retention} — every demo story also audits the workspace the model leaves behind.
         const wsViolations = await ResourceState.check(s.db);
         assert.deepEqual(wsViolations, [], `[story:${opts.label}] the workspace stays lawful after the story`);
 
@@ -128,7 +128,7 @@ const runStoryChain = async (opts: ChainOpts): Promise<ChainResult> => {
             console.error(`[chain:${opts.label}] step ${steps.length} turns=${loop.turnIds.length} finalStatus=${loop.finalStatus}`);
             if (opts.onStep !== undefined) await opts.onStep(steps.length - 1, fixture.workspace);
         }
-        // {§fs-resource-state} — the chain leaves a lawful workspace, audited like every story.
+        // {§test-artifact-retention} — the chain leaves a lawful workspace, audited like every story.
         const chainViolations = await ResourceState.check(s.db);
         assert.deepEqual(chainViolations, [], `[chain:${opts.label}] the workspace stays lawful after the chain`);
         return { workspace: fixture.workspace, steps, db: s.db, cleanup };
@@ -467,8 +467,8 @@ test("an execution-restricted workspace answers a shell-tempting question withou
     } finally { await story.cleanup(); }
 });
 
-// {§fs-resource-state} — create, revise, and reread one model-authored file across loops.
-test("{§fs-resource-state}: create and revise a decisions document without fragmenting identity", async (t) => {
+// {§test-artifact-retention} — create, revise, and reread one model-authored file across loops.
+test("{§test-artifact-retention}: create and revise a decisions document without fragmenting identity", async (t) => {
     const chain = await runStoryChain({
         signal: t.signal,
         label: "resource-state-edit",

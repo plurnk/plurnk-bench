@@ -1,4 +1,4 @@
-// {§mcp-model-projection} {§tier-census} — current third-party stdio and Streamable HTTP servers
+// {§mcp-model-projection} {§test-artifact-retention} — current third-party stdio and Streamable HTTP servers
 // compose through the assembled daemon and its ACP listener: a scripted model, real servers. The
 // specimen names what it needs of the host (npx, the registry that serves the stdio server, the
 // remote HTTP server) and skips by name when one does not answer.

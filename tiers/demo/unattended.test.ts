@@ -1,4 +1,4 @@
-// {§owner-interaction-ring} — the reply half of the unattended contract. A harness session is
+// {§question-tool} — the reply half of the unattended contract. A harness session is
 // owned by the runtime, which nobody attends, so nothing can answer a question. Given an ambiguous
 // task, a good run decides, finishes on its own, and says what it decided. Like every story, it is
 // judged by the outcome a person would read, never by which operations got it there.

@@ -1,5 +1,5 @@
 /**
- * Live llama-server reasoning contract, in the live tier ({§tier-census}): unit coverage proves the
+ * Live llama-server reasoning contract, in the live tier ({§test-artifact-retention}): unit coverage proves the
  * wire mapping; these specimens prove a real local server honors the request rather than running to
  * the generation envelope. They require the server at PLURNK_LLAMA_URL (127.0.0.1:11435 unless set)
  * to answer and skip by name otherwise; PLURNK_LLAMA_RAIL_PROFILE names its template, gemma or qwen.
