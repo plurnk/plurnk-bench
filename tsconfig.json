@@ -15,7 +15,8 @@
         "types": ["node"],
         "lib": ["ESNext"],
         "paths": {
-            "@plurnk/plurnk-service/harness": ["./tiers/harness.d.ts"],
+            "@plurnk/plurnk-service/harness": ["../plurnk-service/plurnk-core/test/harness.ts"],
+            "@possumtech/sqlrite": ["../plurnk-service/plurnk-core/test/SqlRite.test.d.ts"],
             "@plurnk/plurnk-contracts": ["../plurnk-service/plurnk-contracts/src/index.ts"],
             "@plurnk/plurnk-providers": ["../plurnk-service/plurnk-providers/src/index.ts"],
             "@plurnk/plurnk-digest": ["../plurnk-service/plurnk-digest/src/index.ts"],
