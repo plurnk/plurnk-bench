@@ -31,13 +31,13 @@ export interface Usage {
 
 // Pointer into the daemon DB ({§digest-boundary}) — bench NEVER reads the DB
 // itself (digest owns DB→forensics). `dbPath` is the always-present handle: `digest
-// <dbPath>` renders the run(s). Workspace, worker, and loop identity come from
+// <dbPath>` renders the run(s). Workspace, session, and loop identity come from
 // the client's `--json` doc when
 // the loop reported them (a crash/error doc drops them) and scope digest to one run.
 export interface RunRef {
     dbPath: string;             // daemon DB path — always present when a DB was copied
     workspaceId?: number;       // workspace scope for digest
-    workerId?: number;          // conversation worker scope for digest
+    sessionId?: number;         // conversation session scope for digest
     loopId?: number;            // terminal loop identity for correlation
     // {§publish} — the digest the run's own runtime rendered, beside its database.
     digestDir?: string;

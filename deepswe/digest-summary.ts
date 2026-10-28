@@ -8,13 +8,13 @@ export interface DigestJson {
     workspaces: Array<{
         accounting: ProviderAccountingProjection | null;
     }>;
-    workers: Array<{
+    sessions: Array<{
         id: number;
         name: string;
     }>;
     loops: Array<{
         id: number;
-        worker_id: number;
+        session_id: number;
         sequence: number;
         status: number;
         terminated_by: string | null;
@@ -37,7 +37,7 @@ export interface DigestJson {
     }>;
     log_entries: Array<{
         id: number;
-        worker_id: number;
+        session_id: number;
         origin: string;
         op: string | null;
         target: string | null;
@@ -56,7 +56,7 @@ export interface DigestJson {
 
 export interface FailureIncident {
     kind: "operation" | "stream";
-    workerId: number;
+    sessionId: number;
     address: string;
     operation: string | null;
     operationEntryId: number | null;
@@ -82,7 +82,7 @@ const failureText = (
 const terminalStreamObservation = (
     entry: DigestJson["log_entries"][number],
 ): { address: string; channel: string | null } | null => {
-    if (entry.origin !== "plurnk"
+    if (entry.origin !== "_plurnk"
         || entry.op !== "READ"
         || entry.attrs.terminal !== true
         || entry.target === null
@@ -94,17 +94,17 @@ const terminalStreamObservation = (
 };
 
 const streamNamespace = (entry: DigestJson["log_entries"][number]): string =>
-    typeof entry.source === "string" && entry.source.startsWith("worker://") ? entry.source : "";
+    typeof entry.source === "string" && entry.source.startsWith("session://") ? entry.source : "";
 
 export const summarizeFailures = (entries: DigestJson["log_entries"]): FailureSummary => {
     const streamOwners = new Map<string, DigestJson["log_entries"][number]>();
     for (const entry of entries) {
         const stream = entry.attrs.stream;
         if (typeof stream !== "string") continue;
-        const key = `${entry.worker_id}\u0000${streamNamespace(entry)}\u0000${stream}`;
+        const key = `${entry.session_id}\u0000${streamNamespace(entry)}\u0000${stream}`;
         const previous = streamOwners.get(key);
         if (previous !== undefined && previous.id !== entry.id) {
-            throw new Error(`digest assigns stream ${stream} to multiple log entries for worker ${entry.worker_id}`);
+            throw new Error(`digest assigns stream ${stream} to multiple log entries for session ${entry.session_id}`);
         }
         streamOwners.set(key, entry);
     }
@@ -122,7 +122,7 @@ export const summarizeFailures = (entries: DigestJson["log_entries"]): FailureSu
         if (stream === null) {
             incidents.push({
                 kind: "operation",
-                workerId: entry.worker_id,
+                sessionId: entry.session_id,
                 address: failureText(entry.problem, "instance") ?? `log-entry:${entry.id}`,
                 operation: entry.op,
                 operationEntryId: entry.id,
@@ -136,7 +136,7 @@ export const summarizeFailures = (entries: DigestJson["log_entries"]): FailureSu
             continue;
         }
 
-        const key = `${entry.worker_id}\u0000${streamNamespace(entry)}\u0000${stream.address}`;
+        const key = `${entry.session_id}\u0000${streamNamespace(entry)}\u0000${stream.address}`;
         const existing = streamIncidents.get(key);
         if (existing !== undefined) {
             if (existing.status !== entry.status_rx || existing.problemType !== problemType) {
@@ -150,10 +150,10 @@ export const summarizeFailures = (entries: DigestJson["log_entries"]): FailureSu
             continue;
         }
 
-        const owner = streamOwners.get(`${entry.worker_id}\u0000${streamNamespace(entry)}\u0000${stream.address}`);
+        const owner = streamOwners.get(`${entry.session_id}\u0000${streamNamespace(entry)}\u0000${stream.address}`);
         const incident: FailureIncident = {
             kind: "stream",
-            workerId: entry.worker_id,
+            sessionId: entry.session_id,
             address: stream.address,
             operation: owner?.op ?? null,
             operationEntryId: owner?.id ?? null,
@@ -183,8 +183,8 @@ export const digestSummary = (digest: DigestJson): {
     usage: ProviderUsageProjection | null;
     costUsd: string | null;
     loopOutcomes: Array<{
-        workerId: number;
-        workerName: string | null;
+        sessionId: number;
+        sessionName: string | null;
         loop: number;
         status: number;
         terminalMessage: string | null;
@@ -200,7 +200,7 @@ export const digestSummary = (digest: DigestJson): {
         operationCounts[entry.op] = (operationCounts[entry.op] ?? 0) + 1;
     }
     const accounting = summarizeDigestAccounting(digest);
-    const workerNames = new Map(digest.workers.map((worker) => [worker.id, worker.name]));
+    const sessionNames = new Map(digest.sessions.map((session) => [session.id, session.name]));
     return {
         modelTurns: digest.turns.filter((turn) => turn.model !== null && turn.model !== "unknown").length,
         providerRequests: accounting.providerRequests,
@@ -209,8 +209,8 @@ export const digestSummary = (digest: DigestJson): {
         usage: accounting.usage,
         costUsd: accounting.costUsd,
         loopOutcomes: digest.loops.map((loop) => ({
-            workerId: loop.worker_id,
-            workerName: workerNames.get(loop.worker_id) ?? null,
+            sessionId: loop.session_id,
+            sessionName: sessionNames.get(loop.session_id) ?? null,
             loop: loop.sequence,
             status: loop.status,
             terminalMessage: typeof loop.result?.content === "string" ? loop.result.content : null,

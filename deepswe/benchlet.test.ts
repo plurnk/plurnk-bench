@@ -187,10 +187,10 @@ test("{§benchlet-diagnostic} benchlet summary preserves the terminal loop Probl
                 costUsd: "0",
             },
         }],
-        workers: [{ id: 4, name: "model-1" }],
+        sessions: [{ id: 4, name: "model-1" }],
         loops: [{
             id: 2,
-            worker_id: 4,
+            session_id: 4,
             sequence: 1,
             status: 500,
             terminated_by: null,
@@ -204,7 +204,7 @@ test("{§benchlet-diagnostic} benchlet summary preserves the terminal loop Probl
             },
         }, {
             id: 3,
-            worker_id: 4,
+            session_id: 4,
             sequence: 2,
             status: 102,
             terminated_by: null,
@@ -215,7 +215,7 @@ test("{§benchlet-diagnostic} benchlet summary preserves the terminal loop Probl
         provider_requests: [],
         log_entries: [{
             id: 1,
-            worker_id: 4,
+            session_id: 4,
             origin: "model",
             op: null,
             target: null,
@@ -224,7 +224,7 @@ test("{§benchlet-diagnostic} benchlet summary preserves the terminal loop Probl
             problem: null,
         }, {
             id: 2,
-            worker_id: 4,
+            session_id: 4,
             origin: "model",
             op: "PLAN",
             target: null,
@@ -235,8 +235,8 @@ test("{§benchlet-diagnostic} benchlet summary preserves the terminal loop Probl
     });
 
     assert.deepEqual(summary.loopOutcomes, [{
-        workerId: 4,
-        workerName: "model-1",
+        sessionId: 4,
+        sessionName: "model-1",
         loop: 1,
         status: 500,
         terminalMessage: "invalid emission",
@@ -246,8 +246,8 @@ test("{§benchlet-diagnostic} benchlet summary preserves the terminal loop Probl
             status: 500,
         },
     }, {
-        workerId: 4,
-        workerName: "model-1",
+        sessionId: 4,
+        sessionName: "model-1",
         loop: 2,
         status: 102,
         terminalMessage: null,
@@ -278,14 +278,14 @@ test("{§benchlet-diagnostic} benchlet groups terminal stream channels into one 
                 costUsd: "0",
             },
         }],
-        workers: [{ id: 4, name: "model-1" }],
+        sessions: [{ id: 4, name: "model-1" }],
         loops: [],
         turns: [],
         turn_attempts: [],
         provider_requests: [],
         log_entries: [{
             id: 10,
-            worker_id: 4,
+            session_id: 4,
             origin: "model",
             op: "EXEC",
             target: null,
@@ -294,8 +294,8 @@ test("{§benchlet-diagnostic} benchlet groups terminal stream channels into one 
             problem: null,
         }, {
             id: 11,
-            worker_id: 4,
-            origin: "plurnk",
+            session_id: 4,
+            origin: "_plurnk",
             op: "READ",
             target: "sh:///1/2/3#stdout",
             status_rx: 500,
@@ -309,8 +309,8 @@ test("{§benchlet-diagnostic} benchlet groups terminal stream channels into one 
             },
         }, {
             id: 12,
-            worker_id: 4,
-            origin: "plurnk",
+            session_id: 4,
+            origin: "_plurnk",
             op: "READ",
             target: "sh:///1/2/3#stderr",
             status_rx: 500,
@@ -324,7 +324,7 @@ test("{§benchlet-diagnostic} benchlet groups terminal stream channels into one 
             },
         }, {
             id: 13,
-            worker_id: 4,
+            session_id: 4,
             origin: "model",
             op: "EXEC",
             target: "sh:///1/1/9",
@@ -348,7 +348,7 @@ test("{§benchlet-diagnostic} benchlet groups terminal stream channels into one 
         },
         incidents: [{
             kind: "stream",
-            workerId: 4,
+            sessionId: 4,
             address: "sh:///1/2/3",
             operation: "EXEC",
             operationEntryId: 10,
@@ -360,7 +360,7 @@ test("{§benchlet-diagnostic} benchlet groups terminal stream channels into one 
             channels: ["stderr", "stdout"],
         }, {
             kind: "operation",
-            workerId: 4,
+            sessionId: 4,
             address: "log:///1/3/3/EXEC",
             operation: "EXEC",
             operationEntryId: 13,
@@ -600,9 +600,9 @@ test("{§benchlet-diagnostic} -1 disables the candidate timer; positive values a
     assert.equal(candidateTimeoutMs(5280, 900), 6_180_000);
 });
 
-test("{§benchlet-diagnostic} summarizeFailures: a child's reconciled EXEC does not collide with the parent's own stream at the same worker-relative coordinate (#464)", () => {
+test("{§benchlet-diagnostic} summarizeFailures: a child's reconciled EXEC does not collide with the parent's own stream at the same session-relative coordinate (#464)", () => {
     const exec = (id: number, source: string | null, origin: string) => ({
-        id, worker_id: 3, op: "EXEC", origin, state: "resolved", outcome: null,
+        id, session_id: 3, op: "EXEC", origin, state: "resolved", outcome: null,
         target: null, source, status_rx: 200, problem: null,
         attrs: { stream: "sh:///1/2/3", runtime: "sh" },
     });
@@ -610,7 +610,7 @@ test("{§benchlet-diagnostic} summarizeFailures: a child's reconciled EXEC does 
     // child-relative coordinate intact.
     assert.doesNotThrow(() => summarizeFailures([
         exec(41, null, "model"),
-        exec(187, "worker://cli-investigation", "_plurnk"),
+        exec(187, "session://cli-investigation", "_plurnk"),
     ] as never));
     // The fail-hard survives for true same-namespace duplicates.
     assert.throws(() => summarizeFailures([
@@ -712,7 +712,7 @@ const smoke = readFileSync(new URL("./smoke.sh", import.meta.url), "utf8");
 test("{§config-carry} the official minimal manifest retains the executor switch", () => {
     const official = smoke.split('if [ "$TASK" = all ]; then')[2]!.split("\nelse\n")[0]!;
     assert.match(official, /--agent-env "PLURNK_EXECS_QUESTION=\$PLURNK_EXECS_QUESTION"/);
-    // Server approval covers the whole benchmark worker tree.
+    // Server approval covers the whole benchmark session tree.
     assert.match(official, /--agent-env "PLURNK_SERVICE_PROPOSALS=\$PLURNK_SERVICE_PROPOSALS"/);
 });
 

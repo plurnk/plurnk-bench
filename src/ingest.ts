@@ -23,15 +23,16 @@ import {
 export interface PlurnkDoc {
     schemaVersion: 6;
     workspace?: { id: number; name: string };
+    session?: { id?: number; name: string };
+    sessionId?: number | string | null;
     finalStatus?: number;
     timedOut?: boolean;
     loopId?: number | null;
-    workerId?: number | null;
     turnCount?: number;
     turns?: unknown[];
     wallMs?: number;
     usage?: Usage | null;
-    problem?: ProblemDetails;
+    problem?: ProblemDetails | null;
 }
 
 const assertPlurnkDoc = (doc: PlurnkDoc): PlurnkDoc => {
@@ -61,11 +62,11 @@ const assertPlurnkDoc = (doc: PlurnkDoc): PlurnkDoc => {
         }
     }
     if (doc.finalStatus === undefined) {
-        if (doc.problem !== undefined) Validator.assertProblemDetails(doc.problem);
+        if (doc.problem !== undefined && doc.problem !== null) Validator.assertProblemDetails(doc.problem);
     } else {
         Validator.assertOperationResult({
             status: doc.finalStatus,
-            ...(doc.problem === undefined ? {} : { problem: doc.problem }),
+            ...(doc.problem === undefined || doc.problem === null ? {} : { problem: doc.problem }),
         });
     }
     return doc;
@@ -95,7 +96,7 @@ export interface RewardJson {
 // doc → error, timed out → timeout, final status 499 → cancelled, else fail).
 export const deriveOutcome = (doc: PlurnkDoc, reward: RewardJson | null): Outcome => {
     if (reward?.reward === 1) return "pass";
-    if (doc.problem !== undefined && doc.finalStatus === undefined) return "error";
+    if (doc.problem !== undefined && doc.problem !== null && doc.finalStatus === undefined) return "error";
     if (doc.timedOut === true) return "timeout";
     if (doc.finalStatus === 499) return "cancelled";
     if (reward === null) return "error";   // oracle never graded and the loop didn't pass
@@ -141,16 +142,21 @@ export const joinRecord = ({ harness, taskId, model, doc, reward, dbPath }: Join
         if (reward.p2p_total !== undefined && reward.p2p_passed !== undefined)
             record.p2pRegressed = reward.p2p_passed < reward.p2p_total;
     }
-    if (doc.workspace !== undefined && typeof doc.workerId === "number") {
+    const numericSessionId = typeof doc.session === "object" && doc.session !== null && typeof doc.session.id === "number"
+        ? doc.session.id
+        : typeof doc.sessionId === "number"
+            ? doc.sessionId
+            : undefined;
+    if (doc.workspace !== undefined && numericSessionId !== undefined) {
         record.run = {
             workspaceId: doc.workspace.id,
-            workerId: doc.workerId,
+            sessionId: numericSessionId,
             ...(typeof doc.loopId === "number" ? { loopId: doc.loopId } : {}),
             dbPath,
         };
     }
     const problem = doc.problem;
-    if (problem !== undefined) {
+    if (problem !== undefined && problem !== null) {
         record.problem = problem;
     }
     return record;
@@ -248,7 +254,7 @@ const readRewardText = (path: string): RewardJson | null => {
 // Read one Pier trial directory's artifacts and join them. `reward.json` absent
 // (verifier crash / disabled) joins as a null oracle → an `error` outcome. The digest
 // handle is the DB POINTER, never a bench-side DB read - plurnk owns DB->forensics
-// (digest). On a clean finish the loop doc carries workspace+worker identity and joinRecord scopes
+// (digest). On a clean finish the loop doc carries workspace+session identity and joinRecord scopes
 // the handle to that run; on a crash/error doc the coordinate is absent but the driver
 // still copied the DB, so we carry `dbPath` alone (digest renders the whole DB from it).
 // No DB copied at all → no handle, honestly absent.

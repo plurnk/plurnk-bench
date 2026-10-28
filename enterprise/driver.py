@@ -143,7 +143,7 @@ class PlurnkAgent(BaseInstalledAgent):
             **mcp_env,
             # The task container's /workspace is the project root: scratch files, payloads, and
             # helper scripts land there and EXEC runs there. No repository, so a branch-tagged
-            # worker is refused honestly (409) rather than never existing.
+            # session is refused honestly (409) rather than never existing.
             "PLURNK_CLIENT_PROJECT_ROOT": "/workspace",
         }
         # The executor allowlist excludes question; web admission is a separate corpus restriction.

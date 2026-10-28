@@ -105,7 +105,7 @@ test("{§publish} publication includes child requests and preserves the primary 
     const record: BenchRecord = {
         harness: "deepswe", taskId: "fixture", model: "fixture", durationMs: 1,
         status: 200, outcome: "fail", reward: 0, turns: 1,
-        run: { dbPath, workspaceId: 1, workerId: 4 },
+        run: { dbPath, workspaceId: 1, sessionId: 4 },
         usage: {
             accounting: { requests: [parent], usage: { inputTokens: 100 }, costUsd: "0.01" },
             curationWeight: 20, curationBudget: 40, contextTokens: 30, contextCapacity: 60, meta: {},
@@ -176,14 +176,14 @@ test("{§publish} publishedRecord re-points the DB handle and preserves the orac
         harness: "deepswe", taskId: "abs-module-cache-flags", model: "plurnk/gbuild",
         durationMs: 1000, status: 499, outcome: "timeout", turns: 15,
         reward: 0, filesModified: 1, p2pRegressed: true, testPassFraction: 0.13,
-        run: { dbPath: "/jobs/scratch/agent/plurnk.db", workerId: 7, workspaceId: 1, loopId: 8 },
+        run: { dbPath: "/jobs/scratch/agent/plurnk.db", sessionId: 7, workspaceId: 1, loopId: 8 },
     };
     const published = publishedRecord(record, "/benchmarks/run9/plurnk.db", {
         workspaces: [{ accounting: { requests: [], usage: null, costUsd: "0" } }],
         provider_requests: [], turn_attempts: [],
     });
     assert.equal(published.run!.dbPath, "/benchmarks/run9/plurnk.db");   // self-referential, not jobs/
-    assert.equal(published.run!.workerId, 7);                             // handle otherwise intact
+    assert.equal(published.run!.sessionId, 7);                            // handle otherwise intact
     // the oracle side that forced reads back to jobs/ now travels with the published record
     assert.equal(published.reward, 0);
     assert.equal(published.outcome, "timeout");
@@ -245,7 +245,7 @@ test("{§publish} a banked interview's spend folds into record.json under requie
         }, null, 4) + "\n");
         mkdirSync(join(dir, "digest"));
         writeFileSync(join(dir, "digest", "requiem.json"), JSON.stringify({
-            workers: [{
+            sessions: [{
                 accounting: {
                     requests: [{
                         provider: "provider:fixture",
@@ -269,7 +269,7 @@ test("{§publish} a banked interview's spend folds into record.json under requie
         const record = JSON.parse(readFileSync(join(dir, "record.json"), "utf8")) as BenchRecord;
         assert.equal(record.taskId, "fixture-task", "the original record survives the fold");
         assert.deepEqual(record.requiem, {
-            workers: 1,
+            sessions: 1,
             providerRequests: 1,
             usage: {
                 inputTokens: 10,
@@ -292,11 +292,11 @@ test("{§publish} a banked interview's spend folds into record.json under requie
     }
 });
 
-test("{§publish} the published digest is workspace-scoped, never worker-narrowed", () => {
+test("{§publish} the published digest is workspace-scoped, never session-narrowed", () => {
     const source = readFileSync(new URL("./publish.ts", import.meta.url), "utf8");
     const call = source.match(/Digest\.run\(\{[\s\S]*?\}\);/)?.[0] ?? "";
     assert.match(call, /workspaceId/);
-    assert.doesNotMatch(call, /workerId/, "worker narrowing excludes child worker evidence");
+    assert.doesNotMatch(call, /sessionId/, "session narrowing excludes child session evidence");
 });
 
 test("{§publish} a trial's own digest is published verbatim; the installed service renders nothing", (t) => {
@@ -307,7 +307,7 @@ test("{§publish} a trial's own digest is published verbatim; the installed serv
     const source = walDatabase(dbPath, 1);
     t.after(() => source.close());
     const accounting = { requests: [], usage: null, costUsd: "0" };
-    const own = { turns: [{ producer: "model" }], workspaces: [{ accounting }], workers: [{ id: 1, edit_census: { edits: 3, refused: 0, revisits: 1, forms: { hash: 3 } } }], provider_requests: [], turn_attempts: [] };
+    const own = { turns: [{ producer: "model" }], workspaces: [{ accounting }], sessions: [{ id: 1, edit_census: { edits: 3, refused: 0, revisits: 1, forms: { hash: 3 } } }], provider_requests: [], turn_attempts: [] };
     writeFileSync(join(root, "agent", "digest", "digest.json"), JSON.stringify(own));
     writeFileSync(join(root, "agent", "digest", "digest.md"), "# rendered by the candidate's runtime\n");
     const rendered = t.mock.method(Digest, "run", () => { throw new Error("the installed service must not render a digest the candidate already rendered"); });

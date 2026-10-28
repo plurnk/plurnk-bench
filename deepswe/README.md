@@ -53,7 +53,7 @@ node deepswe/report.ts /path/to/job --json
 ```
 
 The report joins evaluator verdicts with whole-workspace accounting, including
-delegated workers. It reports pass rate and task-level cost/cache/time medians,
+delegated sessions. It reports pass rate and task-level cost/cache/time medians,
 with missing telemetry and estimated costs kept visible.
 
 `--baseline <trials.json> --profile <configuration-name>` compares the same

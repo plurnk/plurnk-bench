@@ -222,7 +222,7 @@ const plurnkResult = {
         modelTurns: 31, providerRequests: 34, rejectedEmissions: 2, models: ["accounts/fireworks/models/glm-5p3-flash"],
         usage: { inputTokens: 1_204_311, outputTokens: 18_204, totalTokens: 1_222_515, inputTokenDetails: { cacheReadTokens: 1_100_000 } },
         costUsd: "0.42",
-        loopOutcomes: [{ workerId: 1, workerName: "root", loop: 1, status: 200, terminalMessage: "Implemented snapshot rollback; tests pass.", terminatedBy: null, problem: null }],
+        loopOutcomes: [{ sessionId: 1, sessionName: "root", loop: 1, status: 200, terminalMessage: "Implemented snapshot rollback; tests pass.", terminatedBy: null, problem: null }],
         operationCounts: { READ: 12, EDIT: 9, EXEC: 8, TASK: 1 },
     },
     oracle: { submission: { applyFailed: false, reward: 1, p2pPassed: 47, p2pTotal: 47, f2pPassed: 84, f2pTotal: 84, partial: 1, tests: [] } },

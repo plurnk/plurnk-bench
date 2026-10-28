@@ -64,11 +64,11 @@ export interface CacheEffectiveness {
 }
 
 export interface RequiemAccountingInput {
-    workers: Array<{ accounting: ProviderAccountingProjection }>;
+    sessions: Array<{ accounting: ProviderAccountingProjection }>;
 }
 
 export interface RequiemAccountingSummary extends CostSummary {
-    workers: number;
+    sessions: number;
     providerRequests: number;
     usage: ProviderUsageProjection | null;
     cacheEffectiveness: CacheEffectiveness | null;
@@ -355,15 +355,15 @@ export const addSettledUsd = (...values: Array<string | null>): string | null =>
 export const summarizeRequiemAccounting = (
     report: RequiemAccountingInput,
 ): RequiemAccountingSummary => {
-    if (!Array.isArray(report.workers)) {
-        throw new TypeError("requiem accounting has no workers array");
+    if (!Array.isArray(report.sessions)) {
+        throw new TypeError("requiem accounting has no sessions array");
     }
-    const accountings = report.workers.map((worker, index) =>
-        assertProviderAccountingProjection(worker.accounting, `requiem worker ${index} accounting`));
+    const accountings = report.sessions.map((session, index) =>
+        assertProviderAccountingProjection(session.accounting, `requiem session ${index} accounting`));
     const usage = aggregateUsage(accountings);
     const knownCosts = accountings.map(knownCostOf).filter((cost): cost is string => cost !== null);
     return {
-        workers: accountings.length,
+        sessions: accountings.length,
         providerRequests: accountings.reduce((sum, accounting) => sum + accounting.requests.length, 0),
         usage,
         cacheEffectiveness: cacheEffectivenessForRequests(accountings.flatMap(({ requests }) => requests)),

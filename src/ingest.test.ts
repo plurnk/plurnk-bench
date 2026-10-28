@@ -14,10 +14,11 @@ import { assertCleanSources, sourceProvenance } from "./source-provenance.ts";
 const doc = (overrides: Partial<PlurnkDoc> = {}): PlurnkDoc => ({
     schemaVersion: 6,
     workspace: { id: 1, name: "s" },
+    session: { id: 9, name: "root" },
     finalStatus: 200,
+    problem: null,
     timedOut: false,
     loopId: 7,
-    workerId: 9,
     turnCount: 9,
     wallMs: 4200,
     usage: {
@@ -111,7 +112,7 @@ test("{§verdicts} joinRecord maps loop side from the plurnk doc, oracle side fr
         contextCapacity: 32_768,
         meta: { provider: "fixture" },
     });
-    assert.deepEqual(record.run, { workspaceId: 1, workerId: 9, loopId: 7, dbPath: "/jobs/t1/agent/plurnk.db" });
+    assert.deepEqual(record.run, { workspaceId: 1, sessionId: 9, loopId: 7, dbPath: "/jobs/t1/agent/plurnk.db" });
 });
 
 test("{§digest-boundary} joinRecord rejects superseded client JSON instead of guessing its fields", () => {
@@ -218,7 +219,7 @@ test("{§digest-boundary} readTrial retains the credential-free web materializat
             schemaVersion: 6,
             finalStatus: 200,
             workspace: { id: 1, name: "s" },
-            workerId: 4,
+            sessionId: 4,
             loopId: 2,
         }));
         writeFileSync(join(trialDir, "agent", "plurnk-bench.json"), JSON.stringify({
@@ -283,7 +284,7 @@ test("{§verdicts} readTrial records patchLines + filesModified, distinguishing 
     try {
         mkdirSync(join(trialDir, "agent"), { recursive: true });
         mkdirSync(join(trialDir, "artifacts"), { recursive: true });
-        writeFileSync(join(trialDir, "agent", "plurnk.json"), JSON.stringify({ schemaVersion: 6, finalStatus: 200, workspace: { id: 1 }, workerId: 4, loopId: 2, turnCount: 3 }));
+        writeFileSync(join(trialDir, "agent", "plurnk.json"), JSON.stringify({ schemaVersion: 6, finalStatus: 200, workspace: { id: 1 }, sessionId: 4, loopId: 2, turnCount: 3 }));
 
         writeFileSync(patch, "");                                                    // empty → no-attempt
         assert.deepEqual([read().patchLines, read().filesModified], [0, 0]);
@@ -314,7 +315,7 @@ test("{§verdicts} readTrial records patchLines + filesModified, distinguishing 
     }
 });
 
-// A crashed loop emits an error doc with no workspace/worker identity, but the driver still copied
+// A crashed loop emits an error doc with no workspace/session identity, but the driver still copied
 // the daemon DB. Bench does NOT read that DB (digest owns DB→forensics) — it carries
 // the dbPath alone as the digest handle so the whole DB stays renderable.
 test("{§digest-boundary} readTrial carries a dbPath-only digest handle when the doc dropped the coordinate", () => {
@@ -369,7 +370,7 @@ test("{§digest-boundary} readJob walks a job tree → one record per trial, pro
         }));
         writeFileSync(join(pass, "agent", "plurnk.json"), JSON.stringify({
             schemaVersion: 6, workspace: { id: 1, name: "s" }, finalStatus: 200,
-            workerId: 9, loopId: 7, turnCount: 3, wallMs: 1000, usage: null,
+            sessionId: 9, loopId: 7, turnCount: 3, wallMs: 1000, usage: null,
         }));
         writeFileSync(join(pass, "verifier", "reward.json"), JSON.stringify({ reward: 1, partial: 1 }));
 
@@ -405,7 +406,7 @@ test("{§digest-boundary} readJob walks a job tree → one record per trial, pro
 
         assert.equal(foo.taskId, "datacurve/foo");
         assert.equal(foo.outcome, "pass");
-        assert.deepEqual(foo.run, { workspaceId: 1, workerId: 9, loopId: 7, dbPath: join(pass, "agent", "plurnk.db") });
+        assert.deepEqual(foo.run, { workspaceId: 1, sessionId: 9, loopId: 7, dbPath: join(pass, "agent", "plurnk.db") });
         assert.equal(foo.finishedAt, "2026-06-30T01:05:00Z");
     } finally {
         rmSync(root, { recursive: true, force: true });
@@ -430,7 +431,7 @@ test("{§verdicts} a client Problem doc yields an error record with no run handl
     assert.equal(record.outcome, "error");
     assert.equal(record.status, 503);
     assert.equal(record.problem?.type, "https://problems.plurnk.xyz/client/connection/refused");
-    assert.equal(record.run, undefined);         // no workspace/worker identity -> no scoped digest handle
+    assert.equal(record.run, undefined);         // no workspace/session identity -> no scoped digest handle
 });
 
 test("{§digest-boundary} legacy client error documents are rejected instead of translated", () => {
@@ -464,7 +465,7 @@ test("{§digest-boundary} reporting retains summaries without retaining raw mode
     const path = join(root, "digest.json");
     const facts = {
         workspaces: [{ accounting: { costUsd: "0.123", requests: [], usage: null } }],
-        workers: [{ id: 1, name: "日本語" }], loops: [], turns: [{ producer: "model" }],
+        sessions: [{ id: 1, name: "日本語" }], loops: [], turns: [{ producer: "model" }],
         provider_requests: [], log_entries: [],
     };
     writeFileSync(path, JSON.stringify({ ...facts, model_calls: [{ response: "opaque" }], turn_attempts: [
@@ -512,7 +513,7 @@ const sample = (overrides: Partial<BenchRecord> = {}): BenchRecord => ({
     reward: 1,
     testPassFraction: 1,
     turns: 12,
-    run: { workspaceId: 1, workerId: 2, loopId: 3, dbPath: "/tmp/plurnk-task.db" },
+    run: { workspaceId: 1, sessionId: 2, loopId: 3, dbPath: "/tmp/plurnk-task.db" },
     ...overrides,
 });
 
@@ -536,7 +537,7 @@ test("{§verdicts} status (loop verdict) is independent of outcome (oracle verdi
 // stored record and runs `digest <dbPath>` to reconstruct the exact run.
 test("{§digest-boundary} digest drill-down handle is preserved", () => {
     const restored = JSON.parse(JSON.stringify(sample())) as BenchRecord;
-    assert.deepEqual(restored.run, { workspaceId: 1, workerId: 2, loopId: 3, dbPath: "/tmp/plurnk-task.db" });
+    assert.deepEqual(restored.run, { workspaceId: 1, sessionId: 2, loopId: 3, dbPath: "/tmp/plurnk-task.db" });
 });
 }
 

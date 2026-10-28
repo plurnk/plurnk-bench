@@ -79,7 +79,7 @@ test("{§swebench-evaluator} the oracle join flows through the shared core to a 
         schemaVersion: 6,
         finalStatus: 200,
         workspace: { id: 1, name: "bench" },
-        workerId: 7,
+        sessionId: 7,
         loopId: 9,
         turnCount: 3,
         wallMs: 1234,
@@ -337,7 +337,7 @@ test("{§swebench-evaluator} an evaluator spawn failure retains its cause and no
 {
 const root = resolve(import.meta.dirname, "..");
 
-test("{§swebench-evaluator} the benchmark's server approval policy reaches every candidate worker", async () => {
+test("{§swebench-evaluator} the benchmark's server approval policy reaches every candidate session", async () => {
     const defaults = parseEnv(readFileSync(resolve(root, ".env.defaults"), "utf8"));
     assert.equal(defaults.PLURNK_SERVICE_PROPOSALS, "accept");
     const env = await plurnkEnvironment(root, "deepseek/deepseek-chat", defaults);

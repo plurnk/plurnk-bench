@@ -78,13 +78,13 @@ export interface CampaignSummary {
     };
 }
 
-interface DigestWorker { edit_census?: { edits: number; refused: number; revisits: number; forms: Record<string, number> } | null }
-type Digest = DigestAccountingInput & FrictionInput & { workers?: DigestWorker[] };
+interface DigestSession { edit_census?: { edits: number; refused: number; revisits: number; forms: Record<string, number> } | null }
+type Digest = DigestAccountingInput & FrictionInput & { sessions?: DigestSession[] };
 
-// The trial's EDIT census is the sum over its workers of what the digest counted; a digest
+// The trial's EDIT census is the sum over its sessions of what the digest counted; a digest
 // without the census (an older service) leaves it null rather than zero.
 const editsOf = (digest: Digest | null): EditCensus | null => {
-    const censuses = (digest?.workers ?? []).map((worker) => worker.edit_census).filter((census) => census !== undefined);
+    const censuses = (digest?.sessions ?? []).map((session) => session.edit_census).filter((census) => census !== undefined);
     if (censuses.length === 0) return null;
     const forms: Record<string, number> = {};
     for (const census of censuses) for (const [form, n] of Object.entries(census?.forms ?? {})) if (n > 0) forms[form] = (forms[form] ?? 0) + n;
@@ -134,7 +134,7 @@ const packetFiles = (digest: string, turns: readonly DigestTurn[], kind: "user")
 export const webReferencesTaught = (digest: string, turns: readonly DigestTurn[]): number => {
     const [first] = packetFiles(digest, turns, "user");
     if (first === undefined) return 0;
-    const taught = new Set([...readFileSync(first, "utf8").matchAll(/worker:\/\/\/_plurnk\/plurnk\/([a-z0-9-]+)\.md/gu)].map((match) => match[1]!));
+    const taught = new Set([...readFileSync(first, "utf8").matchAll(/workspace:\/\/\/_plurnk\/plurnk\/([a-z0-9-]+)\.md/gu)].map((match) => match[1]!));
     return [...taught].filter((name) => WEB_SCHEMES.has(name)).length;
 };
 

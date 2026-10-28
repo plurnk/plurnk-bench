@@ -89,7 +89,7 @@ test("{§accounting-cost-completeness} settled usage-less requests do not turn a
     assert.equal(summary.knownCostUsd, "0.1");
     assert.equal(summary.pricedRequests, 1);
     assert.deepEqual(summary.costEvidence, { charged: 1, estimated: 0, unknown: 1 });
-    const interview = summarizeRequiemAccounting({ workers: [
+    const interview = summarizeRequiemAccounting({ sessions: [
         { accounting: { requests: [priced], usage: priced.usage, costUsd: "0.1" } },
         { accounting: { requests: [unmetered], usage: null, costUsd: null } },
     ] });
@@ -110,7 +110,7 @@ test("{§accounting-cost-completeness} explicit incomplete totals retain their s
     assert.equal(summary.costUsd, null);
     assert.equal(summary.knownCostUsd, "0.1");
     assert.equal(summary.usage, null);
-    const requiem = summarizeRequiemAccounting({ workers: [{ accounting }] });
+    const requiem = summarizeRequiemAccounting({ sessions: [{ accounting }] });
     assert.equal(requiem.costUsd, null);
     assert.equal(requiem.knownCostUsd, "0.1");
 });
@@ -159,9 +159,9 @@ test("{§accounting-cost-completeness} digest accounting rejects ambiguous scope
     );
 });
 
-test("{§accounting-cost-completeness} requiem composes worker projections with exact decimals and unknown-field propagation", () => {
+test("{§accounting-cost-completeness} requiem composes session projections with exact decimals and unknown-field propagation", () => {
     assert.deepEqual(summarizeRequiemAccounting({
-        workers: [{
+        sessions: [{
             accounting: {
                 requests: [request("requiem-a", 10, 1)],
                 usage: {
@@ -187,7 +187,7 @@ test("{§accounting-cost-completeness} requiem composes worker projections with 
             },
         }],
     }), {
-        workers: 2,
+        sessions: 2,
         providerRequests: 2,
         usage: {
             inputTokens: 30,
@@ -365,7 +365,7 @@ test("{§accounting-cost-completeness} cache writes require complete evidence wh
 });
 
 test("{§accounting-cost-completeness} requiem cache also requires every physical request's evidence", () => {
-    const summary = summarizeRequiemAccounting({ workers: [{ accounting: {
+    const summary = summarizeRequiemAccounting({ sessions: [{ accounting: {
         requests: [request("emission", cached(100, 80)).accounting, request("emission").accounting],
         usage: cached(100, 80),
         costUsd: "0.1",

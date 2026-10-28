@@ -131,18 +131,18 @@ test("{§swebench-comparison} the campaign sheet counts friction before verdicts
 test("{§benchlet-diagnostic} the teaching check reads the first packet the model saw, by the digest's own turn order and artifact names, and counts only web scheme references", (t) => {
     const digest = mkdtempSync(join(tmpdir(), "swebench-digest-"));
     t.after(() => rmSync(digest, { recursive: true, force: true }));
-    const survey = (names: string[]): string => names.map((name) => `[{"path":"worker:///_plurnk/plurnk/${name}.md","mimetype":"text/markdown"}]`).join("\n");
-    // The initialization survey (turn 1) writes no packet; the model's first turn is <worker>-1-2.
-    // Directory listing order (worker-1-10 before worker-1-2) is not turn order; digest.json is.
-    writeFileSync(join(digest, "worker-1-10.user.md"), survey(["sh", "worker"]));
-    writeFileSync(join(digest, "worker-1-2.user.md"), survey(["awk", "https", "https", "sh", "wss", "worker"]));
+    const survey = (names: string[]): string => names.map((name) => `[{"path":"workspace:///_plurnk/plurnk/${name}.md","mimetype":"text/markdown"}]`).join("\n");
+    // The initialization survey (turn 1) writes no packet; the model's first turn is <session>-1-2.
+    // Directory listing order (session-1-10 before session-1-2) is not turn order; digest.json is.
+    writeFileSync(join(digest, "session-1-10.user.md"), survey(["sh", "session"]));
+    writeFileSync(join(digest, "session-1-2.user.md"), survey(["awk", "https", "https", "sh", "wss", "session"]));
     writeFileSync(join(digest, "digest.json"), JSON.stringify({ turns: [
-        { artifact: null }, { artifact: "worker-1-2" }, { artifact: "worker-1-3" }, { artifact: "worker-1-4" }, { artifact: "worker-1-10" },
+        { artifact: null }, { artifact: "session-1-2" }, { artifact: "session-1-3" }, { artifact: "session-1-4" }, { artifact: "session-1-10" },
     ] }));
     const { turns } = readDigest<{ turns: DigestTurn[] }>(join(digest, "digest.json"));
-    assert.equal(webReferencesTaught(digest, turns), 2, "https and wss, each once, from worker-1-2 and not worker-1-10");
+    assert.equal(webReferencesTaught(digest, turns), 2, "https and wss, each once, from session-1-2 and not session-1-10");
     assert.equal(webReferencesTaught(digest, []), 0, "no turns, nothing taught");
-    assert.equal(webReferencesTaught(digest, [{ artifact: "worker-1-3" }]), 0, "a turn that stored no request has no user packet");
+    assert.equal(webReferencesTaught(digest, [{ artifact: "session-1-3" }]), 0, "a turn that stored no request has no user packet");
 });
 
 test("{§swebench-evaluator} a saved verdict settles a candidate under clean; under pass an abnormal evaluator exit beside it is the evaluator's to settle; no verdict settles nothing", (t) => {
@@ -309,7 +309,7 @@ const nonzero = "https://problems.plurnk.xyz/executor/subprocess/nonzero-exit";
 const range = "https://problems.plurnk.xyz/scheme/file/range";
 
 const entry = (over: Record<string, unknown> = {}) => ({
-    id: 1, turn_id: 1, worker_id: 1, origin: "model", source: null,
+    id: 1, turn_id: 1, session_id: 1, origin: "model", source: null,
     inherited_history: false, ambient_event_id: null, attrs: {}, op: "READ",
     target: "file.txt", status_rx: 200, ...over,
 });
@@ -324,7 +324,7 @@ const trial = (t: TestContext, turns: Array<{ id: number; program?: string | nul
     write("agent/plurnk.json", { schemaVersion: 6, finalStatus: 200, wallMs: 10 });
     write("verifier/reward.json", { reward: 1 });
     const savedTurns = turns.map((turn) => {
-        const artifact = `worker-1-${turn.id}`;
+        const artifact = `session-1-${turn.id}`;
         if (typeof turn.program === "string") writeFileSync(join(root, "agent", "digest", `${artifact}.assistant.md`), turn.program);
         return { ...turn, artifact };
     });

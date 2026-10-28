@@ -111,7 +111,7 @@ export const publishRun = (record: BenchRecord, benchmarksDir: string, options: 
     if (record.run.digestDir !== undefined && !own) {
         cpSync(record.run.digestDir, digestDir, { recursive: true });
     } else if (record.run.digestDir === undefined) {
-        // {§publish}: retain workspace and child-worker evidence.
+        // {§publish}: retain workspace and child-session evidence.
         Digest.run({
             openEvidence: EvidenceReader.open,
             dbPath: db,

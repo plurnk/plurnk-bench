@@ -143,7 +143,7 @@ MANIFEST="$(MODEL="$MODEL" node -e '
   console.log(lines.join("\n"));
 ')"
 flags=(--agent-env "PLURNK_MODEL=$MODEL")
-# Server approval covers all benchmark workers, independently of client presence.
+# Server approval covers all benchmark sessions, independently of client presence.
 flags+=(--agent-env "PLURNK_SERVICE_PROPOSALS=$PLURNK_SERVICE_PROPOSALS")
 [ -n "${PLURNK_MODEL_CHILD:-}" ] && flags+=(--agent-env "PLURNK_MODEL_CHILD=$PLURNK_MODEL_CHILD")
 for alias in "$MODEL" "${PLURNK_MODEL_CHILD:-}"; do

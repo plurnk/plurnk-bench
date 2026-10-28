@@ -8,7 +8,7 @@ import { JSONParser } from "@streamparser/json";
 export const readDigest = <T = Record<string, unknown>>(path: string): T => {
     const result: Record<string, unknown> = {};
     const parser = new JSONParser({
-        paths: ["$.workspaces", "$.workers", "$.loops", "$.turns", "$.provider_requests", "$.log_entries", "$.turn_attempts", "$.turn_attempts.*.response"],
+        paths: ["$.workspaces", "$.sessions", "$.loops", "$.turns", "$.provider_requests", "$.log_entries", "$.turn_attempts", "$.turn_attempts.*.response"],
         keepStack: false,
         stringBufferSize: 64 * 1024,
     });
