@@ -22,6 +22,7 @@ export async function buildCandidateClient(serviceRoot: string, clientRoot: stri
         const { projectTarball } = await import(pathToFileURL(projectionScript).href);
         await projectTarball(archive);
         await run(["install", "--ignore-scripts", "--no-audit", "--no-fund", "--package-lock=false", "--no-save", archive], clientRoot);
+        await run(["rebuild", "node-pty"], clientRoot);
         await run(["run", "build"], clientRoot);
     } finally {
         await rm(archives, { recursive: true, force: true });
