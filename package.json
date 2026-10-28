@@ -17,11 +17,11 @@
         "tier:demo": "tiers/demo.sh"
     },
     "dependencies": {
-        "@modelcontextprotocol/client": "2.3.1",
-        "@modelcontextprotocol/server": "2.3.1",
-        "@plurnk/plurnk-contracts": "^5.0.0",
-        "@plurnk/plurnk-digest": "^3.2.2",
-        "@plurnk/plurnk-service": "^4.2.1",
+        "@modelcontextprotocol/client": "2.4.0",
+        "@modelcontextprotocol/server": "2.4.0",
+        "@plurnk/plurnk-contracts": "^6.0.1",
+        "@plurnk/plurnk-digest": "^3.2.3",
+        "@plurnk/plurnk-service": "^4.3.3",
         "@streamparser/json": "^0.0.26"
     },
     "devDependencies": {
