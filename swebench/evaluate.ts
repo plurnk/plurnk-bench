@@ -110,7 +110,7 @@ const main = async (): Promise<void> => {
     }
 
     const result = await runToFiles(python, [
-        "-m", "swebench.harness.run_evaluation",
+        join(benchRoot, "swebench", "oracle.py"),
         "-d", DATASET, "-s", "test",
         "-i", instance,
         "-p", predictionsArg,
@@ -120,7 +120,12 @@ const main = async (): Promise<void> => {
         "--report_dir", oracleDir,
     ], {
         cwd: oracleDir,
-        env: { ...process.env, HF_HUB_DISABLE_PROGRESS_BARS: "1" },
+        env: {
+            ...process.env,
+            HF_HUB_DISABLE_PROGRESS_BARS: "1",
+            HF_HUB_OFFLINE: "1",
+            HF_DATASETS_OFFLINE: "1",
+        },
         stdoutPath: join(oracleDir, "stdout.log"),
         stderrPath: join(oracleDir, "stderr.log"),
         tee: true,

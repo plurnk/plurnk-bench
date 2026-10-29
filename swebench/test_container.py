@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 
 from swebench.container import EnvironmentFormatter, configuration, resolver_configuration
+from swebench.oracle import inject_eval_fixes, install_harness_fixes
 
 
 class ContainerContract(unittest.TestCase):
@@ -69,6 +70,46 @@ class ContainerContract(unittest.TestCase):
                 configuration(request)
             request["preflight"] = True
             self.assertEqual(configuration(request)[1]["network_mode"], "no-network")
+
+    def test_oracle_fixes_guard_container_listing_airgap_and_local_httpbin(self):
+        class FakeContainerCollection:
+            def list(self, *args, **kwargs):
+                return args, kwargs
+
+            def create(self, *args, **kwargs):
+                return args, kwargs
+
+        class FakeRunEvaluation:
+            START_TEST_OUTPUT = ">>>>> Start Test Output"
+
+            @staticmethod
+            def _inject_asset_restore(eval_script, restore_cmds):
+                return eval_script
+
+        install_harness_fixes(FakeRunEvaluation, FakeContainerCollection)
+        install_harness_fixes(FakeRunEvaluation, FakeContainerCollection)
+        collection = FakeContainerCollection()
+        self.assertEqual(collection.list(all=True), ((), {"all": True, "ignore_removed": True}))
+        self.assertEqual(
+            collection.list(all=True, ignore_removed=False),
+            ((), {"all": True, "ignore_removed": False}),
+        )
+        self.assertEqual(collection.create(image="x"), ((), {"image": "x", "network_disabled": True}))
+        self.assertEqual(
+            collection.create(image="x", network_mode="none"),
+            ((), {"image": "x", "network_mode": "none"}),
+        )
+
+        script = "#!/bin/bash\n: '>>>>> Start Test Output'\npytest -rA\n: '>>>>> End Test Output'\ngit checkout test_requests.py\n"
+        injected = FakeRunEvaluation._inject_asset_restore(script, ["cp /image_assets/a a"])
+        self.assertTrue(injected.endswith("\n"))
+        start_idx = injected.index(": '>>>>> Start Test Output'")
+        asset_idx = injected.index("cp /image_assets/a a")
+        refresh_idx = injected.index("cp /tmp/swebench_httpbin.crt requests/cacert.pem")
+        restore_idx = injected.index("git checkout -- requests/cacert.pem")
+        self.assertLess(asset_idx, refresh_idx)
+        self.assertLess(refresh_idx, start_idx)
+        self.assertGreater(restore_idx, injected.index("git checkout test_requests.py"))
 
 
 if __name__ == "__main__":
