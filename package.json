@@ -19,13 +19,13 @@
     "dependencies": {
         "@modelcontextprotocol/client": "2.4.0",
         "@modelcontextprotocol/server": "2.4.0",
-        "@plurnk/plurnk-contracts": "^6.0.1",
-        "@plurnk/plurnk-digest": "^3.2.3",
-        "@plurnk/plurnk-service": "^4.3.3",
+        "@plurnk/plurnk-contracts": "^7.0.0",
+        "@plurnk/plurnk-digest": "^3.2.4",
+        "@plurnk/plurnk-service": "^5.0.0",
         "@streamparser/json": "^0.0.26"
     },
     "devDependencies": {
-        "@types/node": "^26.6.5",
+        "@types/node": "^26.6.6",
         "typescript": "^7.0.2"
     }
 }
