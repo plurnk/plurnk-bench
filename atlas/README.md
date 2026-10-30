@@ -7,16 +7,16 @@ keeping the protocol claim precise:
 - `adapter.ts` projects only the task's enabled tools through MCP revision
   `2026-07-28`.
 - Plurnk connects as a strict current MCP host and exposes the server as
-  `## EXEC0 [atlas]`.
+  the `atlas` MCP runtime.
 - The candidate's project root is an empty `workspace/` under the run directory
   (scratch files land there; Git-free), with every executor except `atlas`
-  disabled, matching Atlas's task-tool boundary. The benchlet installs its own
-  server as an Agent Plugin in `workspace/.agents/plugins/atlas`, the one root the
-  committed gate profile reads, so without it the candidate has no tools at all.
+  disabled, matching Atlas's task-tool boundary. The benchlet declares the
+  adapter directly via `PLURNK_MCP_atlas` with `PLURNK_EXECS_ONLY=atlas`, so
+  without it the candidate has no tools at all.
 - The candidate's answer is the task loop's terminal content; an empty answer
   scores zero coverage without invoking Atlas's scorer.
-- The model must call an executable tool; an answer without an `EXEC` does not
-  pass the diagnostic.
+- The model must call an enabled `atlas` tool; an answer without a successful
+  `atlas` tool call does not pass the diagnostic.
 
 Atlas's bundled servers use older and mixed MCP revisions. The adapter does not
 claim that they are current. It preserves Atlas's task and sandbox boundary
@@ -27,21 +27,21 @@ Run the documented filesystem task with the ordinary Plurnk model selection
 benchmark default):
 
 ```sh
-PLURNK_BENCH_ATLAS_CLIENT_ROOT=/path/to/open-client npm run atlas
+PLURNK_BENCH_ATLAS_CLIENT_ROOT=/path/to/plurnk atlas/benchlet.sh
 ```
 
 Run a pinned public Atlas task and score its three ground-truth claims with
 Atlas's own claim-coverage scorer:
 
 ```sh
-PLURNK_BENCH_ATLAS_CLIENT_ROOT=/path/to/open-client \
-  npm run atlas -- --task fantasy-sports-average
+PLURNK_BENCH_ATLAS_CLIENT_ROOT=/path/to/plurnk \
+  atlas/benchlet.sh --task fantasy-sports-average
 ```
 
 Select another configured model alias through the same product surface:
 
 ```sh
-PLURNK_MODEL=glm PLURNK_BENCH_ATLAS_CLIENT_ROOT=/path/to/open-client npm run atlas
+PLURNK_MODEL=glm PLURNK_BENCH_ATLAS_CLIENT_ROOT=/path/to/plurnk atlas/benchlet.sh
 ```
 
 The outside client checkout is an explicit precondition. The harness never

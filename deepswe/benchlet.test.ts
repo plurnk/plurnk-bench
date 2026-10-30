@@ -287,7 +287,7 @@ test("{§benchlet-diagnostic} benchlet groups terminal stream channels into one 
             id: 10,
             session_id: 4,
             origin: "model",
-            op: "EXEC",
+            op: "sh",
             target: null,
             status_rx: 200,
             attrs: { stream: "sh:///1/2/3" },
@@ -326,7 +326,7 @@ test("{§benchlet-diagnostic} benchlet groups terminal stream channels into one 
             id: 13,
             session_id: 4,
             origin: "model",
-            op: "EXEC",
+            op: "sh",
             target: "sh:///1/1/9",
             status_rx: 404,
             attrs: { stream: "sh:///1/3/3" },
@@ -335,7 +335,7 @@ test("{§benchlet-diagnostic} benchlet groups terminal stream channels into one 
                 title: "Entry not found",
                 status: 404,
                 detail: "No entry exists at sh:///1/1/9.",
-                instance: "log:///1/3/3/EXEC",
+                instance: "log:///1/3/3/sh",
             },
         }],
     });
@@ -350,7 +350,7 @@ test("{§benchlet-diagnostic} benchlet groups terminal stream channels into one 
             kind: "stream",
             sessionId: 4,
             address: "sh:///1/2/3",
-            operation: "EXEC",
+            operation: "sh",
             operationEntryId: 10,
             status: 500,
             problemType: nonzeroExit,
@@ -361,8 +361,8 @@ test("{§benchlet-diagnostic} benchlet groups terminal stream channels into one 
         }, {
             kind: "operation",
             sessionId: 4,
-            address: "log:///1/3/3/EXEC",
-            operation: "EXEC",
+            address: "log:///1/3/3/sh",
+            operation: "sh",
             operationEntryId: 13,
             status: 404,
             problemType: entryNotFound,
@@ -600,13 +600,13 @@ test("{§benchlet-diagnostic} -1 disables the candidate timer; positive values a
     assert.equal(candidateTimeoutMs(5280, 900), 6_180_000);
 });
 
-test("{§benchlet-diagnostic} summarizeFailures: a child's reconciled EXEC does not collide with the parent's own stream at the same session-relative coordinate (#464)", () => {
+test("{§benchlet-diagnostic} summarizeFailures: a child's reconciled execution does not collide with the parent's own stream at the same session-relative coordinate (#464)", () => {
     const exec = (id: number, source: string | null, origin: string) => ({
-        id, session_id: 3, op: "EXEC", origin, state: "resolved", outcome: null,
+        id, session_id: 3, op: "sh", origin, state: "resolved", outcome: null,
         target: null, source, status_rx: 200, problem: null,
         attrs: { stream: "sh:///1/2/3", runtime: "sh" },
     });
-    // run206's true shape: the parent's own EXEC plus the child's EXEC reconciled in with its
+    // run206's true shape: the parent's own execution plus the child's execution reconciled in with its
     // child-relative coordinate intact.
     assert.doesNotThrow(() => summarizeFailures([
         exec(41, null, "model"),

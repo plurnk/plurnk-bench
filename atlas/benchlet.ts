@@ -411,7 +411,7 @@ export const successfulExecutorCalls = (
     allowedTools: readonly string[],
 ): number => entries.filter((entry) =>
     entry.origin === "model"
-    && entry.op === "EXEC"
+    && entry.op === runtime
     && entry.status_rx < 400
     && entry.stream?.startsWith(`${runtime}:///`) === true
     && typeof entry.target === "string"
@@ -817,7 +817,7 @@ const main = async (): Promise<void> => {
         : evaluation.coverage >= passCoverage;
     const successfulExecs = digest.log_entries.filter((entry) =>
         entry.origin === "model"
-        && entry.op === "EXEC"
+        && entry.op === "atlas"
         && entry.status_rx < 400).length;
     const passed = candidate.status === 0
         && loop.status === 200

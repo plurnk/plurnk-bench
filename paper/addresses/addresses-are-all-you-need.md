@@ -497,7 +497,7 @@ the bench at <https://github.com/plurnk/plurnk-bench>.
 - [@swe-agent] J. Yang, C. E. Jimenez, A. Wettig, K. Lieret, S. Yao, K. Narasimhan, O. Press. *SWE-agent: Agent-Computer Interfaces Enable Automated Software Engineering.* NeurIPS 2024. arXiv:2405.15793.
 - [@swe-bench] C. E. Jimenez, J. Yang, A. Wettig, S. Yao, K. Pei, O. Press, K. Narasimhan. *SWE-bench: Can Language Models Resolve Real-World GitHub Issues?* ICLR 2024. arXiv:2310.06770.
 - [@openhands] X. Wang et al. *OpenHands: An Open Platform for AI Software Developers as Generalist Agents.* ICLR 2025. arXiv:2407.16741.
-- [@openhands-condenser] *OpenHands Context Condensation for More Efficient AI Agents.* OpenHands blog, April 2025. <https://openhands.dev/blog/openhands-context-condensensation-for-more-efficient-ai-agents>.
+- [@openhands-condenser] *OpenHands Context Condensation for More Efficient AI Agents.* OpenHands blog, April 2025. <https://openhands.dev/blog/openhands-context-condensation-for-more-efficient-ai-agents>.
 - [@harnesstax] *HarnessTax: How Much Does the Harness Matter for Coding Agents?* <https://harnesstax.github.io/>.
 - [@pi] Pi coding agent, npm package `@earendil-works/pi-coding-agent`, version 0.99.1.
 - [@mini-swe-agent] mini-SWE-agent. <https://github.com/SWE-agent/mini-swe-agent>.

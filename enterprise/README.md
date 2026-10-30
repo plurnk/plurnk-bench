@@ -14,14 +14,14 @@ Contracts: [SPEC.md `{§enterprise}`](../SPEC.md).
   the MCP services, forwards the minimal model manifest, runs Harbor, publishes.
 
 The model submits its own answer, as every task instructs (one POST to the container's
-`/submit_agent_response` via `EXEC [sh]`); the harness never answers for it.
+`/submit_agent_response` via `sh`); the harness never answers for it.
 
 ## run
 
 ```sh
-enterprise/smoke.sh eng-l1-a deepdumb                        # one task, one trial
-PLURNK_BENCH_PROFILE=comparison enterprise/smoke.sh all deepdumb   # 14 tasks × 3 trials
-PLURNK_BENCH_PROFILE=canonical enterprise/smoke.sh all deepdumb    # 14 tasks × 10 trials
+PLURNK_MODEL=deepdumb enterprise/smoke.sh eng-l1-a                              # one task, one trial
+PLURNK_MODEL=deepdumb PLURNK_BENCH_PROFILE=comparison enterprise/smoke.sh all   # 14 tasks × 3 trials
+PLURNK_MODEL=deepdumb PLURNK_BENCH_PROFILE=canonical enterprise/smoke.sh all    # 14 tasks × 10 trials
 ```
 
 Needs `harbor`, `docker`, `unzip`, the model alias's provider credentials, and

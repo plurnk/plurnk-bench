@@ -107,21 +107,21 @@ test("{§benchlet-diagnostic} Atlas evidence comes from a successful allowed too
     const entries = [
         {
             origin: "model",
-            op: "EXEC",
+            op: "atlas",
             status_rx: 200,
             stream: "atlas:///1/2/3",
             target: "filesystem_read_text_file",
         },
         {
             origin: "model",
-            op: "EXEC",
+            op: "sh",
             status_rx: 200,
             stream: "sh:///1/2/4",
             target: "filesystem_read_text_file",
         },
         {
             origin: "model",
-            op: "EXEC",
+            op: "atlas",
             status_rx: 400,
             stream: "atlas:///1/2/5",
             target: "filesystem_read_text_file",

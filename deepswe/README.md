@@ -25,7 +25,7 @@ export PLURNK_MODEL="your-model-alias"
 
 Container runs need a provider endpoint reachable from the task container;
 host loopback is not container loopback. See
-[configuration carriage](../SPEC.md#config-carry-the-runner-carries-authoritative-config-re-declaring-nothing)
+[configuration carriage](../SPEC.md#config-carry-8-authoritative-configuration-carriage-and-wal-snapshots)
 for the boundary and the runner's network policy.
 
 ## Run through Pier
@@ -58,7 +58,7 @@ with missing telemetry and estimated costs kept visible.
 
 `--baseline <trials.json> --profile <configuration-name>` compares the same
 graded tasks with a saved upstream configuration. See
-[comparison rules](../SPEC.md#deepswe-report-deepswe-campaign-reporting).
+[comparison rules](../SPEC.md#accounting-cost-completeness-2-campaign-reporting-cost-completeness-and-cache-effectiveness).
 
 Pier retains `verifier/reward.json`, `agent/plurnk.json`, and
 `agent/plurnk.db` per trial. The shared publisher writes a `record.json` and
@@ -99,7 +99,7 @@ It builds the client against the selected platform's packed contracts, including
 unpublished changes, without rewriting source manifests or lockfiles. An optional
 lanes root creates an independent pair for comparing two source revisions.
 Do not relock lanes while they are running. See
-[frozen-lane rules](../SPEC.md#bench-relock-frozen-lanes-move-with-one-command).
+[frozen-lane rules](../SPEC.md#bench-relock-7-known-confounds-and-frozen-lane-relocking).
 
 ## Compare with mini-swe-agent
 
@@ -116,4 +116,4 @@ available credentials or provider accounts.
 The runner writes `PAIR.md` beside both attempts, including evaluator verdicts,
 tokens, cost, steps, and elapsed time. Missing values stay absent.
 `--sheet <pair-directory>` regenerates the comparison without a new run.
-See [comparison contract](../SPEC.md#pair-sheet-one-specimen-through-both-harnesses-one-fact-sheet).
+See [comparison contract](../SPEC.md#pair-sheet-6-paired-harness-comparison-and-mini-trajectory-digest).

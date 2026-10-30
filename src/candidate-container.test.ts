@@ -209,7 +209,7 @@ test("{§benchlet-diagnostic} portable defaults do not select a client checkout"
     const defaults = readFileSync(resolve(root, ".env.defaults"), "utf8");
     for (const name of ["PLURNK_BENCHLET_CLIENT_ROOT", "PLURNK_BENCH_ATLAS_CLIENT_ROOT"]) {
         assert.doesNotMatch(defaults, new RegExp(`^${name}=`, "m"));
-        assert.match(defaults, new RegExp(`^# ${name}=/path/to/open-client$`, "m"));
+        assert.match(defaults, new RegExp(`^# ${name}=/path/to/plurnk$`, "m"));
     }
 });
 

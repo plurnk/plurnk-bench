@@ -5,7 +5,7 @@ task image as a unit. ``run()`` starts the daemon with the benchmark's three MCP
 declared as ordinary plurnk HTTP MCP servers, drives one headless loop with the task
 instruction as the prompt, and persists the client's ``--json`` record + the daemon DB.
 The task's own instruction tells the agent how to submit its answer (one POST to the
-container's ``/submit_agent_response``); the model does that itself through ``EXEC [sh]``.
+container's ``/submit_agent_response``); the model does that itself through ``sh``.
 The harness never submits on the model's behalf — an unsubmitted answer is the model's
 failure and the benchmark's judge records it as such (SPEC {§enterprise}).
 
@@ -140,7 +140,7 @@ class PlurnkAgent(BaseInstalledAgent):
             **self._extra_env,
             **mcp_env,
             # The task container's /workspace is the project root: scratch files, payloads, and
-            # helper scripts land there and EXEC runs there. No repository, so a branch-tagged
+            # helper scripts land there and sh runs there. No repository, so a branch-tagged
             # session is refused honestly (409) rather than never existing.
             "PLURNK_CLIENT_PROJECT_ROOT": "/workspace",
         }

@@ -2,7 +2,7 @@
 
 Run pinned repository issues through Plurnk and grade their patches with the
 [official SWE-bench evaluator](https://github.com/SWE-bench/SWE-bench).
-See [SPEC.md](../SPEC.md#swebench-swe-bench-lite-and-native-harness-comparisons)
+See [SPEC.md](../SPEC.md#swebench-evaluator-11-swe-bench-lite-corpus-official-evaluator-and-trial-runtime)
 for isolation, provenance, and comparison contracts.
 
 Run commands from the repository root after the [shared setup](../README.md#setup).

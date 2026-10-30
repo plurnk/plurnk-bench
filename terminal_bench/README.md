@@ -60,4 +60,4 @@ python -m terminal_bench.network_probe /path/to/task <provider-https-url> <unrel
 
 It checks provider access, unrelated-host denial, and restoration of the baseline
 using unauthenticated HTTPS, with no model or verifier call. See
-[SPEC.md](../SPEC.md#frontier-egress-probe-restricted-inference-connectivity).
+[SPEC.md](../SPEC.md#frontier-evidence-10-frontierharness-eval-v1-parity-lane-and-egress-probe).
