@@ -3,7 +3,7 @@
 // separately and is NOT a release gate. Deterministic integration owns the lifecycle contract,
 // while bench evaluates whether models choose and use delegation effectively.
 //
-// {§tier-corpus} / {§tier-corpus}: replies and retained
+// {§tier-corpus}: replies and retained
 // outcomes resume the parent in place; observations do not manufacture assignments.
 
 import { liveTest as test } from "@plurnk/plurnk-service/harness";

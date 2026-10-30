@@ -311,13 +311,13 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             process.stdout.write(`run=${runDir}\n`);
         }
         // {§benchlet-diagnostic} — the candidate reaches no network beyond its model:
-        // the operator's MCP/A2A definitions are masked, search credentials blanked,
+        // the operator's MCP definitions are masked, search credentials blanked,
         // and the daemon's web schemes admit no host.
         const isolation = candidateIsolation(Object.keys(process.env));
         writeJson(join(trialDir, "candidate-isolation.json"), { masked: isolation.masked, webHosts: [], capabilities: isolation.capabilities });
         const candidateEnv: NodeJS.ProcessEnv = {
             ...(values.preflight ? {} : await plurnkEnvironment(serviceRoot, model, process.env)),
-            PLURNK_EXECS_QUESTION: "0",
+            PLURNK_EXECS_PLURNK_QUESTION: "0",
             PLURNK_SERVICE_POLICY: "",
             PLURNK_SERVICE_PACKET_INJECT: "",
             PLURNK_SERVICE_ROOTS: "project",

@@ -191,7 +191,7 @@ class PlurnkAgent(BaseInstalledAgent):
             capability_policy = {"deny": [{"traits": ["web"]}]}
             capability_args = f"--capabilities {shlex.quote(json.dumps(capability_policy))} "
 
-        # One shell exec: start daemon → wait for AG-UI → drive client at /app → commit
+        # One shell exec: start daemon → wait for ACP → drive client at /app → commit
         # so `git diff base..HEAD` (Pier's pre_artifacts.sh) captures the work →
         # persist a WAL-safe DB snapshot. A non-solving loop is a valid 0-reward
         # outcome, so the client's exit is tolerated; snapshot failure is not.

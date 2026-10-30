@@ -213,10 +213,10 @@ class PlurnkAgent(BaseInstalledAgent):
         env = self._model_env()
         env["NODE_USE_ENV_PROXY"] = "1"
         env["PLURNK_SERVICE_DB_PATH"] = str(db_dest)
-        question = self._host_env("PLURNK_EXECS_QUESTION")
+        question = self._host_env("PLURNK_EXECS_PLURNK_QUESTION")
         if question is None:
-            question = _env_file(Path(__file__).resolve().parent.parent / ".env.defaults")["PLURNK_EXECS_QUESTION"]
-        env["PLURNK_EXECS_QUESTION"] = question
+            question = _env_file(Path(__file__).resolve().parent.parent / ".env.defaults")["PLURNK_EXECS_PLURNK_QUESTION"]
+        env["PLURNK_EXECS_PLURNK_QUESTION"] = question
 
         # No web route -> the capability ceiling removes web tools and their
         # teaching (contamination honesty, the DeepSWE posture).

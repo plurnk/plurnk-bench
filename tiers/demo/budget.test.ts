@@ -25,7 +25,7 @@ const CURATION = new Set(["KILL", "MOVE", "NOTE"]);
 
 interface LoopRow { id: number; turn_id: number; op: string | null; origin: string; status_rx: number; rx: string; attrs: string }
 
-// {§tier-corpus} {§tier-corpus} — the loop's discipline: every turn whose packet was
+// {§tier-corpus} — the loop's discipline: every turn whose packet was
 // over, its head carrying the over-budget row, was answered with curation alone, and no model
 // operation was refused. Fit receipts ({§tier-corpus}) are outcomes, never friction.
 const assertBudgetDiscipline = async (db: Db, loopId: number): Promise<{ overTurns: number; modelTurns: number }> => {
@@ -65,7 +65,7 @@ const seedLedgerFixture = async (): Promise<{ workspace: string; cleanup: () => 
     return { workspace, cleanup: async () => { await rm(workspace, { recursive: true, force: true }); } };
 };
 
-// {§tier-corpus} {§tier-corpus} — attachments beyond the room land as receipts, the longest prefix
+// {§tier-corpus} — attachments beyond the room land as receipts, the longest prefix
 // of lines above each; the model retrieves an answer absent from its opening packet.
 test("budget: attachments beyond the room land as receipts; the model retrieves the recovery site", { requires: ["output-budget"] }, async (t) => {
     const fixture = await seedAttachmentFixture();
@@ -93,7 +93,7 @@ test("budget: attachments beyond the room land as receipts; the model retrieves 
     await lifetime.disposeAsync();
 });
 
-// {§tier-corpus} {§tier-corpus} {§tier-corpus} — a task that demands a long NOTE in a
+// {§tier-corpus} — a task that demands a long NOTE in a
 // tight room: the whole READ lands as a prefix above its receipt, the model curates with the verbs and
 // reaches the buried fact by FIND and a range READ; a packet that does go over budget is answered with
 // curation alone. A model that curates ahead of the pressure never sees the row, and that is the

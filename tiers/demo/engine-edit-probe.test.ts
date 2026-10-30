@@ -1,4 +1,4 @@
-// {§tier-corpus} {§tier-corpus}: exercise locate-and-edit
+// {§tier-corpus}: exercise locate-and-edit
 // against a large source file, beyond the coordinate range of the small demo fixtures. The test
 // copies a frozen snapshot of Engine.ts (fixtures/engine-edit-probe.ts.txt, so the story's
 // coordinates never move with the live source) into a throwaway repository, then proves target

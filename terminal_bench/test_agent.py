@@ -78,11 +78,11 @@ class PlainTaskTreeTest(unittest.TestCase):
         for override in (None, "1", "false"):
             extra_env = {"PLURNK_MODEL": "test", "PLURNK_MODEL_test": ROUTE}
             if override is not None:
-                extra_env["PLURNK_EXECS_QUESTION"] = override
+                extra_env["PLURNK_EXECS_PLURNK_QUESTION"] = override
             environment = types.SimpleNamespace()
             with patch.object(agent_module, "_operator_env", return_value={}):
                 asyncio.run(agent(**extra_env).run("task", environment, object()))
-            self.assertEqual(environment.env["PLURNK_EXECS_QUESTION"], "0" if override is None else override)
+            self.assertEqual(environment.env["PLURNK_EXECS_PLURNK_QUESTION"], "0" if override is None else override)
 
 
 class InstallationEvidenceTest(unittest.TestCase):

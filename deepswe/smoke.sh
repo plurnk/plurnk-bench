@@ -55,9 +55,8 @@ source_env_file() {
 }
 source_env_file "$OPERATOR_ENV"
 source_env_file ".env.defaults"
-# Transport (service 1.0.0): single listener — PLURNK_PORT=1066 is THE client surface
-# (AG-UI); the separate WS listener is gone. The in-container daemon+client pair share the
-# shipped default, so bench sets NOTHING here (a stale port export silently kills the loop).
+# Single listener — PLURNK_PORT=1066 is THE client surface (ACP v2). The in-container
+# daemon+client pair share the shipped default, so bench sets NOTHING here.
 [ "$#" -le 1 ] || { echo "usage: deepswe/smoke.sh [task-glob|all]" >&2; exit 2; }
 TASK="${1:-abs-module-cache-flags}"
 # Corpus records are clean, publishable results (#15): requiems are a benchlet
@@ -120,7 +119,7 @@ if [ "$TASK" = all ]; then
   # Official-corpus manifest: the selected model layer and unattended executor switch.
   # Alias-scoped knobs ride with their alias.
   flags=(--agent-env "PLURNK_MODEL=$MODEL"
-    --agent-env "PLURNK_EXECS_QUESTION=$PLURNK_EXECS_QUESTION"
+    --agent-env "PLURNK_EXECS_PLURNK_QUESTION=$PLURNK_EXECS_PLURNK_QUESTION"
     --agent-env "PLURNK_SERVICE_PROPOSALS=$PLURNK_SERVICE_PROPOSALS")
   [ -n "${PLURNK_MODEL_CHILD:-}" ] && flags+=(--agent-env "PLURNK_MODEL_CHILD=$PLURNK_MODEL_CHILD")
   for alias in "$MODEL" "${PLURNK_MODEL_CHILD:-}"; do

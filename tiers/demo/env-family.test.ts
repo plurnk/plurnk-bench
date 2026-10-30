@@ -1,4 +1,4 @@
-// {§tier-corpus} {§tier-corpus} — the env family as a model actually meets it.
+// {§tier-corpus} — the env family as a model actually meets it.
 //
 // These two stories exist because correctness tests cannot answer the question the feature is
 // for: can a model find the environment surface and use it without being told the verbs? They

@@ -711,7 +711,7 @@ const smoke = readFileSync(new URL("./smoke.sh", import.meta.url), "utf8");
 
 test("{§config-carry} the official minimal manifest retains the executor switch", () => {
     const official = smoke.split('if [ "$TASK" = all ]; then')[2]!.split("\nelse\n")[0]!;
-    assert.match(official, /--agent-env "PLURNK_EXECS_QUESTION=\$PLURNK_EXECS_QUESTION"/);
+    assert.match(official, /--agent-env "PLURNK_EXECS_PLURNK_QUESTION=\$PLURNK_EXECS_PLURNK_QUESTION"/);
     // Server approval covers the whole benchmark session tree.
     assert.match(official, /--agent-env "PLURNK_SERVICE_PROPOSALS=\$PLURNK_SERVICE_PROPOSALS"/);
 });
@@ -779,7 +779,7 @@ test("{§config-carry} the bench's installed service must equal the version the 
     assert.match(smoke, /\[ "\$DIGEST_VERSION" = "\$SERVICE_VERSION" \] \|\| \{/);
 });
 
-test("{§config-carry}{§config-carry} the publisher never owns pier's lifetime; a final pass publishes the rest; failed setups are listed", () => {
+test("{§config-carry} the publisher never owns pier's lifetime; a final pass publishes the rest; failed setups are listed", () => {
     assert.match(smoke, /trap 'kill "\$PIER_PID" \$PUB_PID 2>\/dev\/null \|\| true' EXIT INT TERM/);
     assert.match(smoke, /node src\/publish\.ts --watch "\$JOB" --pid "\$PIER_PID" \\\n\s+\|\| echo/);
     assert.match(smoke, /\) &\nPUB_PID=\$!/);
@@ -788,7 +788,7 @@ test("{§config-carry}{§config-carry} the publisher never owns pier's lifetime;
     assert.match(smoke, /failed-setup\.txt/);
 });
 
-test("{§publish}{§publish} job scratch lives under the benchmarks home and every trial publishes as it lands", () => {
+test("{§publish} job scratch lives under the benchmarks home and every trial publishes as it lands", () => {
     assert.match(smoke, /JOBS_ROOT="\$\(node src\/publish\.ts --jobs deepswe\)"/);
     assert.match(smoke, /"\$\{select_flags\[@\]\}" -o "\$JOBS_ROOT" --env docker &/);
     assert.match(smoke, /PLURNK_BENCH_HARNESS=deepswe node src\/publish\.ts --watch "\$JOB" --pid "\$PIER_PID"/);

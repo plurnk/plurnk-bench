@@ -1,4 +1,4 @@
-// Auto-add with a real model ({§tier-corpus}, {§tier-corpus}): the model is asked about
+// Auto-add with a real model ({§tier-corpus}): the model is asked about
 // a generated file git does not track, READs it, and the read admits it as the model's own definition
 // of that path, announced by one member_added notice; it answers from what it read. Read friction
 // first: any refused operation is a failure, a shell detour around membership is a failure, and the

@@ -92,7 +92,7 @@ const runStory = async (opts: StoryOpts): Promise<StoryResult> => {
     }
 };
 
-// {§tier-corpus} {§tier-corpus}
+// {§tier-corpus}
 const BRAVE_SEARCH = { alias: "brave", type: "stdio", command: "npx", args: ["-y", "@brave/brave-search-mcp-server@2.1.0"] };
 const addMcp = (definition: { readonly alias: string } & Readonly<Record<string, unknown>>) => async (workspace: LiveWorkspace): Promise<void> => {
     const added = await workspace.invokeWorkspaceAction("workspace.mcp.add", definition) as { status?: number };

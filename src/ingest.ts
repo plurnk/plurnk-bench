@@ -90,7 +90,7 @@ export interface RewardJson {
     empty_patch?: number;
 }
 
-// SPEC {§verdicts} / {§verdicts}. The oracle is ground truth
+// SPEC {§verdicts}. The oracle is ground truth
 // for PASS: reward===1 wins regardless of how the loop
 // ended. A non-pass is then classified by the loop's own failure mode (client error
 // doc → error, timed out → timeout, final status 499 → cancelled, else fail).

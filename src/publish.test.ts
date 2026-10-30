@@ -391,7 +391,7 @@ test("{§config-carry} the candidate selection is the ordinary PLURNK_MODEL", ()
 
 test("{§config-carry} the committed bench floor disables question through executor policy", () => {
     const defaults = parseEnv(readFileSync(new URL("../.env.defaults", import.meta.url), "utf8"));
-    assert.equal(defaults.PLURNK_EXECS_QUESTION, "0");
+    assert.equal(defaults.PLURNK_EXECS_PLURNK_QUESTION, "0");
     assert.equal(defaults.PLURNK_SERVICE_PROVIDER_RECOVERY, undefined, "benchmarks inherit product recovery unless the operator overrides it");
 });
 }

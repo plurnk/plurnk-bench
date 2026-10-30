@@ -64,7 +64,7 @@ test("{§enterprise} the corpus runs as one Harbor job per budget group, each fo
     assert.match(smoke, /wait "\$HARBOR_PID" \|\|/);
 });
 
-test("{§publish}{§publish} job scratch lives under the benchmarks home and every trial publishes as it lands", () => {
+test("{§publish} job scratch lives under the benchmarks home and every trial publishes as it lands", () => {
     assert.match(smoke, /JOBS_ROOT="\$\(node src\/publish\.ts --jobs enterprise\)"/);
     assert.match(smoke, /PLURNK_BENCH_HARNESS=enterprise node src\/publish\.ts --watch "\$JOB" --pid "\$HARBOR_PID"/);
     assert.doesNotMatch(smoke, /-o jobs\b|ls -dt jobs\//);

@@ -1,4 +1,4 @@
-// {§tier-corpus} {§tier-corpus}
+// {§tier-corpus}
 import { liveTest as test } from "@plurnk/plurnk-service/harness";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
