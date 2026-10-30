@@ -11,8 +11,8 @@ test("live: full-text READ answers from the selected source lines", async (t) =>
         }, { signal: t.signal });
         assert.equal(loop.finalStatus, 200);
         assert.match(loop.lastContent, /Tuesday/);
-        const reads = await s.db.test_log_entries_by_session_op_full.all<{ tx: string; status_rx: number }>({ session_id: loop.modelSessionId, op: "READ" });
-        const selected = reads.filter(({ tx }) => JSON.parse(tx).matcher?.dialect === "fts");
+        const reads = await s.db.test_log_entries_by_session_op_full.all<{ origin: string; tx: string; status_rx: number }>({ session_id: loop.modelSessionId, op: "READ" });
+        const selected = reads.filter(({ origin, tx }) => origin === "model" && JSON.parse(tx).matcher?.dialect === "fts");
         assert.ok(selected.length > 0, "the model exercised full-text READ");
         assert.ok(selected.every(({ status_rx }) => status_rx === 200), JSON.stringify(selected));
     } finally { await s.cleanup(); }
