@@ -129,7 +129,7 @@ class PlurnkAgent(BaseInstalledAgent):
                 "echo 'plurnk setup: Node runtime'\n"
                 "apt-get install -y nodejs\n"
                 "echo 'plurnk setup: published packages'\n"
-                f"npm install -g --no-audit --no-fund {shlex.quote(service)} {shlex.quote(client)}\n"
+                f"npm install -g --ignore-scripts --no-audit --no-fund {shlex.quote(service)} {shlex.quote(client)}\n"
                 # Identity provisioning (#460): tasks may drive git; an identity-less
                 # container turns every commit into harness friction.
                 "git config --system user.name plurnk-candidate\n"

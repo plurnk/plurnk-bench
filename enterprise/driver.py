@@ -82,7 +82,7 @@ class PlurnkAgent(BaseInstalledAgent):
                 "apt-get install -y nodejs\n"
                 f"node --version | grep -q '^v{NODE_MAJOR}\\.' || {{ echo \"plurnk driver: node $(node --version) is not v{NODE_MAJOR}\" >&2; exit 1; }}\n"
                 "command -v git\n"
-                f"npm install -g {shlex.quote(service)} {shlex.quote(client)}\n"
+                f"npm install -g --ignore-scripts --no-audit --no-fund {shlex.quote(service)} {shlex.quote(client)}\n"
                 "command -v plurnk\n"
                 "command -v plurnk-service\n"
             ),

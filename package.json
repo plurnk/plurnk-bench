@@ -27,5 +27,9 @@
     "devDependencies": {
         "@types/node": "^26.6.6",
         "typescript": "^7.0.2"
+    },
+    "allowScripts": {
+        "@google/genai@2.21.0": false,
+        "protobufjs@7.6.6": false
     }
 }
