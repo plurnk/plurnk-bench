@@ -81,10 +81,9 @@ class DriverContractTest(unittest.TestCase):
 
         for name, port in [("pm", 8011), ("crm", 8012), ("fileserver", 8013)]:
             self.assertEqual(json.loads(env[f"PLURNK_MCP_{name}"]), {
-                "name": name, "type": "streamable-http", "url": f"http://192.168.1.20:{port}/mcp",
+                "type": "streamable-http", "url": f"http://192.168.1.20:{port}/mcp",
             })
         self.assertEqual(env["PLURNK_MCP_ENABLED"], "1")
-        self.assertEqual(json.loads(env["PLURNK_MCP_EXPANDED"]), ["pm", "crm", "fileserver"])
         self.assertEqual(env["PLURNK_EXECS_ONLY"], "sh,pm,crm,fileserver")
 
     def test_mcp_host_is_only_rewritten_when_given(self):

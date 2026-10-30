@@ -28,12 +28,12 @@ test("live mcp: current third-party stdio and HTTP servers compose through the a
     const provider = new PacketCapturingMock({
         contextWindow: 1_000_000,
         responses: [
-            makeMockResponse("\n````READ (workspace:///_plurnk/tools/kubernetes.md) <1,-1>````\n````NOTE\nSelect the configuration tool linked from the runtime document.\n````"),
-            makeMockResponse("\n````READ (workspace:///_plurnk/tools/kubernetes/configuration_view.json) <1,-1>````\n````NOTE\nUse the exact contract after reading it.\n````"),
+            makeMockResponse("\n````READ (mcp:///kubernetes.md) <1,-1>````\n````NOTE\nSelect the configuration tool linked from the runtime document.\n````"),
+            makeMockResponse("\n````READ (mcp:///kubernetes/configuration_view.json) <1,-1>````\n````NOTE\nUse the exact contract after reading it.\n````"),
             makeMockResponse("\n````kubernetes (configuration_view)\n{\"minified\":true}\n````\n\n````NOTE\nInspect the returned configuration.\n````"),
             makeMockResponse("````SEND [200]\nThe current Kubernetes context is specimen.\n````"),
-            makeMockResponse("\n````READ (workspace:///_plurnk/tools/goji.md) <1,-1>````\n````NOTE\nSelect the terminology tool linked from the runtime document.\n````"),
-            makeMockResponse("\n````READ (workspace:///_plurnk/tools/goji/goji_explain_term.json) <1,-1>````\n````NOTE\nUse the documented tool and resource.\n````"),
+            makeMockResponse("\n````READ (mcp:///goji.md) <1,-1>````\n````NOTE\nSelect the terminology tool linked from the runtime document.\n````"),
+            makeMockResponse("\n````READ (mcp:///goji/goji_explain_term.json) <1,-1>````\n````NOTE\nUse the documented tool and resource.\n````"),
             makeMockResponse("\n````goji (goji_explain_term)\n{\"term\":\"AEO\"}\n````\n\n````READ (goji:///resources/goji%3A%2F%2Fabout)````\n````NOTE\nInspect both remote results.\n````"),
             makeMockResponse("````SEND [200]\nGOJI defines AEO as Answer Engine Optimisation and identifies itself as a Melbourne digital agency.\n````"),
         ],
@@ -114,8 +114,8 @@ test("live mcp: current third-party stdio and HTTP servers compose through the a
         // this specimen witnesses the composition: the real server's catalog, its tool's result in a
         // packet, the run's outcome and the model's speech.
         const anyPacket = (pattern: RegExp): boolean => provider.requests.some((_, index) => pattern.test(packet(provider.requests, index)));
-        assert.ok(anyPacket(/workspace:\/\/\/_plurnk\/tools\/kubernetes\.md/), "the survey listed the Kubernetes runtime document");
-        assert.ok(anyPacket(/workspace:\/\/\/_plurnk\/tools\/goji\.md/), "the survey listed the GOJI runtime document");
+        assert.ok(anyPacket(/mcp:\/\/\/kubernetes\.md/), "the survey listed the Kubernetes runtime document");
+        assert.ok(anyPacket(/mcp:\/\/\/goji\.md/), "the survey listed the GOJI runtime document");
         assert.ok(anyPacket(/current-context: specimen/), "the real server's kubeconfig reached the model");
 
         const gojiRun = await post(port, runInput(workspace, "call-goji", {

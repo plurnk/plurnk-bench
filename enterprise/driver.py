@@ -112,10 +112,8 @@ class PlurnkAgent(BaseInstalledAgent):
             if alias in aliases:
                 raise ValueError(f"MCP server names {server.name!r} collide on plurnk alias {alias!r}")
             aliases.append(alias)
-            env[f"PLURNK_MCP_{alias}"] = json.dumps({"name": alias, "type": "streamable-http", "url": url})
+            env[f"PLURNK_MCP_{alias}"] = json.dumps({"type": "streamable-http", "url": url})
         env["PLURNK_MCP_ENABLED"] = "1"
-        # Every family document rides turn 0, so the model sees each tool by name.
-        env["PLURNK_MCP_EXPANDED"] = json.dumps(aliases)
         # The candidate's executors: the task's MCP services and the shell that submits.
         env["PLURNK_EXECS_ONLY"] = ",".join([SHELL_RUNTIME, *aliases])
         return env
@@ -152,7 +150,7 @@ class PlurnkAgent(BaseInstalledAgent):
             "schemaVersion": 1,
             "mcp": {
                 "host": self._mcp_host or BENCH_MCP_HOST,
-                "servers": {key: value for key, value in mcp_env.items() if key.startswith("PLURNK_MCP_") and key not in ("PLURNK_MCP_ENABLED", "PLURNK_MCP_EXPANDED")},
+                "servers": {key: value for key, value in mcp_env.items() if key.startswith("PLURNK_MCP_") and key != "PLURNK_MCP_ENABLED"},
                 "enabled": mcp_env["PLURNK_MCP_ENABLED"] == "1",
             },
             "executors": mcp_env["PLURNK_EXECS_ONLY"],

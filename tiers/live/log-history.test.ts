@@ -19,7 +19,7 @@ test("live: broad log KILL retires READ receipts without erasing program artifac
             s,
             2,
             {
-                prompt: "Read workspace:///_plurnk/plurnk/pattern.md, then reply with `ready`.",
+                prompt: "Read plurnk:///pattern.md, then reply with `ready`.",
                 maxTurns: 4,
             },
             { signal: t.signal },

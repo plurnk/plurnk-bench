@@ -164,7 +164,7 @@ test("{§bench-relock} a fresh client builds against the selected packed contrac
 
 test("{§benchlet-diagnostic} disables ambient endpoint and skill aliases without blanking definitions, and retains independent network ceilings", () => {
     const { overrides, masked, capabilities } = candidateIsolation([
-        "PLURNK_MCP_brave_TOOLS", "PLURNK_MCP_EXPANDED", "PLURNK_MCP_CONNECT_TIMEOUT",
+        "PLURNK_MCP_brave_TOOLS", "PLURNK_MCP_CONNECT_TIMEOUT",
         "PLURNK_MCP_code_search", "PLURNK_MCP_code_search_ENABLED",
         "PLURNK_A2A_helper", "PLURNK_A2A_helper_ENABLED", "PLURNK_A2A_EXPOSE", "PLURNK_A2A_TOKEN", "PLURNK_A2A_NAME",
         "PLURNK_A2A_WORKSPACE", "PLURNK_A2A_PROPOSALS", "PLURNK_A2A_SKILLS",

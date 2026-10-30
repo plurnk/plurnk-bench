@@ -131,7 +131,7 @@ test("{§swebench-comparison} the campaign sheet counts friction before verdicts
 test("{§benchlet-diagnostic} the teaching check reads the first packet the model saw, by the digest's own turn order and artifact names, and counts only web scheme references", (t) => {
     const digest = mkdtempSync(join(tmpdir(), "swebench-digest-"));
     t.after(() => rmSync(digest, { recursive: true, force: true }));
-    const survey = (names: string[]): string => names.map((name) => `[{"path":"workspace:///_plurnk/plurnk/${name}.md","mimetype":"text/markdown"}]`).join("\n");
+    const survey = (names: string[]): string => names.map((name) => `[{"path":"plurnk:///${name}.md","mimetype":"text/markdown"}]`).join("\n");
     // The initialization survey (turn 1) writes no packet; the model's first turn is <session>-1-2.
     // Directory listing order (session-1-10 before session-1-2) is not turn order; digest.json is.
     writeFileSync(join(digest, "session-1-10.user.md"), survey(["sh", "session"]));

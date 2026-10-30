@@ -134,7 +134,7 @@ const packetFiles = (digest: string, turns: readonly DigestTurn[], kind: "user")
 export const webReferencesTaught = (digest: string, turns: readonly DigestTurn[]): number => {
     const [first] = packetFiles(digest, turns, "user");
     if (first === undefined) return 0;
-    const taught = new Set([...readFileSync(first, "utf8").matchAll(/workspace:\/\/\/_plurnk\/plurnk\/([a-z0-9-]+)\.md/gu)].map((match) => match[1]!));
+    const taught = new Set([...readFileSync(first, "utf8").matchAll(/plurnk:\/\/\/([a-z0-9-]+)\.md/gu)].map((match) => match[1]!));
     return [...taught].filter((name) => WEB_SCHEMES.has(name)).length;
 };
 

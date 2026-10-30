@@ -73,10 +73,9 @@ CONFIG_ROOT="$RUN_DIR/config"
 mkdir -p "$CONFIG_ROOT"
 export XDG_CONFIG_HOME="$CONFIG_ROOT" PLURNK_SERVICE_ROOTS=plurnk
 export PLURNK_MCP_ENABLED=1
-export PLURNK_MCP_pm='{"name":"pm","type":"streamable-http","url":"http://127.0.0.1:8011/mcp"}'
-export PLURNK_MCP_crm='{"name":"crm","type":"streamable-http","url":"http://127.0.0.1:8012/mcp"}'
-export PLURNK_MCP_fileserver='{"name":"fileserver","type":"streamable-http","url":"http://127.0.0.1:8013/mcp"}'
-export PLURNK_MCP_EXPANDED='["pm","crm","fileserver"]'
+export PLURNK_MCP_pm='{"type":"streamable-http","url":"http://127.0.0.1:8011/mcp"}'
+export PLURNK_MCP_crm='{"type":"streamable-http","url":"http://127.0.0.1:8012/mcp"}'
+export PLURNK_MCP_fileserver='{"type":"streamable-http","url":"http://127.0.0.1:8013/mcp"}'
 export PLURNK_EXECS_ONLY="sh,pm,crm,fileserver"
 export PLURNK_CLIENT_CHECKOUT="$CLIENT_ROOT" PLURNK_BENCHMARKS="$HOME_DIR" PLURNK_CANDIDATE_DIR="$RUN_DIR"
 INSTRUCTION="$(cat "$TASK_PATH/instruction.md")"
