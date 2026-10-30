@@ -14,7 +14,7 @@ test("demo: the model reads a variable already in its session's environment", as
     const s = await liveWorkspace({ name: `env-read-${crypto.randomUUID()}` });
     try {
         const sessionId = await namedModelSession(s.daemon, s.workspaceId, "main");
-        await s.daemon.invokeModuleAction("session.env.add", { alias: "FOO_VERSION", definition: { value: "42" } },
+        await s.daemon.invokeModuleAction("session.env.add", { alias: "FOO_VERSION", value: "42" },
             { scope: "session", workspaceId: s.workspaceId, sessionId });
         const loop = await liveLoop(s, 2, { prompt: "What's the FOO_VERSION environment variable?", sessionId, maxTurns: 6 }, { signal: t.signal });
         assert.equal(loop.finalStatus, 200, "loop terminated cleanly");

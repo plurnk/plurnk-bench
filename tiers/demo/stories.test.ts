@@ -93,10 +93,10 @@ const runStory = async (opts: StoryOpts): Promise<StoryResult> => {
 };
 
 // {§tier-corpus} {§tier-corpus}
-const BRAVE_SEARCH = { name: "brave", type: "stdio", command: "npx", args: ["-y", "@brave/brave-search-mcp-server@2.1.0"] };
-const addMcp = (definition: { readonly name: string }) => async (workspace: LiveWorkspace): Promise<void> => {
-    const added = await workspace.invokeWorkspaceAction("workspace.mcp.add", { definition }) as { status?: number };
-    assert.equal(added.status, 201, `the ${definition.name} server is added and attached before the model loop`);
+const BRAVE_SEARCH = { alias: "brave", type: "stdio", command: "npx", args: ["-y", "@brave/brave-search-mcp-server@2.1.0"] };
+const addMcp = (definition: { readonly alias: string } & Readonly<Record<string, unknown>>) => async (workspace: LiveWorkspace): Promise<void> => {
+    const added = await workspace.invokeWorkspaceAction("workspace.mcp.add", definition) as { status?: number };
+    assert.equal(added.status, 201, `the ${definition.alias} server is added and attached before the model loop`);
 };
 
 interface ChainOpts { signal: AbortSignal; label: string; prompts: string[]; maxTurns?: number; onStep?: (index: number, workspace: string) => Promise<void>;
@@ -180,7 +180,7 @@ test("{§tier-corpus} story: answer a current question with search MCP available
     const story = await runStory({
         signal: t.signal,
         label: "web-search-mcp",
-        prompt: "Search the web for the newest non-prerelease Node.js release (Current, not LTS). Tell me its full major.minor.patch version in one sentence.",
+        prompt: "Search the web for the newest non-prerelease Node.js release. Tell me its full major.minor.patch version in one sentence.",
         maxTurns: 8,
         setup: addMcp(BRAVE_SEARCH),
     });

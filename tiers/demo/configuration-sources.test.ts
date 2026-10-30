@@ -67,7 +67,7 @@ test("demo: configured skill sources survive a model's workspace override and re
         await mkdir(directory, { recursive: true });
         await writeFile(join(directory, "SKILL.md"), documents[index]);
     }
-    process.env[key] = JSON.stringify({ name, source: baseline });
+    process.env[key] = JSON.stringify({ source: baseline });
     process.env[`${key}_ENABLED`] = "0";
     const s = await liveWorkspace({ name: `demo-config-sources-${crypto.randomUUID()}`, projectRoot: root });
     try {
@@ -89,11 +89,11 @@ test("demo: configured skill sources survive a model's workspace override and re
         assert.equal((await effective())?.origin, "service");
         await run(`For this workspace, replace ${name} with the local skill at ${replacement}. Follow the replacement and report its verification marker. Leave the replacement active until I ask you to remove it. Do not change either source folder.`, markers[1]);
         assert.equal((await effective())?.origin, "workspace");
-        assert.deepEqual((await effective())?.definition, { name, source: replacement });
+        assert.deepEqual((await effective())?.definition, { source: replacement });
         const answer = await run(`Remove that workspace override so ${name} inherits its original configuration again. Leave the original skill enabled, follow it, and report both its verification marker and the configuration key supplying it. Do not modify configuration files or either source folder.`, markers[0]);
         assert.ok(answer.includes(key), "the model locates the winning input through ordinary inspection");
         assert.deepEqual(await effective(), {
-            alias: name, origin: "service", state: "active", definition: { name, source: baseline },
+            alias: name, origin: "service", state: "active", definition: { source: baseline },
             provenance: { kind: "environment", source: key },
             detail: { description: "Report this review skill's verification marker.", path: baseline },
         });
