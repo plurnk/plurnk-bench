@@ -4,7 +4,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
 import { jobsRoot } from "../src/host-paths.ts";
-import { modelHosts, runContainer } from "./container.ts";
+import { loopbackPorts, modelHosts, runContainer } from "./container.ts";
 import { installedPiRoot, prepareRuntime } from "./runtime.ts";
 import { capturePatch, dockerImageId, exceptionInfo, prepareRepository, pruneImage, requireDiskRoom, shell, taskPrompt } from "./run.ts";
 
@@ -197,7 +197,8 @@ export async function runPiTrial({ instance, profilePath, preflight = false, sig
     const repository = join(trialDir, "repo");
     const startHead = prepareRepository(manifest, repository);
     try {
-        const allowedHosts = modelHosts(process.env, preflight);
+        const allowedHosts = modelHosts(process.env, preflight, [profile.baseUrl]);
+        const loopback = preflight ? [] : loopbackPorts({}, [profile.baseUrl]);
         const runtime = await prepareRuntime({ kind: "pi", piRoot: await installedPiRoot(profile.executable), version });
         json(join(trialDir, "runtime.json"), runtime.provenance);
         const agentDir = join(trialDir, "agent");
@@ -217,7 +218,7 @@ export async function runPiTrial({ instance, profilePath, preflight = false, sig
         const result = await runContainer({
             trial: trialDir, runtime: runtime.path, repository, agent: agentDir,
             image: imageId, cpus: manifest.environment.cpus, memoryMb: manifest.environment.memoryMb,
-            allowedHosts, preflight, argv: preflight ? ["pi", "--preflight"] : ["pi", ...argv],
+            allowedHosts, loopbackPorts: loopback, preflight, argv: preflight ? ["pi", "--preflight"] : ["pi", ...argv],
             env: { ...(credential && process.env[credential] ? { [credential]: process.env[credential] } : {}),
                 ...(credential === LOCAL_CREDENTIAL ? { [LOCAL_CREDENTIAL]: "local" } : {}),
                 PI_CODING_AGENT_DIR: "/var/lib/plurnk/config", PI_TELEMETRY: "0",

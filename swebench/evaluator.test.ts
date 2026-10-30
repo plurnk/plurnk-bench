@@ -6,7 +6,9 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, dirname, resolve } from "node:path";
 import { setTimeout } from "node:timers/promises";
-import { modelHosts, runContainer, type ContainerRequest } from "./container.ts";
+import { once } from "node:events";
+import { createServer } from "node:http";
+import { loopbackPorts, modelHosts, runContainer, type ContainerRequest } from "./container.ts";
 import { spawnSync } from "node:child_process";
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -143,13 +145,52 @@ test("{§swebench-evaluator} each attempt at one instance gets its own container
 
 // ─── container.test.ts ───
 {
-test("{§swebench-evaluator} egress is explicit, with no-network valid only for preflight", () => {
+test("{§swebench-evaluator} egress is explicit, with no-network valid for preflight and host-loopback endpoints", () => {
     assert.deepEqual(modelHosts({}, true), []);
     assert.throws(() => modelHosts({}, false), /model endpoint/);
     assert.deepEqual(modelHosts({ PLURNK_SWEBENCH_MODEL_HOSTS: '["api.example.com"]' }, false), ["api.example.com"]);
+    assert.deepEqual(loopbackPorts({ OPENAI_BASE_URL: "http://127.0.0.1:11435/v1" }), [11435]);
+    assert.deepEqual(loopbackPorts({ PLURNK_MODEL: "rtx5070", PLURNK_BASEURL_rtx5070: "http://localhost:11435/v1", PLURNK_BASEURL_other: "http://127.0.0.1:9999/v1" }), [11435]);
+    assert.deepEqual(loopbackPorts({ PLURNK_MODEL: "remote", PLURNK_BASEURL_rtx5070: "http://127.0.0.1:11435/v1" }), []);
+    assert.deepEqual(modelHosts({ OPENAI_BASE_URL: "http://127.0.0.1:11435/v1" }, false), []);
+    assert.deepEqual(modelHosts({ PLURNK_SWEBENCH_MODEL_HOSTS: '["127.0.0.1", "localhost"]' }, false, ["http://127.0.0.1:11435/v1"]), []);
+    assert.throws(() => modelHosts({ PLURNK_MODEL: "remote", PLURNK_BASEURL_rtx5070: "http://127.0.0.1:11435/v1" }, false), /model endpoint/);
+    assert.throws(() => modelHosts({ OPENAI_BASE_URL: "http://127.0.0.1:11435/v1" }, false, ["https://api.example.com/v1"]), /model endpoint/);
     for (const value of ['["https://api.example.com"]', '"public"', '[""]', '[3]']) {
         assert.throws(() => modelHosts({ PLURNK_SWEBENCH_MODEL_HOSTS: value }, false), /host names/);
     }
+});
+
+test("{§swebench-evaluator} host-loopback model endpoints bridge over an owner-only Unix socket and clean up on exit", async (t) => {
+    const root = await mkdtemp(join(tmpdir(), "candidate-loopback-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    const server = createServer((_request, response) => response.end("host-loopback-ok"));
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    t.after(() => { server.closeAllConnections(); server.close(); });
+    const port = (server.address() as { port: number }).port;
+    const executable = join(root, "fixture.mjs");
+    await writeFile(executable, `#!/usr/bin/env node
+let input = "";
+for await (const part of process.stdin) input += part;
+const request = JSON.parse(input);
+if (JSON.stringify(request.loopbackPorts) !== JSON.stringify([${port}])) process.exit(5);
+const { connect } = await import("node:net");
+const socket = connect(request.agent + "/loopback-${port}.sock");
+socket.write("GET /v1/models HTTP/1.1\\r\\nHost: 127.0.0.1:${port}\\r\\nConnection: close\\r\\n\\r\\n");
+let reply = "";
+for await (const chunk of socket) reply += chunk;
+if (!reply.endsWith("host-loopback-ok")) process.exit(6);
+console.log("bridged=" + reply.split("\\r\\n\\r\\n")[1]);
+`, { mode: 0o755 });
+    const request: ContainerRequest = { trial: root, runtime: root, repository: root, agent: root,
+        image: "fixture", cpus: 1, memoryMb: 512, allowedHosts: [],
+        preflight: false, argv: ["plurnk"], env: { OPENAI_BASE_URL: `http://127.0.0.1:${port}/v1` } };
+    const result = await runContainer(request, { python: executable });
+    assert.equal(result.status, 0, await readFile(join(root, "container.stderr.log"), "utf8"));
+    assert.equal(await readFile(join(root, "container.stdout.log"), "utf8"), "bridged=host-loopback-ok\n");
+    assert.equal(existsSync(join(root, `loopback-${port}.sock`)), false);
+    assert.equal(existsSync(join(root, "loopback.mjs")), false);
 });
 
 test("{§swebench-evaluator} cancellation does not interrupt draining a second time at the wall-clock deadline", { timeout: 5000 }, async (t) => {

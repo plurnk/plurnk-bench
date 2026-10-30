@@ -298,7 +298,8 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         const clientRoot = requiredClientCheckout(benchRoot, process.env, "PLURNK_SWEBENCH_CLIENT_ROOT");
         const serviceRoot = resolve(benchRoot, process.env.PLURNK_SWEBENCH_SERVICE_ROOT ?? "../plurnk-service");
         const sources = assertCleanSources({ bench: benchRoot, service: serviceRoot, client: clientRoot });
-        const allowedHosts = modelHosts(process.env, values.preflight === true);
+        const routeEnv = values.preflight ? {} : await plurnkEnvironment(serviceRoot, model, process.env);
+        const allowedHosts = modelHosts({ ...routeEnv, PLURNK_SWEBENCH_MODEL_HOSTS: process.env.PLURNK_SWEBENCH_MODEL_HOSTS }, values.preflight === true);
         const runtime = await prepareRuntime({ kind: "plurnk", serviceRoot, clientRoot, sources });
         // SPEC {§publish} — the run folder exists from launch and is the daemon's own directory,
         // so the database is live there from the first turn; the trial dir keeps `agent` as a link to it.
@@ -316,7 +317,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         const isolation = candidateIsolation(Object.keys(process.env));
         writeJson(join(trialDir, "candidate-isolation.json"), { masked: isolation.masked, webHosts: [], capabilities: isolation.capabilities });
         const candidateEnv: NodeJS.ProcessEnv = {
-            ...(values.preflight ? {} : await plurnkEnvironment(serviceRoot, model, process.env)),
+            ...routeEnv,
             PLURNK_EXECS_PLURNK_QUESTION: "0",
             PLURNK_SERVICE_POLICY: "",
             PLURNK_SERVICE_PACKET_INJECT: "",

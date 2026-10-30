@@ -59,7 +59,10 @@ def configuration(request):
     hosts = request["allowedHosts"]
     if not isinstance(hosts, list) or any(not isinstance(host, str) or not host for host in hosts):
         raise ValueError("allowedHosts must be a list of nonempty host names")
-    if not hosts and not request.get("preflight", False):
+    loopback = request.get("loopbackPorts", [])
+    if not isinstance(loopback, list) or any(type(port) is not int or not (1 <= port <= 65535) for port in loopback):
+        raise ValueError("loopbackPorts must be a list of TCP ports")
+    if not hosts and not loopback and not request.get("preflight", False):
         raise ValueError("a model run requires an explicit model-host allowlist")
     mounts = []
     for name, target, readonly in [
@@ -78,6 +81,25 @@ def configuration(request):
         raise ValueError("runtime bundle has no bin/node")
     mounts.append({"type": "bind", "source": str(node), "target": "/usr/local/bin/node", "read_only": True})
     return mounts, {"network_mode": "allowlist" if hosts else "no-network", "allowed_hosts": hosts}
+
+
+def provisioning_command(request):
+    owner = "$(id -u):$(id -g)" if request.get("argv", [])[:1] == ["pi"] else f"{MODEL_ACCOUNT}:{MODEL_ACCOUNT}"
+    return (
+        f'useradd --system --uid {MODEL_UID} --user-group --home-dir {MODEL_HOME} --shell /bin/bash {MODEL_ACCOUNT} 2>/dev/null; '
+        f'getent passwd {MODEL_ACCOUNT} >/dev/null && mkdir -p {MODEL_HOME} && chown {MODEL_ACCOUNT}:{MODEL_ACCOUNT} {MODEL_HOME} && chmod 700 {MODEL_HOME} '
+        f'&& chown -R {owner} /testbed && chmod -R g+w /testbed && find /testbed -type d -exec chmod g+s {{}} + '
+        '&& chmod 700 /var/lib/plurnk'
+    )
+
+
+def candidate_argv(request):
+    return [
+        "/opt/plurnk/bin/node",
+        *(["--import=/var/lib/plurnk/loopback.mjs"] if request.get("loopbackPorts") else []),
+        "/opt/plurnk/runner.mjs",
+        *request["argv"],
+    ]
 
 
 async def run(request):
@@ -123,22 +145,21 @@ async def run(request):
         # evidence folder closes to its owner, the bundle is the host's at 0700 already. The trial copy
         # belongs to that account, group-writable with set-group-id directories, so what the daemon writes
         # there (umask 002) stays writable to the model's commands; the daemon's git trusts its own root by path.
+        # {§swebench-pi} keeps the image's user for Pi's tools, so its trial copy belongs to that user.
         # Harbor restores host ownership of writable mounts during teardown.
-        ownership = await environment.exec(command=(
-            f'useradd --system --uid {MODEL_UID} --user-group --home-dir {MODEL_HOME} --shell /bin/bash {MODEL_ACCOUNT} 2>/dev/null; '
-            f'getent passwd {MODEL_ACCOUNT} >/dev/null && mkdir -p {MODEL_HOME} && chown {MODEL_ACCOUNT}:{MODEL_ACCOUNT} {MODEL_HOME} && chmod 700 {MODEL_HOME} '
-            f'&& chown -R {MODEL_ACCOUNT}:{MODEL_ACCOUNT} /testbed && chmod -R g+w /testbed && find /testbed -type d -exec chmod g+s {{}} + '
-            '&& chmod 700 /var/lib/plurnk'))
+        ownership = await environment.exec(command=provisioning_command(request))
         if ownership.return_code != 0:
             raise RuntimeError(f"Cannot provision the model account over the candidate repository: {ownership.stdout or ownership.stderr}")
+        loopback = request.get("loopbackPorts", [])
         record = {
             "adapter": "container-native", "harbor": importlib.metadata.version("harbor"),
             "image": request["image"], "projectRoot": "/testbed", "network": policy,
             "mounts": mounts, "cpus": request["cpus"], "memoryMb": request["memoryMb"],
+            **({"loopbackPorts": loopback} if loopback else {}),
             **({"resolver": resolver} if resolver else {}),
         }
         (root / "candidate-execution.json").write_text(json.dumps(record, indent=2) + "\n")
-        argv = ["/opt/plurnk/bin/node", "/opt/plurnk/runner.mjs", *request["argv"]]
+        argv = candidate_argv(request)
         # bash -l activates the specimen's own conda environment; node is at /usr/local/bin for both
         # candidates and the closed bundle stays off PATH ({§swebench-evaluator}).
         # Read the image's login files BEFORE assigning the isolated candidate

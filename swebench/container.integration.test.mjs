@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { once } from "node:events";
 import test from "node:test";
 import { access, cp, copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { basename, join } from "node:path";
@@ -7,6 +8,7 @@ import { runContainer } from "./container.ts";
 import { dockerImageId, prepareRepository, candidateArgv, shell } from "./run.ts";
 import { benchmarksHome } from "../src/host-paths.ts";
 import { piArguments } from "./pi.mjs";
+import { createFixtureServer } from "./fixtures/container-model.mjs";
 
 const image = "swebench/sweb.eval.x86_64.django_1776_django-11620:latest";
 async function fixture(kind) {
@@ -39,7 +41,14 @@ for (const kind of ["plurnk", "pi"]) test(`{§swebench-evaluator} installed ${ki
 }, async (t) => {
     const request = await fixture(kind);
     const { trial, repository, agent } = request;
-    const result = await runContainer(request, { signal: t.signal, timeoutMs: 120000 });
+    const { server } = createFixtureServer(kind, agent);
+    server.listen(0, "127.0.0.1");
+    await once(server, "listening");
+    t.after(() => { server.closeAllConnections(); server.close(); });
+    const baseUrl = `http://127.0.0.1:${server.address().port}/v1`;
+    const result = await runContainer({
+        ...request, allowedHosts: [], env: { FIXTURE_HOST_BASE_URL: baseUrl, OPENAI_BASE_URL: baseUrl },
+    }, { signal: t.signal, timeoutMs: 120000 });
     assert.equal(result.status, 0, await readFile(join(trial, "container.stderr.log"), "utf8"));
     assert.equal((await readFile(join(repository, "native.txt"), "utf8")).trim(), "native edited");
     const requests = JSON.parse(await readFile(join(agent, "fixture.requests.json"), "utf8"));

@@ -50,9 +50,10 @@ manifest before using it for a comparison.
 `--preflight` checks the container and its execution environment without calling
 a model. The whole candidate—including native file tools and executor discovery—
 runs inside the task container at `/testbed`. Harbor allows only the explicitly
-listed model hosts; empty means no external network and is valid for preflight.
-Local endpoints must already use a container-reachable address; no route is
-silently rewritten. The official verifier remains separate and unchanged.
+listed model hosts; empty means no external network and is valid for preflight
+and host-loopback model endpoints (`127.0.0.1:<port>` or `localhost:<port>`),
+which are bridged into container loopback over an owner-only Unix socket in
+`/var/lib/plurnk`. The official verifier remains separate and unchanged.
 
 If Docker's embedded DNS cannot resolve names under the allowlist, set
 `PLURNK_SWEBENCH_RESOLV_CONF` to a resolver file containing DNS servers reachable

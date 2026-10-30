@@ -5,7 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from swebench.container import EnvironmentFormatter, configuration, resolver_configuration
+from swebench.container import EnvironmentFormatter, candidate_argv, configuration, provisioning_command, resolver_configuration
 from swebench.oracle import inject_eval_fixes, install_harness_fixes
 
 
@@ -68,8 +68,25 @@ class ContainerContract(unittest.TestCase):
             request["allowedHosts"] = []
             with self.assertRaisesRegex(ValueError, "explicit model-host"):
                 configuration(request)
+            request["loopbackPorts"] = [11435]
+            self.assertEqual(configuration(request)[1], {"network_mode": "no-network", "allowed_hosts": []})
+            for bad in ([0], [70000], ["11435"], [True], "11435"):
+                request["loopbackPorts"] = bad
+                with self.assertRaisesRegex(ValueError, "loopbackPorts"):
+                    configuration(request)
+            del request["loopbackPorts"]
             request["preflight"] = True
             self.assertEqual(configuration(request)[1]["network_mode"], "no-network")
+            self.assertIn("chown -R plurnk:plurnk /testbed", provisioning_command({"argv": ["plurnk"]}))
+            self.assertIn("chown -R $(id -u):$(id -g) /testbed", provisioning_command({"argv": ["pi"]}))
+            self.assertEqual(
+                candidate_argv({"argv": ["plurnk", "-p", "task"]}),
+                ["/opt/plurnk/bin/node", "/opt/plurnk/runner.mjs", "plurnk", "-p", "task"],
+            )
+            self.assertEqual(
+                candidate_argv({"argv": ["pi"], "loopbackPorts": [11435]}),
+                ["/opt/plurnk/bin/node", "--import=/var/lib/plurnk/loopback.mjs", "/opt/plurnk/runner.mjs", "pi"],
+            )
 
     def test_oracle_fixes_guard_container_listing_airgap_and_local_httpbin(self):
         class FakeContainerCollection:
