@@ -44,6 +44,34 @@ test("{§swebench-pi} wire observation preserves streaming content and authorita
     assert.equal(summarizePi(agent, rates).knownChargedUsd, null);
 });
 
+test("{§swebench-pi} llama-server SSE streams settle reasoning_content token frames and DeepSeek rate cards", () => {
+    const agent = mkdtempSync(join(root, "llama-server-"));
+    const wire = join(agent, "wire");
+    mkdirSync(wire);
+    writeFileSync(join(agent, "pi.stdout.jsonl"), "");
+    json(join(wire, "0001.request.json"), { model: "Qwen3.8-27B-UD-IQ4_XS.gguf" });
+    json(join(wire, "0001.http.json"), { status: 200 });
+    const frames = [
+        { choices: [{ index: 0, delta: { role: "assistant", content: null }, finish_reason: null }] },
+        { choices: [{ index: 0, delta: { reasoning_content: "First" }, finish_reason: null }] },
+        { choices: [{ index: 0, delta: { reasoning_content: "," }, finish_reason: null }] },
+        { choices: [{ index: 0, delta: { reasoning_content: " check" }, finish_reason: null }] },
+        { choices: [{ index: 0, delta: { content: "Done." }, finish_reason: null }] },
+        { choices: [{ index: 0, delta: {}, finish_reason: "stop" }] },
+        { choices: [], usage: { prompt_tokens: 1000, completion_tokens: 10, total_tokens: 1010, prompt_tokens_details: { cached_tokens: 800 } },
+            timings: { cache_n: 800, prompt_n: 200, predicted_n: 10 } },
+    ];
+    writeFileSync(join(wire, "0001.response.txt"), frames.map((frame) => `data: ${JSON.stringify(frame)}\n\n`).join("") + "data: [DONE]\n\n");
+    const deepseekRates = { input: 0.28, cacheRead: 0.028, cacheWrite: 0.28, output: 0.42, reasoning: 0.84 };
+    const summary = summarizePi(agent, deepseekRates);
+    assert.equal(summary.requests, 1);
+    assert.equal(summary.responsesWithUsage, 1);
+    assert.equal(summary.responsesWithTokenBreakdown, 1);
+    assert.equal(summary.responsesWithReasoningBreakdown, 1);
+    assert.deepEqual(summary.usage, { input: 200, cacheRead: 800, cacheWrite: 0, output: 10, reasoning: 3 });
+    assert.equal(summary.repricedUsd, (200 * 0.28 + 800 * 0.028 + 7 * 0.42 + 3 * 0.84) / 1e6);
+});
+
 test("{§swebench-pi} absent and interrupted responses remain explicitly unpriced", () => {
     const agent = mkdtempSync(join(root, "missing-"));
     writeFileSync(join(agent, "pi.stdout.jsonl"), "");

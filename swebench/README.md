@@ -170,7 +170,7 @@ A profile JSON supplies these fields:
 | `compat`, `thinkingLevelMap`, `compaction` | A `baseUrl` provider may replicate a built-in preset's compatibility flags and thinking-level map verbatim, and declare a compaction partition (`reserveTokens`, `keepRecentTokens`, together below `contextWindow`) — the comparator's analogue of the service's window cap. Otherwise compaction is stock. |
 | `catalogPath` | Frozen `models-store.json` containing the selected model. |
 | `turnCap`, `timeoutSeconds` | Positive run limits. |
-| `rates` | `input`, `output`, `cacheRead`, and `cacheWrite`, in USD per million tokens, for reporting. |
+| `rates` | `input`, `output`, `cacheRead`, and `cacheWrite` (plus optional `reasoning`), in USD per million tokens, for reporting. |
 
 Refresh the catalog with
 `PI_CODING_AGENT_DIR=<catalog-directory> pi update --models`.

@@ -15,11 +15,14 @@ const HOSTED_CREDENTIALS = { openrouter: "OPENROUTER_API_KEY", deepseek: "DEEPSE
 const LOCAL_CREDENTIAL = "PLURNK_PI_LOCAL_KEY";
 
 // The provider definition Pi reads from models.json for a baseUrl profile, as the native test writes it.
-export const providerDefinition = (profile, credential) => ({ providers: { [profile.provider]: {
-    baseUrl: profile.baseUrl, api: profile.api, apiKey: `$${credential}`,
-    models: [{ id: profile.model, reasoning: true, input: ["text"], contextWindow: profile.contextWindow, maxTokens: profile.maxOutputTokens, cost: profile.rates,
-        ...(profile.compat ? { compat: profile.compat } : {}), ...(profile.thinkingLevelMap ? { thinkingLevelMap: profile.thinkingLevelMap } : {}) }],
-} } });
+export const providerDefinition = (profile, credential) => {
+    const { reasoning: _reasoning, ...cost } = profile.rates;
+    return { providers: { [profile.provider]: {
+        baseUrl: profile.baseUrl, api: profile.api, apiKey: `$${credential}`,
+        models: [{ id: profile.model, reasoning: true, input: ["text"], contextWindow: profile.contextWindow, maxTokens: profile.maxOutputTokens, cost,
+            ...(profile.compat ? { compat: profile.compat } : {}), ...(profile.thinkingLevelMap ? { thinkingLevelMap: profile.thinkingLevelMap } : {}) }],
+    } } };
+};
 
 // {§swebench-pi} A hosted model keeps its frozen-catalog metadata unless the profile overrides it: models.json
 // `modelOverrides` is the layer Pi documents for changing a built-in model's metadata, its context window among it.
@@ -82,6 +85,9 @@ export function validateProfile(profile) {
     for (const key of ["input", "cacheRead", "cacheWrite", "output"]) {
         if (!Number.isFinite(profile.rates?.[key]) || profile.rates[key] < 0) throw new Error(`Pi profile requires rates.${key}`);
     }
+    if (profile.rates?.reasoning !== undefined && (!Number.isFinite(profile.rates.reasoning) || profile.rates.reasoning < 0)) {
+        throw new Error("Pi profile requires rates.reasoning");
+    }
     return profile;
 }
 
@@ -108,11 +114,20 @@ function responseUsage(frames) {
             cacheRead: total.cache_read_input_tokens ?? 0, cacheWrite: total.cache_creation_input_tokens ?? 0,
             reasoning: total.output_tokens_details?.reasoning_tokens };
     }
-    const total = frames.findLast((frame) => frame.usage?.prompt_tokens !== undefined)?.usage;
+    const terminal = frames.findLast((frame) => frame.usage?.prompt_tokens !== undefined);
+    const total = terminal?.usage;
     if (!total) return;
-    const cacheRead = total.prompt_tokens_details?.cached_tokens;
+    const cacheRead = total.prompt_tokens_details?.cached_tokens ?? terminal.timings?.cache_n;
+    const reasoning = total.completion_tokens_details?.reasoning_tokens
+        ?? (terminal.timings && typeof terminal.timings === "object"
+            && Number.isSafeInteger(total.completion_tokens) && total.completion_tokens >= 0
+            ? Math.min(total.completion_tokens, frames.filter(
+                (frame) => typeof frame.choices?.[0]?.delta?.reasoning_content === "string"
+                    && frame.choices[0].delta.reasoning_content.length > 0,
+            ).length)
+            : undefined);
     return { total, input: total.prompt_tokens - cacheRead, output: total.completion_tokens,
-        cacheRead, cacheWrite: 0, reasoning: total.completion_tokens_details?.reasoning_tokens };
+        cacheRead, cacheWrite: 0, reasoning };
 }
 
 export function summarizePi(agentDir, rates) {
@@ -162,7 +177,12 @@ export function summarizePi(agentDir, rates) {
             }
         }
     }
-    const repricedUsd = (knownUsage.input * rates.input + knownUsage.cacheRead * rates.cacheRead + knownUsage.cacheWrite * rates.cacheWrite + knownUsage.output * rates.output) / 1e6;
+    const reasoningRate = rates.reasoning ?? rates.output;
+    const repricedResponses = reasoningRate === rates.output ? responsesWithTokenBreakdown : responsesWithReasoningBreakdown;
+    const outputCost = reasoningRate === rates.output
+        ? knownUsage.output * rates.output
+        : (knownUsage.output - knownUsage.reasoning) * rates.output + knownUsage.reasoning * reasoningRate;
+    const repricedUsd = (knownUsage.input * rates.input + knownUsage.cacheRead * rates.cacheRead + knownUsage.cacheWrite * rates.cacheWrite + outputCost) / 1e6;
     const usage = Object.fromEntries(Object.entries(knownUsage).map(([key, value]) => [key,
         (key === "reasoning" ? responsesWithReasoningBreakdown : responsesWithTokenBreakdown) === requests.length ? value : null]));
     const subtotalUsage = Object.fromEntries(Object.entries(knownUsage).map(([key, value]) => [key,
@@ -172,8 +192,8 @@ export function summarizePi(agentDir, rates) {
         chargedUsd: unpricedRequests === 0 ? chargedUsd : null,
         knownChargedUsd: requests.length === 0 || unpricedRequests < requests.length ? chargedUsd : null,
         unpricedRequests,
-        repricedUsd: responsesWithTokenBreakdown === requests.length ? repricedUsd : null,
-        knownRepricedUsd: requests.length === 0 || responsesWithTokenBreakdown > 0 ? repricedUsd : null,
+        repricedUsd: repricedResponses === requests.length ? repricedUsd : null,
+        knownRepricedUsd: requests.length === 0 || repricedResponses > 0 ? repricedUsd : null,
         usage, knownUsage: subtotalUsage, failures,
         assistantMessages: messages.length, errors: messages.filter((m) => m.stopReason === "error" || m.stopReason === "aborted").map((m) => ({ stopReason: m.stopReason, error: m.errorMessage })),
         limits: existsSync(limits) ? readFileSync(limits, "utf8").trim().split("\n").map((line) => JSON.parse(line)) : [],
