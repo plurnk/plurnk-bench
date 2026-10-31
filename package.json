@@ -19,9 +19,9 @@
     "dependencies": {
         "@modelcontextprotocol/client": "2.4.0",
         "@modelcontextprotocol/server": "2.4.0",
-        "@plurnk/plurnk-contracts": "^7.0.1",
+        "@plurnk/plurnk-contracts": "^7.0.2",
         "@plurnk/plurnk-digest": "^3.2.4",
-        "@plurnk/plurnk-service": "^5.0.1",
+        "@plurnk/plurnk-service": "^5.0.2",
         "@streamparser/json": "^0.0.26"
     },
     "devDependencies": {
