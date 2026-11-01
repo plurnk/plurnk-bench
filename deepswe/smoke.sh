@@ -24,12 +24,11 @@
 #   PLURNK_BENCH_TIMEOUT_SEC  override the client timeout (default: task's [agent] budget − headroom)
 #   PLURNK_BENCH_CPUS         override container cpus (default: task native — leaderboard-compliant)
 #   PLURNK_BENCH_FORCE_BUILD  =1 to force an agent-image rebuild (base-image/debug escape hatch)
-#   PLURNK_BENCH_NO_GBNF      =1 to drop PLURNK_PROVIDERS_GBNF (for models that can't enforce it, e.g. xai)
 #   PLURNK_BENCH_JOBS         `all` mode concurrency (default 4)
 #   PLURNK_BENCH_PREFLIGHT    `all` mode, one named task through the corpus's exact path (#12)
 #   PLURNK_BENCH_MODEL_BASE_URL  replaces LOOPBACK manifest base URLs only (local model via its published hostname)
 #   PLURNK_BENCH_RECAP        host file whose text becomes the container daemon's Recap footer
-#                             (PLURNK_SERVICE_RECAP) — e.g. the weak-model frame line a GBNF rail needs
+#                             (PLURNK_SERVICE_RECAP)
 #   (every run samples docker stats once a minute into <job>/docker-stats.jsonl — SPEC {§config-carry})
 #   (every run first pre-pulls its task images via deepswe/prepull.sh — SPEC {§config-carry} — and refuses
 #    to start trials without them; the bench's own @plurnk/plurnk-service must equal the corpus's — SPEC {§config-carry})
@@ -167,7 +166,7 @@ if [ "$TASK" = all ]; then
     done
   done
 else
-  # Forward the DAEMON's config that already exists: every PLURNK_* (alias defs + GBNF) and
+  # Forward the DAEMON's config that already exists: every PLURNK_* and
   # each provider *_BASE_URL / *_API_KEY that is set, rewriting host loopback → LAN for the
   # container. Bench's own PLURNK_BENCH_* knobs are orchestration, not daemon config — never
   # forward them. No hand-maintained manifest.
@@ -178,9 +177,6 @@ else
       # The MCP fleet is structurally dead under the egress wall: its traffic cannot pass,
       # so booting the servers only distorts the run with connect noise. Never forward.
       PLURNK_MCP_*) continue;;
-      # A non-llama backend (xai/openrouter) cannot carry a grammar and the daemon refuses the
-      # misconfiguration; PLURNK_BENCH_NO_GBNF=1 runs unconstrained.
-      PLURNK_PROVIDERS_GBNF) [ -n "${PLURNK_BENCH_NO_GBNF:-}" ] && continue;;
     esac
     v="${!k:-}"; [ -n "$v" ] || continue
     case "$k" in *_BASE_URL)
@@ -191,8 +187,6 @@ else
     esac
     flags+=(--agent-env "$k=$v")
   done
-  # SPEC {§config-carry}: forward =0 so no operator grammar setting reaches the container's daemon.
-  [ -n "${PLURNK_BENCH_NO_GBNF:-}" ] && flags+=(--agent-env "PLURNK_PROVIDERS_GBNF=0")
 fi
 
 # SPEC {§config-carry}: Tavily is ordinary optional provider configuration. Carry
