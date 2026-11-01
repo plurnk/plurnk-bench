@@ -90,7 +90,7 @@ Canonical contracts for `BenchRecord`, published `benchmarks/run<N>` artifacts, 
 | Digest version preflight | Installed `@plurnk/plurnk-service` must equal the corpus version or launch is refused. |
 | Decoupled live publisher | `publish.ts --watch` runs beside `pier`, followed by one idempotent final `publish.ts <job>` pass and trap cleanup of `pier`, publisher, and sampler. |
 | Failed setup & resource samples | 0-turn environment failures are listed in `<job>/failed-setup.txt`; `docker stats` is sampled once a minute into `<job>/docker-stats.jsonl` (`t` = UTC sample time). |
-| Bench namespace & GBNF opt-out | `PLURNK_BENCH_*` knobs (`PLURNK_BENCH_HOME`, `PLURNK_BENCH_HARNESS`, `PLURNK_BENCH_REQUIEM`, `TIMEOUT_SEC`, `CPUS`, `FORCE_BUILD`, `NO_GBNF`) are excluded from daemon forwarding; `PLURNK_BENCH_NO_GBNF=1` forwards `PLURNK_PROVIDERS_GBNF=0`. |
+| Bench namespace | `PLURNK_BENCH_*` knobs (`PLURNK_BENCH_HOME`, `PLURNK_BENCH_HARNESS`, `PLURNK_BENCH_REQUIEM`, `TIMEOUT_SEC`, `CPUS`, `FORCE_BUILD`) are excluded from daemon forwarding. |
 | Budget, CPUs, surface, & versions | Client timeout is `[agent] timeout_sec` minus headroom; container uses native task CPUs unless `PLURNK_BENCH_CPUS` is set; client/daemon use default ACP v2 (`PLURNK_HOST`, `PLURNK_PORT`, `PLURNK_ACP_URL`); exact npm versions pass as driver kwargs. |
 | Tavily route & WAL snapshot | Forwards `TAVILY_API_KEY` when set and records configured/absent and `basic`/`advanced` depth. Snapshots live `plurnk.db` via SQLite online `backup()`, failing the trial if a consolidated WAL snapshot cannot be produced. |
 

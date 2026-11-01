@@ -19,7 +19,6 @@
 #   PLURNK_BENCH_JOBS         concurrent trials (default 3 — each task container reserves 2 GB)
 #   PLURNK_BENCH_TIMEOUT_SEC  override the client timeout (default: task's [agent] budget − headroom)
 #   PLURNK_BENCH_FORCE_BUILD  =1 to force an agent-image rebuild
-#   PLURNK_BENCH_NO_GBNF      =1 to drop PLURNK_PROVIDERS_GBNF (for models that can't enforce it)
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -155,8 +154,6 @@ done
 while IFS= read -r line; do
   [ -n "$line" ] && flags+=(--agent-env "$line")
 done <<< "$MANIFEST"
-# SPEC {§config-carry}: forward =0 so no operator grammar setting reaches the container's daemon.
-[ -n "${PLURNK_BENCH_NO_GBNF:-}" ] && flags+=(--agent-env "PLURNK_PROVIDERS_GBNF=0")
 
 # Resolve immutable versions before Harbor constructs the agent image (SPEC {§config-carry}).
 SERVICE_VERSION="$(npm view @plurnk/plurnk-service version 2>/dev/null)"
