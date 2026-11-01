@@ -21,7 +21,7 @@ test("live exec: model emits a sh fence and the spawn captures stdout", async (t
             "",
             "If you see the exec's stdout stream (a `sh:///...` entry) containing",
             "`plurnk-exec-live-ok`, emit this complete turn:",
-            PlurnkParser.frame("SEND [200]", "plurnk-exec-live-ok"),
+            PlurnkParser.frame("DONE", "plurnk-exec-live-ok"),
             "",
             "Otherwise, emit this complete turn to run `echo plurnk-exec-live-ok` and await its result:",
             PlurnkParser.frame("sh", "echo plurnk-exec-live-ok"),
