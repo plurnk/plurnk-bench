@@ -170,15 +170,21 @@ CA_RESTORE_CMDS = (
 )
 
 
+OFFLINE_PIP_CMD = "export PIP_NO_BUILD_ISOLATION=false PIP_NO_INDEX=1"
+
+
 def inject_eval_fixes(
     eval_script: str,
     restore_cmds: list[str] | None = None,
     start_marker: str = START_TEST_OUTPUT,
 ) -> str:
-    """Insert asset-restore and airgapped local-httpbin guards around the test-output block."""
+    """Insert offline-pip, asset-restore, and airgapped local-httpbin guards around the test-output block."""
     before = [*(restore_cmds or []), *CA_REFRESH_CMDS]
     trailing_newline = eval_script.endswith("\n")
     lines = eval_script.rstrip("\n").split("\n") if eval_script else []
+    if OFFLINE_PIP_CMD not in lines:
+        insert_at = 1 if lines and lines[0].startswith("#!") else 0
+        lines = [*lines[:insert_at], OFFLINE_PIP_CMD, *lines[insert_at:]]
     for idx, line in enumerate(lines):
         if start_marker in line:
             rebuilt = "\n".join([*lines[:idx], *before, *lines[idx:], *CA_RESTORE_CMDS])
@@ -201,8 +207,8 @@ def install_harness_fixes(run_evaluation_mod, container_collection_cls) -> None:
     original_create = getattr(container_collection_cls, "create", None)
     if original_create is not None and not getattr(original_create, "_swebench_airgapped", False):
         def create_airgapped(self, *args, **kwargs):
-            if "network_mode" not in kwargs:
-                kwargs.setdefault("network_disabled", True)
+            if "network_mode" not in kwargs and "network_disabled" not in kwargs:
+                kwargs["network_mode"] = "none"
             return original_create(self, *args, **kwargs)
 
         create_airgapped._swebench_airgapped = True
