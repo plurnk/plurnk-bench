@@ -111,19 +111,22 @@ class ContainerContract(unittest.TestCase):
             collection.list(all=True, ignore_removed=False),
             ((), {"all": True, "ignore_removed": False}),
         )
-        self.assertEqual(collection.create(image="x"), ((), {"image": "x", "network_disabled": True}))
+        self.assertEqual(collection.create(image="x"), ((), {"image": "x", "network_mode": "none"}))
         self.assertEqual(
-            collection.create(image="x", network_mode="none"),
-            ((), {"image": "x", "network_mode": "none"}),
+            collection.create(image="x", network_disabled=True),
+            ((), {"image": "x", "network_disabled": True}),
         )
 
-        script = "#!/bin/bash\n: '>>>>> Start Test Output'\npytest -rA\n: '>>>>> End Test Output'\ngit checkout test_requests.py\n"
+        script = "#!/bin/bash\npython -m pip install -e .\n: '>>>>> Start Test Output'\npytest -rA\n: '>>>>> End Test Output'\ngit checkout test_requests.py\n"
         injected = FakeRunEvaluation._inject_asset_restore(script, ["cp /image_assets/a a"])
         self.assertTrue(injected.endswith("\n"))
+        pip_env_idx = injected.index("export PIP_NO_BUILD_ISOLATION=false PIP_NO_INDEX=1")
+        pip_install_idx = injected.index("python -m pip install -e .")
         start_idx = injected.index(": '>>>>> Start Test Output'")
         asset_idx = injected.index("cp /image_assets/a a")
         refresh_idx = injected.index("cp /tmp/swebench_httpbin.crt requests/cacert.pem")
         restore_idx = injected.index("git checkout -- requests/cacert.pem")
+        self.assertLess(pip_env_idx, pip_install_idx)
         self.assertLess(asset_idx, refresh_idx)
         self.assertLess(refresh_idx, start_idx)
         self.assertGreater(restore_idx, injected.index("git checkout test_requests.py"))
