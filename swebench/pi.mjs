@@ -104,6 +104,7 @@ export function piArguments(profile, sessionDir, prompt, extension = join(direct
         "--extension", extension, "--session-dir", sessionDir, "--", prompt];
 }
 
+// {§swebench-pi} {§verdicts} Token accounting is computed from raw wire captures independently of @plurnk/plurnk-providers.
 function responseUsage(frames) {
     const start = frames.find((frame) => frame.type === "message_start");
     if (start) {
