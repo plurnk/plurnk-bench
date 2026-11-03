@@ -169,7 +169,7 @@ Exception type is preserved alongside state; only `verifier/reward.txt` determin
 | Cost | OpenRouter `cost` (+ `cost_details.upstream_inference_cost` when `is_byok` is true) owns charged cost; Messages usage merges cumulative counters after terminal event; `llama-server` `timings` terminal chunks settle streamed `reasoning_content` token frames when `completion_tokens_details.reasoning_tokens` is absent; responses without a charge use explicitly labeled fixed-rate repricing (including optional `rates.reasoning`). |
 | Failure | Grades available work regardless of agent outcome; adapter/setup failures, absent requests/verdicts, and evaluator process failures pause for review while preserving saved verdicts. |
 
-Pi trial and campaign `chargedUsd` and `repricedUsd` are `null` unless every request supplies the respective charge or complete rate-card token breakdown; `knownChargedUsd` and `knownRepricedUsd` preserve available subtotals (`null` when none is known); `usage` contains only complete per-field totals while `knownUsage` carries available subtotals.
+Pi trial and campaign `chargedUsd` and `repricedUsd` are `null` unless every request supplies the respective charge or complete rate-card token breakdown; `knownChargedUsd` and `knownRepricedUsd` preserve available subtotals (`null` when none is known); `usage` contains only complete per-field totals while `knownUsage` carries available subtotals. Per the {§verdicts} verifier-independence doctrine, `swebench/pi.mjs` computes token accounting directly from raw wire captures independently of `@plurnk/plurnk-providers`.
 
 ## §tier-corpus 13. Live and Demo Specimen Tiers and Story Oracles
 
