@@ -83,7 +83,7 @@ Canonical contracts for `BenchRecord`, published `benchmarks/run<N>` artifacts, 
 
 | Contract | Rule |
 | --- | --- |
-| Unattended default | `.env.defaults` sets `PLURNK_EXECS_PLURNK_QUESTION=0`, removing the question tool and `mcp:///plurnk_question.md` across DeepSWE, Terminal-Bench, and host benchlets. |
+| Unattended default | `.env.defaults` sets `PLURNK_EXECS_PLURNK_QUESTION=0`, removing the question tool and `mcp:///plurnk/question.json` across DeepSWE, Terminal-Bench, and host benchlets. |
 | Candidate model cascade | Resolves `PLURNK_MODEL` from invoking shell -> XDG operator file -> committed benchmark default; harnesses admit no positional candidate selector. |
 | Image prepull | `deepswe/prepull.sh [task-glob\|all]` pulls task images before `pier run` with bounded parallelism (default `3`), backoff retries, and a `40 GB` Docker disk floor. |
 | Egress allowlist | Derived from `providers.json` registry hosts, forwarded `PLURNK_BASEURL_<alias>` or `<PROVIDER>_BASE_URL`, and Tavily when routed; fails trial when no model egress is named. |

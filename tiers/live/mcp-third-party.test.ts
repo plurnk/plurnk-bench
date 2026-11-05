@@ -122,7 +122,7 @@ test("live mcp: current third-party stdio and HTTP servers compose through the a
             prompt: "Ask GOJI to explain AEO and read its about resource.",
         }));
         assert.equal(terminalMeta(gojiRun)?.stopReason, "end_turn");
-        assert.ok(anyPacket(/Answer Engine Optimisation/), "GOJI's tool result reached the model");
+        assert.ok(anyPacket(/Answer Engine Optimisation/i), "GOJI's tool result reached the model");
         assert.ok(anyPacket(/Melbourne-based full-service digital agency/), "GOJI's about resource reached the model");
         const speech = sessionUpdates(gojiRun)
             .filter((u) => u.sessionUpdate === "agent_message_chunk")
