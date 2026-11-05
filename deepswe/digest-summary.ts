@@ -83,7 +83,7 @@ const terminalStreamObservation = (
     entry: DigestJson["log_entries"][number],
 ): { address: string; channel: string | null } | null => {
     if (entry.origin !== "_plurnk"
-        || entry.op !== "READ"
+        || entry.op !== "read"
         || entry.attrs.terminal !== true
         || entry.target === null
         || !URL.canParse(entry.target)) return null;

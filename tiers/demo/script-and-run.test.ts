@@ -46,7 +46,7 @@ test("demo: 'write a script that greets me and run it' — script lands in works
             const sessions = await s.db.test_sessions_by_workspace.all<{ id: number }>({ workspace_id: s.workspaceId });
             const observed = await Promise.all(sessions.map(async ({ id }) => observedScriptExecution(
                 await s.db.test_log_entries_by_session_op_full.all<ScriptReceipt>({ session_id: id, op: "sh" }),
-                await s.db.test_log_entries_by_session_op_full.all<ScriptReceipt>({ session_id: id, op: "READ" }),
+                await s.db.test_log_entries_by_session_op_full.all<ScriptReceipt>({ session_id: id, op: "read" }),
                 "greet.sh", marker,
             )));
             assert.ok(observed.some(Boolean), "an execution of greet.sh produced the greeting in an observed successful stdout receipt");

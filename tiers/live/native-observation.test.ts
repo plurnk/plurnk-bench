@@ -66,10 +66,10 @@ test("live: a client-attached image persists until log curation", { requires: ["
         }, { signal: t.signal });
         assert.equal(cleanup.finalStatus, 200);
         const active = await s.db.engine_render_log.all<{ op: string; rx: string }>({ session_id: first.modelSessionId });
-        assert.equal(active.some((row) => row.op === "READ" && JSON.parse(row.rx).nativeContentHash === contentHash), false,
+        assert.equal(active.some((row) => row.op === "read" && JSON.parse(row.rx).nativeContentHash === contentHash), false,
             "curation removes the native observation from the active log");
         assert.deepEqual(await readFile(join(projectRoot, "sample.png")), PNG, "log curation leaves the file unchanged");
-        const history = await s.db.test_log_entries_by_session_op_full.all<{ rx: string }>({ session_id: first.modelSessionId, op: "READ" });
+        const history = await s.db.test_log_entries_by_session_op_full.all<{ rx: string }>({ session_id: first.modelSessionId, op: "read" });
         assert.ok(history.some((row) => JSON.parse(row.rx).nativeContentHash === contentHash), "immutable READ evidence survives curation");
     } finally { await lifetime.disposeAsync(); }
 });

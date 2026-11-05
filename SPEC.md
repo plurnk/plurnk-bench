@@ -153,7 +153,7 @@ Exception type is preserved alongside state; only `verifier/reward.txt` determin
 | Admitted fence-free content | Fence-free turn carrying an engine emission receipt (`attrs.kind=emission`). |
 | No-operation turns | Distinct attempted turns with an engine `error` receipt for `engine/rail/no-operation`. |
 | Failed receipts | Status `>= 400`, grouped by family and provenance (authored model work, automatic runtime, ambient, inherited history, or unknown; inheritance takes precedence). |
-| Failed execution streams | `READ` receipts carrying an `executor/*` Problem, grouped by resource URI without channel fragment within one trial. |
+| Failed execution streams | `read` receipts carrying an `executor/*` Problem, grouped by resource URI without channel fragment within one trial. |
 
 ### §swebench-pi 12.1 Native Pi Comparison
 

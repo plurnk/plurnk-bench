@@ -41,7 +41,7 @@ test("live: broad log KILL retires READ receipts without erasing program artifac
             "the completed model turn establishes a content program");
         const priorReads = (await s.db.test_log_entries_by_loop.all<{
             id: number; op: string | null; active: number; attrs: string;
-        }>({ loop_id: primedTurn.loop_id })).filter((row) => row.op === "READ" && !LogEntryProjection.isEmission(row) && !LogEntryProjection.isReasoning(row));
+        }>({ loop_id: primedTurn.loop_id })).filter((row) => row.op === "read" && !LogEntryProjection.isEmission(row) && !LogEntryProjection.isReasoning(row));
         const activePriorIds = priorReads.filter(({ active }) => active === 1).map(({ id }) => id);
         assert.ok(activePriorIds.length > 0, "the first loop's READ is available for curation");
 
@@ -49,7 +49,7 @@ test("live: broad log KILL retires READ receipts without erasing program artifac
             s,
             3,
             {
-                prompt: "Retire every READ observation from the prior loop with one broad KILL against `log:///1/**/READ`, then confirm completion without curating this loop.",
+                prompt: "Retire every READ observation from the prior loop with one broad KILL against `log:///1/**/read`, then confirm completion without curating this loop.",
                 maxTurns: 4,
             },
             { signal: t.signal },
@@ -68,9 +68,9 @@ test("live: broad log KILL retires READ receipts without erasing program artifac
         const killOperations = new Set<number>();
         for (const effect of effects) {
             if (!turnIds.includes(effect.turn_id)) continue;
-            if (effect.op !== "KILL" || effect.active_before !== 1 || effect.active_after !== 0) continue;
+            if (effect.op !== "kill" || effect.active_before !== 1 || effect.active_after !== 0) continue;
             const target = await s.db.test_log_entries_get_by_id.get<{ op: string | null }>({ id: effect.target_log_entry_id });
-            if (target?.op === "READ") {
+            if (target?.op === "read") {
                 killedReads.push(effect.target_log_entry_id);
                 killOperations.add(effect.operation_log_entry_id);
             }

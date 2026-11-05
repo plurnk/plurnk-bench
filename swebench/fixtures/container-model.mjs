@@ -10,12 +10,11 @@ const evidence = "/var/lib/plurnk";
 const requests = [];
 const op = (header, body = "") => `\`\`\`\`${header}\n${body}\n\`\`\`\``;
 const programs = [
-    op("sh", "printf 'shell original\\n' > native.txt\ngit status --short -- native.txt\npwd\npython -c 'import sys; print(sys.executable)'"),
-    [op("READ (native.txt)"), op("READ (/testbed/native.txt)"),
-        op("EDIT (/testbed/probe.js)", 'import { readFileSync } from "node:fs"; console.log("NODE_READ=" + readFileSync("/testbed/native.txt", "utf8").trim());')].join("\n"),
-    op("EDIT (native.txt) <1,-1>", "native edited"),
-    op("node (probe.js)"),
-    op("KILL", "FIXTURE_COMPLETE"),
+    op("ts", 'await sh("printf \'shell original\\\\n\' > native.txt\\ngit status --short -- native.txt\\npwd\\npython -c \'import sys; print(sys.executable)\'");\nawait plurnk.note("created native.txt");'),
+    op("ts", 'await plurnk.read({ path: "native.txt" });\nawait plurnk.read({ path: "/testbed/native.txt" });\nawait plurnk.edit({ path: "/testbed/probe.js", content: \'import { readFileSync } from "node:fs"; console.log("NODE_READ=" + readFileSync("/testbed/native.txt", "utf8").trim());\' });\nawait plurnk.note("read native.txt and created probe.js");'),
+    op("ts", 'await plurnk.edit({ path: "native.txt", range: "1,-1", content: "native edited" });\nawait plurnk.note("edited native.txt");'),
+    op("ts", 'await node({ path: "probe.js" });\nawait plurnk.note("ran probe.js");'),
+    op("ts", 'await plurnk.done("FIXTURE_COMPLETE");'),
 ];
 const tool = (id, name, args) => ({ index: 0, id, type: "function", function: { name, arguments: JSON.stringify(args) } });
 const piCalls = [

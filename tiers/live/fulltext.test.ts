@@ -31,7 +31,7 @@ test("live: full-text FIND — locate a note by its words without surveying each
 
         const finds = await s.db.test_log_entries_by_session_op_full.all<{ tx: string }>({
             session_id: modelSessionId,
-            op: "FIND",
+            op: "find",
         });
         assert.ok(finds.some(({ tx }) => {
             const statement = JSON.parse(tx) as { matcher?: { dialect?: string } | null };

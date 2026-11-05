@@ -55,7 +55,7 @@ for (const kind of ["plurnk", "pi"]) test(`{§swebench-evaluator} installed ${ki
     assert.equal(requests.length, 5);
     if (kind === "plurnk") {
         const digest = JSON.parse(await readFile(join(agent, "digest/digest.json"), "utf8"));
-        const reads = digest.log_entries.filter((row) => row.op === "READ" && row.target === "native.txt");
+        const reads = digest.log_entries.filter((row) => row.op === "read" && row.target === "native.txt");
         assert.equal(reads.length, 2, "relative and absolute native READ address one file");
         assert.ok(reads.every((row) => row.status_rx === 200));
         assert.deepEqual(digest.log_entries.filter((row) => row.status_rx >= 400), [], "no operation failed behind the final answer");

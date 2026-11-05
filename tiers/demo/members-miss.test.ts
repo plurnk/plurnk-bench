@@ -41,7 +41,7 @@ test("members: a READ of an untracked file admits it as the model's own definiti
         const refused = rows.filter((row) => row.origin === "model" && row.status_rx >= 400);
         assert.deepEqual(refused.map((row) => `${row.op} ${row.status_rx} ${targetOf(row)} ${problemOf(row).type ?? ""}`), [], "no operation was refused");
         const operations = rows.filter((row) => row.origin === "model").map((row) => `${row.op} ${targetOf(row)}`);
-        assert.ok(operations.some((operation) => operation.startsWith("READ ") && operation.endsWith(REPORT)), `the model READ ${REPORT}; operations ${JSON.stringify(operations)}`);
+        assert.ok(operations.some((operation) => operation.startsWith("read ") && operation.endsWith(REPORT)), `the model READ ${REPORT}; operations ${JSON.stringify(operations)}`);
         assert.ok(!operations.some((operation) => operation.startsWith("sh ")), `the model did not detour around membership through the shell; operations ${JSON.stringify(operations)}`);
         assert.deepEqual(await ResourceState.check(s.db), [], "the workspace stays lawful");
 

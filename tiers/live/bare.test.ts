@@ -27,7 +27,7 @@ test("{§tier-corpus} live: delegate two isolated questions and consume their an
         const rows = (await Promise.all(turnIds.map((turnId) =>
             s.db.test_log_entries_by_turn.all<{ op: string | null; pathname: string | null }>({ turn_id: turnId }),
         ))).flat();
-        assert.equal(rows.filter(({ op }) => op === "BARE").length, 2, "two BARE operations were dispatched");
+        assert.equal(rows.filter(({ op }) => op === "bare").length, 2, "two BARE operations were dispatched");
     } finally {
         await s.cleanup();
     }

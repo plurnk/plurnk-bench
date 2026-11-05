@@ -83,7 +83,7 @@ export const frictionOf = (digest: FrictionInput | null): Friction => {
         const group = receipts[receiptOrigin(entry)];
         const op = entry.op ?? "?";
         group[op] = (group[op] ?? 0) + 1;
-        if (entry.op !== "READ" || !entry.problem?.type?.startsWith(executorProblem)) continue;
+        if (entry.op !== "read" || !entry.problem?.type?.startsWith(executorProblem)) continue;
         const path = typeof entry.target === "string" ? URL.parse(entry.target) : null;
         if (path === null) { unaddressedExecutionReceipts++; continue; }
         path.hash = "";

@@ -47,9 +47,9 @@ test("delegation: ping/pong with one named session — spawn, answer, message by
         assert.equal(sessions.length, 2, "the parent and pong, nothing else");
         const parent = sessions.find((session) => session.id === loop.modelSessionId)!;
         const targetOf = (row: LogRow): string => { try { return (JSON.parse(row.tx) as { target?: { raw?: string } }).target?.raw ?? ""; } catch { return ""; } };
-        const toPong = (logs.get(parent.name) ?? []).filter((row) => row.origin === "model" && (row.op === "WORK" || row.op === "SEND") && targetOf(row).includes("session://pong"));
+        const toPong = (logs.get(parent.name) ?? []).filter((row) => row.origin === "model" && (row.op === "work" || row.op === "send") && targetOf(row).includes("session://pong"));
         assert.ok(toPong.length >= 2, `the parent addressed pong at least twice; saw ${toPong.length}`);
-        assert.ok(toPong.some((row) => row.op === "SEND" || row.rx.includes("\"delivered\":\"message\"")), "the second address was a message to the live session, not a second spawn");
+        assert.ok(toPong.some((row) => row.op === "send" || row.rx.includes("\"delivered\":\"message\"")), "the second address was a message to the live session, not a second spawn");
         const answered = await s.db.test_message_completions_from.all<{ status: number }>({ workspace_id: s.workspaceId, source: `session://${parent.name}` });
         assert.ok(answered.filter((row) => row.status === 200).length >= 1, "pong completed at least the message it was sent by name");
         assert.match(loop.lastContent, /pong\s*1/iu, "the first answer reaches the client");

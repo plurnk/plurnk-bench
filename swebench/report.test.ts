@@ -90,14 +90,14 @@ test("{§swebench-comparison} the campaign sheet counts friction before verdicts
         row({ reward: 1, costUsd: 0.10, turns: 8, edits: { count: 5, refused: 0, revisits: 1, forms: { hash: 4, whole: 1 } } }),
         row({ instance: "sympy__sympy-20590", emptyPatch: true, loopStatus: 500, friction: frictionOf({
             turns: [1, 2, 3].map((id) => ({ id, program: "hello" })), turn_attempts: [1, 2, 3].map((turn_id) => ({ turn_id })),
-            log_entries: [1, 2].map(() => ({ origin: "model", inherited_history: false, op: "EDIT", status_rx: 422 })).concat(
+            log_entries: [1, 2].map(() => ({ origin: "model", inherited_history: false, op: "edit", status_rx: 422 })).concat(
                 [1, 2, 3].map((turn_id) => ({ origin: "_plurnk", inherited_history: false, ambient_event_id: null,
                     turn_id, op: "error", status_rx: 422, problem: { type: "https://problems.plurnk.xyz/engine/rail/no-operation" } }))),
         }), rejectedEmissions: 1, costUsd: 0.30, turns: 40, webReferences: 2, webAttempts: 5, webReads: 3, mcpCalls: 1 }),
         row({ instance: "psf__requests-1963", reward: null, outcome: "error", exception: "TimeoutError: client budget", tokens: null, costUsd: null, wallMs: null }),
     ];
     const summary = summarize(rows);
-    assert.deepEqual(summary.friction.receipts?.authored, { EDIT: 2 });
+    assert.deepEqual(summary.friction.receipts?.authored, { edit: 2 });
     assert.equal(summary.rejectedEmissions, 1);
     assert.equal(summary.emptyPatches, 1);
     assert.deepEqual(summary.exceptions, { TimeoutError: 1 });
@@ -114,7 +114,7 @@ test("{§swebench-comparison} the campaign sheet counts friction before verdicts
     assert.equal(summary.spend.medianTurns, 12);
     const sheet = render({ corpus: "harnesstax-swe-lite-30", model: "deepdumb", ids: ["a", "b", "c"] }, rows, summary);
     assert.match(sheet, /## Friction[\s\S]*## Verdicts[\s\S]*## Spend[\s\S]*## Trials/, "friction first, then verdicts, then spend");
-    assert.match(sheet, /failed authored receipts by family: EDIT 2/);
+    assert.match(sheet, /failed authored receipts by family: edit 2/);
     assert.match(sheet, /fence-free content: 3; with admitted content operations: 0; engine no-operation outcomes: 3/);
     assert.match(sheet, /turn evidence: 3\/3 trials; raw content 3\/3 model turns/);
     assert.match(sheet, /- EDITs: 5 \(hash 4, whole 1\) · refused 0 · revisits 1/, "EDIT friction reads on the sheet before verdicts");
@@ -310,7 +310,7 @@ const range = "https://problems.plurnk.xyz/scheme/file/range";
 
 const entry = (over: Record<string, unknown> = {}) => ({
     id: 1, turn_id: 1, session_id: 1, origin: "model", source: null,
-    inherited_history: false, ambient_event_id: null, attrs: {}, op: "READ",
+    inherited_history: false, ambient_event_id: null, attrs: {}, op: "read",
     target: "file.txt", status_rx: 200, ...over,
 });
 
@@ -356,12 +356,12 @@ test("{§swebench-comparison} admission outcomes do not follow fence shape, cont
         turn_attempts: [{ turn_id: 1 }, { turn_id: 2 }, { turn_id: 2 }, { turn_id: 3 }, { turn_id: 4 }],
         turns: [
             { id: 0, program: "initialization" }, { id: 1, program: "" },
-            { id: 2, program: "```not-an-operation\n```" }, { id: 3, program: "```READ (file)```" },
+            { id: 2, program: "```not-an-operation\n```" }, { id: 3, program: "```ts\nawait plurnk.read({ path: \"file\" });\n```" },
             { id: 4, program: null }, { id: 5, program: "copied no-operation" },
         ],
         log_entries: [
-            entry({ turn_id: 1, op: "READ" }), // Reasoning-only operation, no content emission row.
-            entry({ turn_id: 1, origin: "_plurnk", op: "READ", problem: { type: noOperation }, status_rx: 422 }),
+            entry({ turn_id: 1, op: "read" }), // Reasoning-only operation, no content emission row.
+            entry({ turn_id: 1, origin: "_plurnk", op: "read", problem: { type: noOperation }, status_rx: 422 }),
             entry({ turn_id: 1, origin: "_plurnk", ambient_event_id: 7, op: "error", problem: { type: noOperation }, status_rx: 422 }),
             entry({ turn_id: 2, origin: "_plurnk", op: "error", problem: { type: noOperation }, status_rx: 422 }),
             entry({ turn_id: 2, origin: "_plurnk", op: "error", problem: { type: noOperation }, status_rx: 422 }),
@@ -374,7 +374,7 @@ test("{§swebench-comparison} admission outcomes do not follow fence shape, cont
 
 test("{§swebench-comparison} failed receipts preserve provenance and channels do not multiply failed executions", (t) => {
     const failure = { status_rx: 500, problem: { type: nonzero }, target: "sh:///process#stdout" };
-    const row = trial(t, [{ id: 1, program: "```READ (sh:///process)```" }], [
+    const row = trial(t, [{ id: 1, program: "```ts\nawait plurnk.read({ path: \"sh:///process\" });\n```" }], [
         entry({ ...failure, ambient_event_id: 71 }),
         entry({ ...failure, origin: "_plurnk", target: "sh:///process#stderr" }),
         entry({ ...failure, origin: "_plurnk", target: "sh:///process#stdout" }),
@@ -384,10 +384,10 @@ test("{§swebench-comparison} failed receipts preserve provenance and channels d
         entry({ ...failure, origin: "_plurnk", target: "sh:///second#stdout" }),
         entry({ status_rx: 416, problem: { type: range }, target: "sh:///third#stdout" }),
         entry({ ...failure, origin: "_plurnk", target: null }),
-        entry({ status_rx: 422, op: "EDIT", problem: { type: range } }),
+        entry({ status_rx: 422, op: "edit", problem: { type: range } }),
     ]);
     assert.deepEqual(row.friction.failures, {
-        receipts: { authored: { READ: 2, EDIT: 1 }, automatic: { READ: 4 }, ambient: { READ: 1 }, inherited: { READ: 2 }, unknown: {} },
+        receipts: { authored: { read: 2, edit: 1 }, automatic: { read: 4 }, ambient: { read: 1 }, inherited: { read: 2 }, unknown: {} },
         executionStreams: [{ path: "sh:///process", receipts: 6 }, { path: "sh:///second", receipts: 1 }],
         unaddressedExecutionReceipts: 1,
     });
@@ -399,13 +399,13 @@ test("{§swebench-comparison} absent evidence is unknown, while legacy receipts 
     const legacy = frictionOf({
         turn_attempts: [{ turn_id: 1 }], turns: [{ id: 1, program: "hello" }],
         log_entries: [
-            { origin: "model", op: "EDIT", status_rx: 422 },
-            { origin: "_plurnk", op: "READ", status_rx: 500, target: "sh:///old#stdout", problem: { type: nonzero } },
-            { inherited_history: false, origin: "_plurnk", op: "READ", status_rx: 500 },
-            { inherited_history: true, origin: "model", op: "EDIT", status_rx: 422 },
+            { origin: "model", op: "edit", status_rx: 422 },
+            { origin: "_plurnk", op: "read", status_rx: 500, target: "sh:///old#stdout", problem: { type: nonzero } },
+            { inherited_history: false, origin: "_plurnk", op: "read", status_rx: 500 },
+            { inherited_history: true, origin: "model", op: "edit", status_rx: 422 },
         ],
     });
-    assert.deepEqual(legacy.failures?.receipts, { authored: {}, automatic: {}, ambient: {}, inherited: { EDIT: 1 }, unknown: { EDIT: 1, READ: 2 } });
+    assert.deepEqual(legacy.failures?.receipts, { authored: {}, automatic: {}, ambient: {}, inherited: { edit: 1 }, unknown: { edit: 1, read: 2 } });
     assert.deepEqual(legacy.failures?.executionStreams, [{ path: "sh:///old", receipts: 1 }]);
     const withoutRows = frictionOf({ turn_attempts: [{ turn_id: 1 }], turns: [{ id: 1, program: "hello" }] });
     assert.deepEqual(withoutRows, { turns: { modelTurns: 1, rawEmissions: 1, fenceFree: 1, fenceFreeAdmitted: null, noOperation: null }, failures: null });
@@ -414,7 +414,7 @@ test("{§swebench-comparison} absent evidence is unknown, while legacy receipts 
     assert.equal(summary.failureTrials, 2);
     assert.equal(summary.turns?.noOperation, null, "missing outcomes cannot be counted as zero");
     assert.equal(summary.executionStreams, 2, "identical stream names in different trials are not one execution");
-    assert.deepEqual(summary.receipts?.unknown, { EDIT: 2, READ: 4 });
+    assert.deepEqual(summary.receipts?.unknown, { edit: 2, read: 4 });
     assert.equal(summarizeFriction([frictionOf(null)]).executionStreams, null);
 });
 

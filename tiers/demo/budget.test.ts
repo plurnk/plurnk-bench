@@ -21,7 +21,7 @@ import { assertContextFitEvidence, seedAttachmentFixture } from "@plurnk/plurnk-
 import { initializeDemoRepository } from "@plurnk/plurnk-service/harness";
 
 const OVER_BUDGET = "Context exceeds budget. YOU MUST ONLY KILL, MOVE or NOTE this turn."; // {§tier-corpus}
-const CURATION = new Set(["KILL", "MOVE", "NOTE"]);
+const CURATION = new Set(["kill", "move", "note"]);
 
 interface LoopRow { id: number; turn_id: number; op: string | null; origin: string; status_rx: number; rx: string; attrs: string }
 

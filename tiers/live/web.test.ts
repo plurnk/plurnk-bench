@@ -35,7 +35,7 @@ test("live web: a discovered http:// READ atomically materializes a real URL (no
     async () => {
         const source = `await plurnk.read({ path: ${JSON.stringify(HTTP_URL)} });`;
         const parsed = PlurnkParser.parseStatements(source, { executors: fixtureExecutors(source) });
-        const item = parsed.items.find((i: { kind: string; statement?: PlurnkStatement }) => i.kind === "statement" && i.statement?.op === "READ") as { statement: PlurnkStatement } | undefined;
+        const item = parsed.items.find((i: { kind: string; statement?: PlurnkStatement }) => i.kind === "statement" && i.statement?.op === "read") as { statement: PlurnkStatement } | undefined;
         if (item === undefined) throw new Error("parse produced no statement");
         const statement = item.statement;
         const db = await openMigrated();

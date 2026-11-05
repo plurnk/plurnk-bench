@@ -223,7 +223,7 @@ const plurnkResult = {
         usage: { inputTokens: 1_204_311, outputTokens: 18_204, totalTokens: 1_222_515, inputTokenDetails: { cacheReadTokens: 1_100_000 } },
         costUsd: "0.42",
         loopOutcomes: [{ sessionId: 1, sessionName: "root", loop: 1, status: 200, terminalMessage: "Implemented snapshot rollback; tests pass.", terminatedBy: null, problem: null }],
-        operationCounts: { READ: 12, EDIT: 9, EXEC: 8, TASK: 1 },
+        operationCounts: { read: 12, edit: 9, sh: 8, work: 1 },
     },
     oracle: { submission: { applyFailed: false, reward: 1, p2pPassed: 47, p2pTotal: 47, f2pPassed: 84, f2pTotal: 84, partial: 1, tests: [] } },
     startedAt: "2026-09-11T20:00:10.000Z",

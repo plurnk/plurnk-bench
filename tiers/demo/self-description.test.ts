@@ -15,7 +15,7 @@ import { seedDemoFixture } from "@plurnk/plurnk-service/harness";
 import { failAfterCleanup } from "@plurnk/plurnk-service/harness";
 import { ResourceState } from "@plurnk/plurnk-service/harness";
 
-const MUTATING = new Set(["EDIT", "KILL", "COPY", "MOVE", "WORK", "FORK"]);
+const MUTATING = new Set(["edit", "kill", "copy", "move", "work", "fork"]);
 
 interface Answered {
     readonly finalStatus: number;

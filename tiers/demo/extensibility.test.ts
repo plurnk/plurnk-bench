@@ -25,7 +25,7 @@ const integrate = async (t: TestContext, label: string, prompt: string): Promise
         assert.ok(result.lastContent.trim().length > 0, `[${label}] an answer arrives`);
         assert.deepEqual(await ResourceState.check(s.db), [], `[${label}] the workspace stays lawful`);
         const log = await s.daemon.readLog({ workspaceId: s.workspaceId, sessionId: result.modelSessionId, limit: Number.MAX_SAFE_INTEGER });
-        const read = log.some((row) => row.op === "READ" && JSON.stringify(row).includes(CHAPTER));
+        const read = log.some((row) => row.op === "read" && JSON.stringify(row).includes(CHAPTER));
         t.diagnostic(`[${label}] read ${CHAPTER}: ${read}`);
     } finally { await s.cleanup(); }
 };
