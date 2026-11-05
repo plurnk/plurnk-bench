@@ -65,9 +65,9 @@ test("reply: plurnk explains its own operations, and shows examples without runn
         const before = await readFile(notes, "utf8");
         assert.equal(result.finalStatus, 200, "the question is answered");
         assert.ok(result.reply.length > 0, "the answer reaches the client");
-        const named = ["READ", "EDIT", "FIND", "SEND", "KILL"].filter((op) => result.reply.includes(op));
+        const named = ["read", "edit", "find", "send", "kill"].filter((op) => new RegExp(`\\b${op}\\b`, "i").test(result.reply));
         assert.ok(named.length >= 4, `the answer names plurnk's operations; named ${JSON.stringify(named)}`);
-        assert.match(result.reply, /\b(?:READ|EDIT|FIND) \([^\r\n)]+\)/u, "examples reach the client, not merely a pointer to an internal note");
+        assert.match(result.reply, /\bplurnk\.(?:read|edit|find)\s*\(/u, "examples reach the client, not merely a pointer to an internal note");
         const ran = result.ops.filter(({ op }) => op !== null && MUTATING.has(op));
         assert.deepEqual(ran, [], "showing an operation never runs it");
         assert.equal(await readFile(notes, "utf8"), before, "the fixture is untouched");
@@ -83,7 +83,7 @@ test("reply: asked to show a deletion without doing it, plurnk shows it and dele
     });
     try {
         assert.equal(result.finalStatus, 200, "the question is answered");
-        assert.ok(/KILL/.test(result.reply), "the answer shows the operation it would use");
+        assert.ok(/\bplurnk\.kill\s*\(|\bKILL\b/i.test(result.reply), "the answer shows the operation it would use");
         assert.deepEqual(result.ops.filter(({ op }) => op !== null && MUTATING.has(op)), [], "nothing was deleted");
         assert.ok((await readFile(notes, "utf8")).length > 0, "notes.md is still there");
         assert.deepEqual(result.notices.filter((message) => /advisory|turn_no_operations|nothing ran|must start its line|shown, not run/i.test(message)), [], "showing the deletion draws no parser complaint");

@@ -28,14 +28,14 @@ test("live mcp: current third-party stdio and HTTP servers compose through the a
     const provider = new PacketCapturingMock({
         contextWindow: 1_000_000,
         responses: [
-            makeMockResponse("\n````READ (mcp:///kubernetes.md) <1,-1>````\n````NOTE\nSelect the configuration tool linked from the runtime document.\n````"),
-            makeMockResponse("\n````READ (mcp:///kubernetes/configuration_view.json) <1,-1>````\n````NOTE\nUse the exact contract after reading it.\n````"),
-            makeMockResponse("\n````kubernetes (configuration_view)\n{\"minified\":true}\n````\n\n````NOTE\nInspect the returned configuration.\n````"),
-            makeMockResponse("````DONE\nThe current Kubernetes context is specimen.\n````"),
-            makeMockResponse("\n````READ (mcp:///goji.md) <1,-1>````\n````NOTE\nSelect the terminology tool linked from the runtime document.\n````"),
-            makeMockResponse("\n````READ (mcp:///goji/goji_explain_term.json) <1,-1>````\n````NOTE\nUse the documented tool and resource.\n````"),
-            makeMockResponse("\n````goji (goji_explain_term)\n{\"term\":\"AEO\"}\n````\n\n````READ (goji:///resources/goji%3A%2F%2Fabout)````\n````NOTE\nInspect both remote results.\n````"),
-            makeMockResponse("````DONE\nGOJI defines AEO as Answer Engine Optimisation and identifies itself as a Melbourne digital agency.\n````"),
+            makeMockResponse('await plurnk.read({ path: "mcp:///kubernetes.md", range: "1,-1" });\nawait plurnk.note({ text: "Select the configuration tool linked from the runtime document." });'),
+            makeMockResponse('await plurnk.read({ path: "mcp:///kubernetes/configuration_view.json", range: "1,-1" });\nawait plurnk.note({ text: "Use the exact contract after reading it." });'),
+            makeMockResponse('await kubernetes.configuration_view({ minified: true });\nawait plurnk.note({ text: "Inspect the returned configuration." });'),
+            makeMockResponse('await plurnk.done({ text: "The current Kubernetes context is specimen." });'),
+            makeMockResponse('await plurnk.read({ path: "mcp:///goji.md", range: "1,-1" });\nawait plurnk.note({ text: "Select the terminology tool linked from the runtime document." });'),
+            makeMockResponse('await plurnk.read({ path: "mcp:///goji/goji_explain_term.json", range: "1,-1" });\nawait plurnk.note({ text: "Use the documented tool and resource." });'),
+            makeMockResponse('await goji.goji_explain_term({ term: "AEO" });\nawait plurnk.read({ path: "goji:///resources/goji%3A%2F%2Fabout" });\nawait plurnk.note({ text: "Inspect both remote results." });'),
+            makeMockResponse('await plurnk.done({ text: "GOJI defines AEO as Answer Engine Optimisation and identifies itself as a Melbourne digital agency." });'),
         ],
     });
     const projectRoot = await mkdtemp(join(tmpdir(), "plurnk-mcp-third-party-"));
