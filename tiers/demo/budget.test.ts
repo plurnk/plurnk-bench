@@ -59,7 +59,7 @@ const seedLedgerFixture = async (): Promise<{ workspace: string; cleanup: () => 
     for (let i = 1; i <= 600; i += 1) {
         lines.push(`Entry ${String(i).padStart(4, "0")}: routine ledger record number ${i}; standard operational note, nothing of special interest is filed on this particular line.`);
     }
-    lines[316] = "Entry 0317: the emergency shutdown code for the primary reactor core is CRIMSON-MERIDIAN-84, filed by the audit team and paged to no one.";
+    lines[316] = "Entry 0317: the annual reconciliation code for the regional warehouse audit is CRIMSON-MERIDIAN-84, filed by the inventory clerk for Q3.";
     await writeFile(join(workspace, "ledger.md"), `${lines.join("\n")}\n`);
     initializeDemoRepository(workspace, "ledger");
     return { workspace, cleanup: async () => { await rm(workspace, { recursive: true, force: true }); } };
@@ -102,7 +102,7 @@ test("budget: a long NOTE in a tight room — receipts by prefix, curation by th
     const doc = await seedLedgerFixture();
     const lifetime = new AsyncDisposableStack();
     lifetime.defer(doc.cleanup);
-    const prompt = "First keep a NOTE quoting ledger.md entries 1 through 25 verbatim, one per line, so they survive curation. Then report the emergency shutdown code for the primary reactor core that ledger.md records.";
+    const prompt = "First keep a NOTE quoting ledger.md entries 1 through 25 verbatim, one per line, so they survive curation. Then report the annual reconciliation code for the regional warehouse audit that ledger.md records.";
     try {
         const floor = await measureFloor({ signal: t.signal, label: "over-budget", projectRoot: doc.workspace, prompt });
         const capacity = Math.round(floor.weight * 1.4);
