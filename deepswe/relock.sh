@@ -38,3 +38,5 @@ node "$bench_root/src/candidate-client.ts" "$lanes/plurnk-service" "$lanes/plurn
 
 echo "export PLURNK_BENCHLET_SERVICE_ROOT=$lanes/plurnk-service"
 echo "export PLURNK_BENCHLET_CLIENT_ROOT=$lanes/plurnk"
+echo "export PLURNK_SWEBENCH_SERVICE_ROOT=$lanes/plurnk-service"
+echo "export PLURNK_SWEBENCH_CLIENT_ROOT=$lanes/plurnk"

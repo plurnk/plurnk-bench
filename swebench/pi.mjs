@@ -3,7 +3,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdir
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { jobsRoot } from "../src/host-paths.ts";
+import { jobsRoot, loadBenchmarkEnvironment } from "../src/host-paths.ts";
 import { loopbackPorts, modelHosts, runContainer } from "./container.ts";
 import { installedPiRoot, prepareRuntime } from "./runtime.ts";
 import { capturePatch, dockerImageId, exceptionInfo, prepareRepository, pruneImage, requireDiskRoom, shell, taskPrompt } from "./run.ts";
@@ -202,6 +202,7 @@ export function summarizePi(agentDir, rates) {
 }
 
 export async function runPiTrial({ instance, profilePath, preflight = false, signal }) {
+    loadBenchmarkEnvironment(process.env.PLURNK_SWEBENCH_OPERATOR_ENV, resolve(directory, "..", ".env.defaults"));
     const profile = validateProfile(JSON.parse(readFileSync(profilePath, "utf8")));
     const version = shell(profile.executable, ["--version"]).trim();
     if (version !== profile.version) throw new Error(`Pi version changed: expected ${profile.version}, got ${version}`);

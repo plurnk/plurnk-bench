@@ -75,7 +75,7 @@ Canonical contracts for `BenchRecord`, published `benchmarks/run<N>` artifacts, 
 | Image drift | Manifest pins image and provenance records resolved `imageId`. |
 | Wall-clock contention | A pair runs its two sides sequentially ({§pair-sheet}). |
 
-`deepswe/relock.sh <service-ref> <client-ref> [<lanes-root>]` points detached worktrees at `../bench-lanes/plurnk-service` and `../bench-lanes/plurnk` (or explicit `<lanes-root>`), runs `npm ci`, installs the built platform's projected contracts tarball into the client before building without mutating manifests or lockfiles, and prints `PLURNK_BENCHLET_SERVICE_ROOT` and `PLURNK_BENCHLET_CLIENT_ROOT`.
+`deepswe/relock.sh <service-ref> <client-ref> [<lanes-root>]` points detached worktrees at `../bench-lanes/plurnk-service` and `../bench-lanes/plurnk` (or explicit `<lanes-root>`), runs `npm ci`, installs the built platform's projected contracts tarball into the client before building without mutating manifests or lockfiles, and prints `PLURNK_BENCHLET_SERVICE_ROOT`, `PLURNK_BENCHLET_CLIENT_ROOT`, `PLURNK_SWEBENCH_SERVICE_ROOT`, and `PLURNK_SWEBENCH_CLIENT_ROOT`.
 
 ## §config-carry 8. Authoritative Configuration Carriage and WAL Snapshots
 

@@ -323,6 +323,33 @@ test("{§swebench-pi} a setup failure pauses new work without discarding the fai
     assert.deepEqual({ finished: summary.finished, passes: summary.passes, paused: summary.paused }, { finished: 9, passes: 9, paused: [] });
 });
 
+test("{§swebench-pi} a trial where every request failed at transport pauses the campaign", async () => {
+    const dir = mkdtempSync(join(root, "transport-fail-"));
+    const corpus = join(dir, "corpus.json");
+    const profile = join(dir, "profile.json");
+    json(corpus, ["a", "b"]);
+    json(profile, {});
+    const options = { corpus, profile, out: join(dir, "campaign"), attempts: 1, jobs: 1 };
+    let calls = 0;
+    await assert.rejects(runCampaign(options, async (_command, _args, { stdoutPath }) => {
+        const artifact = join(dir, `trial-${++calls}`);
+        mkdirSync(join(artifact, "agent"), { recursive: true });
+        mkdirSync(join(artifact, "verifier"));
+        writeFileSync(stdoutPath, `artifact=${artifact}\n`);
+        json(join(artifact, "agent/summary.json"), {
+            requests: 4, responsesWithUsage: 0, unpricedRequests: 4,
+            failures: [{ request: "0001", status: null }, { request: "0002", status: null }, { request: "0003", status: null }, { request: "0004", status: null }],
+            errors: [{ stopReason: "error", error: "Connection error." }],
+        });
+        json(join(artifact, "verifier/reward.json"), { reward: 0, empty_patch: 1 });
+        json(join(artifact, "result.json"), { exception_info: null });
+        return { status: 0 };
+    }), /paused for review/);
+    assert.equal(calls, 1);
+    const completed = JSON.parse(readFileSync(join(options.out, "results.jsonl"), "utf8"));
+    assert.equal(completed.pause, true);
+});
+
 test("{§swebench-evaluator} Pi resume reuses a regraded candidate without another model attempt", async () => {
     const dir = mkdtempSync(join(root, "regrade-"));
     const corpus = join(dir, "corpus.json");

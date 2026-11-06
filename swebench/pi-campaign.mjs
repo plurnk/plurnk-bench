@@ -3,6 +3,7 @@ import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } fr
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
+import { loadBenchmarkEnvironment } from "../src/host-paths.ts";
 import { corpusIds, planTrials } from "./plan.ts";
 import { runToFiles } from "./run.ts";
 import { requireSettledEvaluation } from "./report.ts";
@@ -19,7 +20,8 @@ const evidenceOf = (artifact) => {
 
 // {§swebench-evaluator}: the verifier's report is the grading; the evaluator's exit rides the verdict
 // as its diagnostic, so a graded candidate is an outcome whatever that exit was.
-const hasCandidateOutcome = ({ summary, reward, exception }) => reward && summary?.requests > 0
+const hasCandidateOutcome = ({ summary, reward, exception }) => reward
+    && summary?.requests > (summary?.failures?.length ?? 0)
     && (exception === null || ["AgentExitError", "AgentTimeoutError", "AgentCancelledError"].includes(exception.exception_type));
 
 const campaignPrice = (summaries, field, knownField, priced) => {
@@ -34,6 +36,7 @@ const campaignPrice = (summaries, field, knownField, priced) => {
 };
 
 export async function runCampaign({ corpus, profile, out, attempts, jobs, signal }, execute = runToFiles) {
+    loadBenchmarkEnvironment(process.env.PLURNK_SWEBENCH_OPERATOR_ENV, resolve(directory, "..", ".env.defaults"));
     if (![attempts, jobs].every((n) => Number.isSafeInteger(n) && n > 0)) throw new Error("attempts and jobs must be positive integers");
     mkdirSync(out, { recursive: true });
     const planPath = join(out, "plan.json");
