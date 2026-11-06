@@ -95,7 +95,7 @@ test("live: broad log KILL retires READ receipts without erasing program artifac
 
         const digestDir = join(s.runDir, "digest");
         const digest = JSON.parse(await readFile(join(digestDir, "digest.json"), "utf8")) as {
-            turns: Array<{ id: number; program: string | null; artifact: string | null }>;
+            turns: Array<{ id: number; kind: string; program: string | null; artifact: string | null }>;
             log_entries: Array<{ id: number; projection: { active: boolean } }>;
         };
         const durablePrograms = digest.turns.toSorted((a, b) => a.id - b.id)
@@ -107,7 +107,7 @@ test("live: broad log KILL retires READ receipts without erasing program artifac
 
         // {§tier-corpus}: artifacts are named by log coordinate; the digest's turn order is chronological.
         const assistantArtifacts = digest.turns.toSorted((a, b) => a.id - b.id)
-            .flatMap(({ artifact, program }) => artifact === null || program === null ? [] : [`${artifact}.assistant.md`]);
+            .flatMap(({ artifact, kind, program }) => artifact === null || program === null ? [] : [`${artifact}.${kind === "maintenance" ? "ops" : "assistant"}.md`]);
         const artifactSources = await Promise.all(assistantArtifacts.map((name) => readFile(join(digestDir, name), "utf8")));
         assert.deepEqual(artifactSources, durablePrograms, "every admitted program remains an exact chronological artifact");
         for (const { turn_id, kind, content } of priorPrograms.filter((program) => program.kind === "ops" || program.kind === "reasoning")) {
