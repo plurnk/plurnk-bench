@@ -24,6 +24,7 @@ relock() {
     sha="$(git -C "$repo" rev-parse --verify "${ref}^{commit}")"
     if [ -d "$lane/.git" ] || [ -f "$lane/.git" ]; then
         git -C "$lane" checkout --quiet --detach "$sha"
+        git -C "$lane" clean -fdX -e '!node_modules' > /dev/null
     else
         git -C "$repo" worktree add --quiet --detach "$lane" "$sha"
     fi
