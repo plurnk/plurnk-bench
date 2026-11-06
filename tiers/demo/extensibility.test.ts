@@ -12,7 +12,7 @@ import { liveLoop, liveWorkspace } from "@plurnk/plurnk-service/harness";
 import { ResourceState } from "@plurnk/plurnk-service/harness";
 import { initializeDemoRepository } from "@plurnk/plurnk-service/harness";
 
-const CHAPTER = "skill://plurnk/references/extensibility.md";
+const CHAPTER = "skill://plurnk/extensibility.md";
 
 const integrate = async (t: TestContext, label: string, prompt: string): Promise<void> => {
     const root = await mkdtemp(join(tmpdir(), `plurnk-demo-${label}-`));
