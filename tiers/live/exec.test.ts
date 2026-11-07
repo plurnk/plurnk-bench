@@ -23,8 +23,8 @@ test("live exec: model emits a sh fence and the spawn captures stdout", async (t
             'await plurnk.done({ text: "plurnk-exec-live-ok" });',
             "",
             "Otherwise, emit this complete turn to run `echo plurnk-exec-live-ok` and await its result:",
-            'await plurnk.sh({ command: "echo plurnk-exec-live-ok" });',
-            'await plurnk.wait({ text: "Await the stdout probe result." });',
+            'await plurnk.sh({ code: "echo plurnk-exec-live-ok" });',
+            'await plurnk.wait({}); // Await the stdout probe result.',
             "",
             "Do not repeat the command once you see the `sh:///...` stream entry in the log.",
         ].join("\n");
