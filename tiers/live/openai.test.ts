@@ -13,11 +13,11 @@ import { liveWorkspace, liveLoop, seedEntry } from "@plurnk/plurnk-service/harne
 test("live OpenAI: a multi-turn loop consumes a next-packet READ result and concludes with it", async (t) => {
     const s = await liveWorkspace({ name: `live-loop-${crypto.randomUUID()}` });
     try {
-        // The random secret requires retrieval and consumption of the next packet's result.
+        // The random token requires retrieval and consumption of the next packet's result.
         // Completion after actions is enforced by the runtime, not by the grammar.
-        const secret = crypto.randomUUID().slice(0, 8);
-        await seedEntry(s.db, s.workspaceId, { pathname: "vault/code.md", content: `the access code is ${secret}` });
-        const userPrompt = "What is the access code stored at workspace:///vault/code.md? Tell me in one sentence.";
+        const codename = `aurora-${crypto.randomUUID().slice(0, 8)}`;
+        await seedEntry(s.db, s.workspaceId, { pathname: "notes/release.md", content: `the release codename is ${codename}` });
+        const userPrompt = "What is the release codename recorded at workspace:///notes/release.md? Tell me in one sentence.";
         const { finalStatus, turnIds, lastContent } = await liveLoop(s, 2, { prompt: userPrompt, maxTurns: 6 }, { signal: t.signal });
 
         const turns = await Promise.all(turnIds.map(async (turnId) => ({
@@ -42,7 +42,7 @@ test("live OpenAI: a multi-turn loop consumes a next-packet READ result and conc
         const modelTurns = turns.filter(({ turn }) => turn?.producer === "model" && turn.kind === "inference");
         assert.ok(modelTurns.length >= 2, "the READ result forces two inference turns because it arrives in the next model packet");
         assert.equal(finalStatus, 200, `loop must conclude successfully; got ${finalStatus}`);
-        assert.ok(lastContent.includes(secret), `the conclusion carries the seeded secret '${secret}' — proof the next-packet result was consumed; got: ${lastContent.slice(0, 200)}`);
+        assert.ok(lastContent.includes(codename), `the conclusion carries the seeded codename '${codename}' — proof the next-packet result was consumed; got: ${lastContent.slice(0, 200)}`);
     } finally { await s.cleanup(); }
 });
 
