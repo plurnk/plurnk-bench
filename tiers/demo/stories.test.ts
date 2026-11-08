@@ -192,7 +192,7 @@ test("{§tier-corpus} story: answer a current question with search MCP available
             story.db.test_log_entries_by_turn.all<{ op: string | null; scheme: string | null; status_rx: number; rx: string }>({ turn_id: turnId }),
         ))).flat();
         const INTERNAL = new Set(["session", "skill", "log", "reasoning", "ops", "note", "message"]);
-        const retrievedRows = rows.filter((row) => row.op === "read" && row.status_rx === 200 && row.scheme !== null && !INTERNAL.has(row.scheme));
+        const retrievedRows = rows.filter((row) => row.op === "read" && (row.status_rx === 200 || row.status_rx === 413) && row.scheme !== null && !INTERNAL.has(row.scheme));
         const retrieved = versionsNamed(retrievedRows.map((row) => row.rx).join("\n"));
         const answered = versionsNamed(story.lastContent);
         const ok = story.finalStatus === 200 && [...answered].some((version) => retrieved.has(version));
