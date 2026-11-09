@@ -33,6 +33,7 @@ relock() {
 }
 
 relock "$bench_root/../plurnk-service" "$lanes/plurnk-service" "$service_ref"
+(cd "$lanes/plurnk-service" && npm run -s build)
 relock "$bench_root/../plurnk" "$lanes/plurnk" "$client_ref" --ignore-scripts
 node "$bench_root/src/candidate-client.ts" "$lanes/plurnk-service" "$lanes/plurnk"
 

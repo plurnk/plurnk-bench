@@ -14,7 +14,9 @@
         "test:unit": "node --test 'src/**/*.test.ts' 'tiers/*.test.ts' 'deepswe/**/*.test.ts' 'swebench/**/*.test.ts' 'swebench/**/*.test.mjs' 'atlas/**/*.test.ts' 'enterprise/**/*.test.ts' 'terminal_bench/**/*.test.ts'",
         "test": "npm run test:lint && npm run test:driver && npm run test:unit",
         "tier:live": "tiers/live.sh",
-        "tier:demo": "tiers/demo.sh"
+        "tier:demo": "tiers/demo.sh",
+        "swebench": "swebench/run.sh",
+        "ht30": "swebench/campaign.sh --corpus harnesstax-swe-lite-30"
     },
     "dependencies": {
         "@modelcontextprotocol/client": "2.4.0",

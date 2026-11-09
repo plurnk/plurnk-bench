@@ -26,7 +26,7 @@ import { benchmarksHome, jobsRoot, loadBenchmarkEnvironment, selectedModel } fro
 import { publishTrial, runLabelsFor } from "../src/publish.ts";
 import { allocateRunDirectory } from "../src/run-directory.ts";
 import { modelHosts, runContainer } from "./container.ts";
-import { plurnkEnvironment, prepareRuntime } from "./runtime.ts";
+import { plurnkEnvironment, prepareRuntime, resolveRouteModelUrls } from "./runtime.ts";
 import { candidateIsolation } from "../src/candidate-isolation.ts";
 import { assertCleanSources } from "../src/source-provenance.ts";
 
@@ -295,11 +295,20 @@ const main = async (signal?: AbortSignal): Promise<void> => {
     const startHead = prepareRepository(manifest, repository);
 
     try {
-        const clientRoot = requiredClientCheckout(benchRoot, process.env, "PLURNK_SWEBENCH_CLIENT_ROOT");
+        const clientRoot = requiredClientCheckout(benchRoot, { PLURNK_SWEBENCH_CLIENT_ROOT: "../plurnk", ...process.env }, "PLURNK_SWEBENCH_CLIENT_ROOT");
         const serviceRoot = resolve(benchRoot, process.env.PLURNK_SWEBENCH_SERVICE_ROOT ?? "../plurnk-service");
         const sources = assertCleanSources({ bench: benchRoot, service: serviceRoot, client: clientRoot });
         const routeEnv = values.preflight ? {} : await plurnkEnvironment(serviceRoot, model, process.env);
-        const allowedHosts = modelHosts({ ...routeEnv, PLURNK_SWEBENCH_MODEL_HOSTS: process.env.PLURNK_SWEBENCH_MODEL_HOSTS }, values.preflight === true);
+        const routeUrls = values.preflight ? [] : await resolveRouteModelUrls(serviceRoot, model, process.env);
+        const configuredHosts = process.env.PLURNK_SWEBENCH_MODEL_HOSTS;
+        const effectiveHosts = (!configuredHosts || configuredHosts === "[]") && routeUrls.length > 0
+            ? JSON.stringify(
+                routeUrls
+                    .map((url) => { try { return new URL(url).hostname; } catch { return ""; } })
+                    .filter((host) => host !== "" && host !== "127.0.0.1" && host !== "localhost" && host !== "[::1]"),
+            )
+            : configuredHosts;
+        const allowedHosts = modelHosts({ ...routeEnv, PLURNK_SWEBENCH_MODEL_HOSTS: effectiveHosts }, values.preflight === true, routeUrls);
         const runtime = await prepareRuntime({ kind: "plurnk", serviceRoot, clientRoot, sources });
         // SPEC {§publish} — the run folder exists from launch and is the daemon's own directory,
         // so the database is live there from the first turn; the trial dir keeps `agent` as a link to it.

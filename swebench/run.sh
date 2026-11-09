@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+if [ -S /var/run/docker.sock ] && [ ! -w /var/run/docker.sock ] && [ "${PLURNK_SWEBENCH_DOCKER_READY:-0}" != "1" ]; then
+    export PLURNK_SWEBENCH_DOCKER_READY=1
+    printf -v quoted '%q ' "$0" "$@"
+    exec sg docker -c "exec $quoted"
+fi
+
 # swebench runner (SPEC {§swebench-evaluator}). Re-execs under the operator's rc so provider
 # credentials/endpoints from ~/.bashrc are present, exactly as deepswe/benchlet.sh.
 if [ "${PLURNK_SWEBENCH_SHELL_READY:-0}" != "1" ]; then

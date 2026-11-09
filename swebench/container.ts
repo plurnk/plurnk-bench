@@ -1,7 +1,7 @@
 // {§swebench-evaluator} Host orchestration delegates lifecycle/network to Harbor.
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { closeSync, constants, createWriteStream, openSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, constants, createWriteStream, existsSync, openSync, rmSync, writeFileSync } from "node:fs";
 import { connect, createServer, type Server, type Socket } from "node:net";
 import { finished } from "node:stream/promises";
 import { join } from "node:path";
@@ -62,8 +62,15 @@ export function modelHosts(env: NodeJS.ProcessEnv, preflight: boolean, urls: (st
     return external;
 }
 
+const defaultHarborPython = (): string => {
+    const configured = process.env.PLURNK_SWEBENCH_HARBOR_PYTHON;
+    if (configured && configured !== "python") return configured;
+    const cached = join(import.meta.dirname, "..", ".cache", "swebench", "venv", "bin", "python");
+    return existsSync(cached) ? cached : (configured ?? "python");
+};
+
 export async function runContainer(request: ContainerRequest, {
-    signal, timeoutMs, python = process.env.PLURNK_SWEBENCH_HARBOR_PYTHON ?? "python",
+    signal, timeoutMs, python = defaultHarborPython(),
     resolverConfig = process.env.PLURNK_SWEBENCH_RESOLV_CONF ?? "",
 }: {
     signal?: AbortSignal; timeoutMs?: number; python?: string; resolverConfig?: string;

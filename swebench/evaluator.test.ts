@@ -15,7 +15,7 @@ import { fileURLToPath } from "node:url";
 import { getSystemErrorName, parseEnv } from "node:util";
 import { readTrialRow, render, summarize, verdictOf } from "./report.ts";
 import { donePairs } from "./plan.ts";
-import { plurnkEnvironment } from "./runtime.ts";
+import { plurnkEnvironment, resolveRouteModelUrls } from "./runtime.ts";
 
 // ─── evaluator.test.ts ───
 {
@@ -415,5 +415,23 @@ test("{§swebench-evaluator} an operator-declared credential name replaces catal
         PLURNK_PROVIDERS_PROVIDER_DEEPSEEK_API_KEY_ENV: env.PLURNK_PROVIDERS_PROVIDER_DEEPSEEK_API_KEY_ENV,
         TEAM_MODEL_KEY: env.TEAM_MODEL_KEY,
     });
+});
+
+test("{§swebench-evaluator} route endpoint URLs resolve from alias overrides, provider overrides, catalog APIs, and native adapter defaults", async () => {
+    assert.deepEqual(await resolveRouteModelUrls(root, "google/gemini-3.1-pro-preview", {}), [
+        "https://generativelanguage.googleapis.com/v1beta",
+    ]);
+    assert.deepEqual(await resolveRouteModelUrls(root, "openrouter/qwen/qwen3-coder", {}), [
+        "https://openrouter.ai/api/v1",
+    ]);
+    assert.deepEqual(await resolveRouteModelUrls(root, "deepseek/deepseek-chat", {}), [
+        "https://api.deepseek.com",
+    ]);
+    assert.deepEqual(await resolveRouteModelUrls(root, "local", {
+        PLURNK_MODEL_local: "openai/local-model",
+        PLURNK_BASEURL_local: "http://127.0.0.1:11435/v1",
+    }), [
+        "http://127.0.0.1:11435/v1",
+    ]);
 });
 }

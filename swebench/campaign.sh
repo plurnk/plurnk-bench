@@ -12,6 +12,13 @@
 # Usage: swebench/campaign.sh --corpus <label> [--model <alias>] [--attempts N] [--jobs N] [--limit N] [--only id,id] [--skip id,id] [--halt-on pass|clean] [--preflight]
 #        swebench/campaign.sh --resume <campaign-dir> [--jobs N] [--limit N] [--only id,id] [--skip id,id] [--halt-on pass|clean]
 set -euo pipefail
+
+if [ -S /var/run/docker.sock ] && [ ! -w /var/run/docker.sock ] && [ "${PLURNK_SWEBENCH_DOCKER_READY:-0}" != "1" ]; then
+    export PLURNK_SWEBENCH_DOCKER_READY=1
+    printf -v quoted '%q ' "$0" "$@"
+    exec sg docker -c "exec $quoted"
+fi
+
 # Everything runs inside main(), and the invocation line exits, so bash never reads past the byte it
 # reached when the campaign began: an edit to this script while a campaign runs cannot shift what the
 # running shell reads next (bash reads a script by offset; a longer file once made it parse a fragment
@@ -19,8 +26,10 @@ set -euo pipefail
 main() {
     bench_root="$(cd "$(dirname "$0")/.." && pwd)"
     corpus=""; attempts=""; jobs="${PLURNK_BENCH_JOBS:-1}"; model="${PLURNK_MODEL:-}"; limit=0; only=""; skip=""; preflight=""; resume=""; halt_on="pass"
+    usage="usage: swebench/campaign.sh --corpus <label> [--model <alias>] [--attempts N] [--jobs N] [--limit N] [--only id,id] [--skip id,id] [--halt-on pass|clean] [--preflight] | --resume <campaign-dir> [--jobs N] [--limit N] [--only id,id] [--skip id,id] [--halt-on pass|clean]"
     while [ $# -gt 0 ]; do
         case "$1" in
+            --help|-h) echo "$usage"; exit 0 ;;
             --corpus) corpus="$2"; shift 2 ;;
             --model) model="$2"; shift 2 ;;
             --attempts) attempts="$2"; shift 2 ;;
@@ -34,9 +43,11 @@ main() {
             *) echo "campaign: unknown argument $1" >&2; exit 2 ;;
         esac
     done
-    usage="usage: swebench/campaign.sh --corpus <label> [--model <alias>] [--attempts N] [--jobs N] [--limit N] [--only id,id] [--skip id,id] [--halt-on pass|clean] [--preflight] | --resume <campaign-dir> [--jobs N] [--limit N] [--only id,id] [--skip id,id] [--halt-on pass|clean]"
     case "$halt_on" in pass|clean) ;; *) echo "campaign: --halt-on takes pass or clean" >&2; exit 2 ;; esac
     cd "$bench_root"
+    if [ -z "$model" ]; then
+        model="$(node --input-type=module -e 'import { loadBenchmarkEnvironment, selectedModel } from "./src/host-paths.ts"; loadBenchmarkEnvironment(process.env.PLURNK_SWEBENCH_OPERATOR_ENV, "./.env.defaults"); try { console.log(selectedModel()); } catch {}')"
+    fi
     launch="$(date -u +%Y%m%dT%H%M%SZ)"
     field() { node -e 'const record = require(process.argv[1]); const value = record[process.argv[2]]; console.log(value === null || value === undefined ? "" : value)' "$1" "$2"; }
     if [ -n "$resume" ]; then
@@ -89,7 +100,7 @@ main() {
     const [file, launch, limit, only, skip, jobs, haltOn, ...pairs] = process.argv.slice(1);
     require("node:fs").writeFileSync(file, JSON.stringify({ launch, limit: Number(limit), only, skip, jobs: Number(jobs), haltOn, pairs }, null, 2) + "\n");
     ' "$campaign/launch-$launch.json" "$launch" "$limit" "$only" "$skip" "$jobs" "$halt_on" "${pairs[@]}"
-    export CAMPAIGN_DIR="$campaign" CAMPAIGN_MODEL="$model" CAMPAIGN_PREFLIGHT="$preflight" CAMPAIGN_LAUNCH="$launch" CAMPAIGN_HALT_ON="$halt_on" BENCH_ROOT="$bench_root"
+    export CAMPAIGN_DIR="$campaign" CAMPAIGN_MODEL="$model" CAMPAIGN_PREFLIGHT="$preflight" CAMPAIGN_LAUNCH="$launch" CAMPAIGN_HALT_ON="$halt_on" BENCH_ROOT="$bench_root" PLURNK_SWEBENCH_SERVICE_ROOT="$service_root" PLURNK_SWEBENCH_CLIENT_ROOT="$client_root"
     run_one() {
         local id="$1" attempt="$2" log rc trial published verdict
         log="$CAMPAIGN_DIR/logs/${id}-a${attempt}-${CAMPAIGN_LAUNCH}.log"
@@ -125,7 +136,7 @@ main() {
     if [ "$preflight" = 0 ] && [ -z "${PLURNK_CANDIDATE_SKIP_BUILD:-}" ]; then
         echo "campaign: building $service_root and $client_root once" >&2
         (cd "$service_root" && npm run -s build > "$campaign/logs/build-service-$launch.log" 2>&1) || { echo "campaign: service build failed, see $campaign/logs/build-service-$launch.log" >&2; exit 1; }
-        (cd "$client_root" && npm run -s build > "$campaign/logs/build-client-$launch.log" 2>&1) || { echo "campaign: client build failed, see $campaign/logs/build-client-$launch.log" >&2; exit 1; }
+        node "$bench_root/src/candidate-client.ts" "$service_root" "$client_root" > "$campaign/logs/build-client-$launch.log" 2>&1 || { echo "campaign: client build failed, see $campaign/logs/build-client-$launch.log" >&2; exit 1; }
         export PLURNK_CANDIDATE_SKIP_BUILD=1
     fi
     echo "campaign: $campaign (${#pairs[@]} trials this launch, $jobs lane(s), model=${model:-preflight}, service=$(git -C "$service_root" rev-parse --short HEAD), client=$(git -C "$client_root" rev-parse --short HEAD))" >&2

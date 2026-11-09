@@ -19,10 +19,16 @@ uv pip install --python .cache/swebench/venv/bin/python swebench datasets harbor
 `PLURNK_SWEBENCH_PYTHON` selects a different interpreter. Container images need
 substantial disk space; the runner checks Docker's storage before launching.
 `PLURNK_SWEBENCH_HARBOR_PYTHON` selects the interpreter containing Harbor (default
-`python`). The candidate also needs a Linux x64 host's Node 26+ distribution and npm;
-the runner provisions the same Node runtime for Plurnk and Pi inside the image.
+`.cache/swebench/venv/bin/python` when present, otherwise `python`). The candidate
+also needs a Linux x64 host's Node 26+ distribution and npm; the runner provisions
+the same Node runtime for Plurnk and Pi inside the image.
 
-Select clean, installed service and client checkouts and your configured model:
+By default, `swebench/run.sh` (`npm run swebench -- ...`) and `swebench/campaign.sh`
+(`npm run ht30 -- ...`) resolve `../plurnk-service` and `../plurnk`, read `PLURNK_MODEL`
+and model aliases from `${XDG_CONFIG_HOME:-$HOME/.config}/plurnk/.env`, derive the
+active route's endpoint host allowlist automatically when `PLURNK_SWEBENCH_MODEL_HOSTS`
+is unset or `[]`, and activate the `docker` group via `sg docker` when needed. To
+override any of these explicitly:
 
 ```sh
 export PLURNK_SWEBENCH_SERVICE_ROOT=/path/to/plurnk-service

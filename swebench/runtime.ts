@@ -53,8 +53,10 @@ async function build(target: string, identity: Identity) {
             packages.push(...results.map(({ name, version, filename }) => ({ name, version, file: join(archives, filename) })));
         };
         if (identity.kind === "plurnk") {
-            await run("npm", ["run", "build"], identity.serviceRoot);
-            await buildCandidateClient(identity.serviceRoot, identity.clientRoot);
+            if (process.env.PLURNK_CANDIDATE_SKIP_BUILD !== "1") {
+                await run("npm", ["run", "build"], identity.serviceRoot);
+                await buildCandidateClient(identity.serviceRoot, identity.clientRoot);
+            }
             await pack(identity.serviceRoot, ["--workspaces"]);
             const projectionScript = existsSync(join(identity.serviceRoot, "scripts/lib/package-projection.mjs"))
                 ? join(identity.serviceRoot, "scripts/lib/package-projection.mjs")
@@ -84,6 +86,42 @@ async function build(target: string, identity: Identity) {
         await rm(archives, { recursive: true });
         await rename(stage, target);
     } finally { await rm(stage, { recursive: true, force: true }); }
+}
+
+const NATIVE_ADAPTER_URLS: Readonly<Record<string, string>> = {
+    openai: "https://api.openai.com/v1",
+    groq: "https://api.groq.com/openai/v1",
+    cerebras: "https://api.cerebras.ai/v1",
+    mistral: "https://api.mistral.ai/v1",
+    togetherai: "https://api.together.xyz/v1",
+    deepinfra: "https://api.deepinfra.com/v1/openai",
+    openrouter: "https://openrouter.ai/api/v1",
+    xai: "https://api.x.ai/v1",
+    google: "https://generativelanguage.googleapis.com/v1beta",
+    anthropic: "https://api.anthropic.com",
+};
+
+export async function resolveRouteModelUrls(serviceRoot: string, model: string, env: NodeJS.ProcessEnv): Promise<string[]> {
+    const require = createRequire(join(serviceRoot, "package.json"));
+    const { resolveActiveRoute } = await import(pathToFileURL(require.resolve("@plurnk/plurnk-aliases")).href);
+    const { lookupProvider } = await import(pathToFileURL(require.resolve("@plurnk/plurnk-models")).href);
+    const merged: NodeJS.ProcessEnv = { ...env, PLURNK_MODEL: model };
+    const route = resolveActiveRoute(merged);
+    if (!route) return [];
+    const prefix = String(route.provider).replaceAll(/[^A-Za-z0-9]/g, "_").toUpperCase();
+    const provider = lookupProvider(route.provider);
+    const region = merged.AWS_REGION ?? merged.AWS_DEFAULT_REGION ?? "us-east-1";
+    const nativeUrl = provider?.adapter === "amazon-bedrock"
+        ? `https://bedrock-runtime.${region}.amazonaws.com`
+        : (provider ? NATIVE_ADAPTER_URLS[provider.adapter] : undefined);
+    const rawUrl: string | undefined = route.baseUrl
+        ?? merged[`PLURNK_PROVIDERS_PROVIDER_${prefix}_BASE_URL`]
+        ?? merged[`${prefix}_BASE_URL`]
+        ?? provider?.api
+        ?? nativeUrl;
+    if (!rawUrl) return [];
+    const expanded = rawUrl.replaceAll(/\$\{([A-Z0-9_]+)\}/g, (_match: string, name: string) => merged[name] ?? "");
+    return [expanded];
 }
 
 export async function plurnkEnvironment(serviceRoot: string, model: string, env: NodeJS.ProcessEnv): Promise<NodeJS.ProcessEnv> {
