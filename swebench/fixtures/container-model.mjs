@@ -65,7 +65,7 @@ if (import.meta.main) {
         PLURNK_PROVIDERS_CONTEXT_WINDOW_fixture: "65536", PLURNK_PROVIDERS_OUTPUT_BUDGET_fixture: "4096",
         PLURNK_PROVIDERS_EFFORT_fixture: "adaptive", PLURNK_SERVICE_PROVIDER_RECOVERY: "0",
         PLURNK_EXECS_LUA: "1", PLURNK_SERVICE_FILES_ITEMS: "-1",
-        PLURNK_SERVICE_POLICY: "", PLURNK_SERVICE_PACKET_INJECT: "", PLURNK_SERVICE_ROOTS: "project",
+        PLURNK_SERVICE_POLICY: "", PLURNK_SERVICE_ROOTS: "project",
         OPENROUTER_API_KEY: "fixture-not-a-secret", PI_TELEMETRY: "0",
         PI_CODING_AGENT_DIR: join(evidence, "config"), PLURNK_PI_PROFILE: join(evidence, "profile.json"),
         PLURNK_PI_AGENT_DIR: evidence,

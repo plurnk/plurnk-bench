@@ -35,7 +35,6 @@ import {
     candidateOutcome,
     candidatePolicyPath,
     candidatePolicySnapshotPath,
-    candidateRecapSnapshotPath,
     candidateTimeoutMs,
     dockerImageId,
     EMPTY_SHA256,
@@ -101,7 +100,6 @@ export {
     candidateOutcome,
     candidatePolicyPath,
     candidatePolicySnapshotPath,
-    candidateRecapSnapshotPath,
     candidateTimeoutMs,
     captureTree,
     digestSummary,
@@ -176,14 +174,11 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         options: {
             preflight: { type: "boolean", default: false },
             task: { type: "string" },
-            recap: { type: "string" },
         },
         allowPositionals: false,
         strict: true,
     });
     const task = values.task ?? process.env.PLURNK_BENCHLET_TASK;
-    const recap = values.recap ?? process.env.PLURNK_BENCHLET_RECAP;
-    const candidateRecap = recap === undefined || recap.trim() === "" ? null : resolveFrom(process.cwd(), recap);
     if (task === undefined || task.trim() === "") throw new Error("benchlet requires a task name");
     const manifestPath = manifestPathForTask(task);
     if (!existsSync(manifestPath)) throw new Error(`benchlet has no pinned manifest for task: ${task}`);
@@ -241,7 +236,6 @@ const main = async (signal?: AbortSignal): Promise<void> => {
     }
     if (!existsSync(operatorEnv)) throw new Error(`operator model environment is missing: ${operatorEnv}`);
     if (!existsSync(candidatePolicy)) throw new Error(`candidate policy is missing: ${candidatePolicy}`);
-    if (candidateRecap !== null && !existsSync(candidateRecap)) throw new Error(`candidate recap is missing: ${candidateRecap}`);
 
     const config = validateFixture(manifest, taskDir);
     const imageId = manifest.environment.kind === "docker"
@@ -282,8 +276,6 @@ const main = async (signal?: AbortSignal): Promise<void> => {
     const runDir = allocateRun(runsRoot, manifest.task, model, isTreeManifest(manifest) ? "terminal-bench" : "deepswe");
     const candidatePolicySnapshot = candidatePolicySnapshotPath(runDir);
     copyFileSync(candidatePolicy, candidatePolicySnapshot);
-    const candidateRecapSnapshot = candidateRecap === null ? null : candidateRecapSnapshotPath(runDir);
-    if (candidateRecap !== null && candidateRecapSnapshot !== null) copyFileSync(candidateRecap, candidateRecapSnapshot);
     snapshotTask(runDir, manifestPath, manifest, taskDir);
     const startedAt = new Date();
     activeRunDir = runDir;
@@ -341,11 +333,6 @@ const main = async (signal?: AbortSignal): Promise<void> => {
                 sourcePath: candidatePolicy,
                 snapshotPath: candidatePolicySnapshot,
                 sha256: sha256(candidatePolicySnapshot),
-            },
-            candidateRecap: candidateRecap === null || candidateRecapSnapshot === null ? null : {
-                sourcePath: candidateRecap,
-                snapshotPath: candidateRecapSnapshot,
-                sha256: sha256(candidateRecapSnapshot),
             },
             shellCredentialKeys: environmentKeyNames(process.env),
         },
@@ -420,7 +407,6 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         PLURNK_CLIENT_CHECKOUT: clientRoot,
         ...(isTreeManifest(manifest) ? { PLURNK_MEMBERS_task: "**", PLURNK_MEMBERS_ENABLED: "1" } : {}),
         PLURNK_SERVICE_POLICY: candidatePolicySnapshot,
-        ...(candidateRecapSnapshot === null ? {} : { PLURNK_SERVICE_RECAP: candidateRecapSnapshot }),
         ...(timeless ? { PLURNK_CANDIDATE_GRADE_DEADLINE_SEC: String(candidateTimeout) } : {}),
     };
     writeJson(resolve(runDir, "candidate-command.json"), {

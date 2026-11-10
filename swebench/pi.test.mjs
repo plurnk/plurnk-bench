@@ -609,11 +609,11 @@ test("{§swebench-comparison}: every profile runs once per repetition in rotatin
     ].map((trial) => ({ instance: "specimen", ...trial })));
     assert.throws(() => planMatrix([profiles[0], profiles[0]], 1, ["specimen"]), /unique lowercase/);
     assert.throws(() => planMatrix(profiles, 0, ["specimen"]), /positive integer/);
-    assert.throws(() => planMatrix([{ name: "bad", env: { PLURNK_SERVICE_REASONING_ROWS: 0 } }], 1, ["specimen"]), /string values/);
+    assert.throws(() => planMatrix([{ name: "bad", env: { PLURNK_SERVICE_EMISSION_HISTORY: 0 } }], 1, ["specimen"]), /string values/);
     const packet = JSON.parse(readFileSync(new URL("./profiles/packet-memory.json", import.meta.url), "utf8"));
-    assert.equal(planMatrix(packet, 3, ["specimen"]).length, 27);
-    assert.equal(new Set(packet.map(({ env }) => JSON.stringify(env))).size, 9);
-    assert.ok(packet.every(({ env }) => Object.keys(env).every((name) => ["PLURNK_SERVICE_REASONING_ROWS", "PLURNK_SERVICE_REASONING_TRAILING_LINES", "PLURNK_SERVICE_EMISSION_HISTORY"].includes(name))));
+    assert.equal(planMatrix(packet, 3, ["specimen"]).length, 9);
+    assert.equal(new Set(packet.map(({ env }) => JSON.stringify(env))).size, 3);
+    assert.ok(packet.every(({ env }) => Object.keys(env).every((name) => ["PLURNK_SERVICE_EMISSION_HISTORY"].includes(name))));
 });
 
 test("{§swebench-comparison}: a corpus pairs every profile and repetition without duplicate purchases", () => {

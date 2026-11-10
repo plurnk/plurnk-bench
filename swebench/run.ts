@@ -329,7 +329,6 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             ...routeEnv,
             PLURNK_EXECS_PLURNK_QUESTION: "0",
             PLURNK_SERVICE_POLICY: "",
-            PLURNK_SERVICE_PACKET_INJECT: "",
             PLURNK_SERVICE_ROOTS: "project",
             ...isolation.overrides,
         };

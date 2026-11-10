@@ -6,7 +6,7 @@ import test from "node:test";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
-import { aliasConfiguration, allocateRun, captureTree, isTreeManifest, treeInstruction, parseTreeVerifierArtifacts, candidateTimeoutMs, candidateOutcome, producedNoPatch, EMPTY_SHA256, candidatePolicyPath, candidatePolicySnapshotPath, candidateRecapSnapshotPath, digestSummary, baselineInvalidity, EXECUTOR_SHIMS, executorShim, environmentExcludedP2p, gradeObservations, manifestPathForTask, parseGoTestEvents, parseTaskVerifierArtifacts, recordInfrastructureFailure, requiemIsComplete, requiemModelAlias, runToFiles, summarizeFailures, withoutExcluded } from "./benchlet.ts";
+import { aliasConfiguration, allocateRun, captureTree, isTreeManifest, treeInstruction, parseTreeVerifierArtifacts, candidateTimeoutMs, candidateOutcome, producedNoPatch, EMPTY_SHA256, candidatePolicyPath, candidatePolicySnapshotPath, digestSummary, baselineInvalidity, EXECUTOR_SHIMS, executorShim, environmentExcludedP2p, gradeObservations, manifestPathForTask, parseGoTestEvents, parseTaskVerifierArtifacts, recordInfrastructureFailure, requiemIsComplete, requiemModelAlias, runToFiles, summarizeFailures, withoutExcluded } from "./benchlet.ts";
 
 // ─── benchlet.test.ts ───
 {
@@ -18,11 +18,6 @@ test("{§benchlet-diagnostic} benchlet resolves and snapshots the service candid
     assert.equal(
         candidatePolicySnapshotPath("/artifacts/run46"),
         "/artifacts/run46/candidate-policy.md",
-    );
-    assert.equal(
-        candidateRecapSnapshotPath("/artifacts/run46"),
-        "/artifacts/run46/candidate-recap.md",
-        "a per-run recap is snapshotted beside the policy",
     );
 });
 
@@ -737,12 +732,6 @@ test("{§config-carry} smoke derives the allowlist from the run's aliases and fo
     assert.match(smoke, /providers\.json/);
     assert.match(smoke, /--agent-kwarg "egress_domains=\$EGRESS_DOMAINS"/);
     assert.match(smoke, /api\.tavily\.com/);
-});
-
-test("{§config-carry} the per-run recap rides into the container as a file, never as a tracked edit", () => {
-    assert.match(smoke, /PLURNK_BENCH_RECAP is not a readable file/);
-    assert.match(smoke, /--agent-kwarg "recap_path=\$\(readlink -f "\$PLURNK_BENCH_RECAP"\)"/);
-    assert.match(smoke, /"\$\{recap_flags\[@\]\}"/);
 });
 
 test("{§config-carry} the MCP fleet never rides into the container", () => {

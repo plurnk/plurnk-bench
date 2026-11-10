@@ -58,9 +58,6 @@ export const candidatePolicyPath = (serviceRoot: string): string =>
 export const candidatePolicySnapshotPath = (runDir: string): string =>
     resolve(runDir, "candidate-policy.md");
 
-export const candidateRecapSnapshotPath = (runDir: string): string =>
-    resolve(runDir, "candidate-recap.md");
-
 export const sha256 = (path: string): string =>
     createHash("sha256").update(readFileSync(path)).digest("hex");
 

@@ -89,8 +89,7 @@ The example disables the optional exit interview. To enable it, choose
 additional model call, accounted separately from task execution. Review other
 knobs in [.env.defaults](../.env.defaults).
 
-`--recap <file>` supplies a run-specific context-management footer, captured in
-provenance. `PLURNK_BENCHLET_TIMELESS=1` captures and grades the working tree at
+`PLURNK_BENCHLET_TIMELESS=1` captures and grades the working tree at
 the deadline as well as after an extended run; those are distinct results.
 
 For repeatable source lanes, `deepswe/relock.sh <service-ref> <client-ref> [<lanes-root>]`

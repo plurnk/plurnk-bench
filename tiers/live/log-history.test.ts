@@ -41,7 +41,7 @@ test("live: broad log KILL retires READ receipts without erasing program artifac
             "the completed model turn establishes a content program");
         const priorReads = (await s.db.test_log_entries_by_loop.all<{
             id: number; op: string | null; active: number; attrs: string;
-        }>({ loop_id: primedTurn.loop_id })).filter((row) => row.op === "read" && !LogEntryProjection.isEmission(row) && !LogEntryProjection.isReasoning(row));
+        }>({ loop_id: primedTurn.loop_id })).filter((row) => row.op === "read" && !LogEntryProjection.isEmission(row));
         const activePriorIds = priorReads.filter(({ active }) => active === 1).map(({ id }) => id);
         assert.ok(activePriorIds.length > 0, "the first loop's READ is available for curation");
 
