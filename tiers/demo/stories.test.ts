@@ -256,7 +256,7 @@ test("story: read the codename from notes.md", async (t) => {
     } finally { await story.cleanup(); }
 });
 
-test("story: self-audit — the model critiques its own packet for errors and ambiguities", async (t) => {
+test("story: self-audit — the model critiques its own packet for errors and ambiguities", { timeout: 1_800_000 }, async (t) => {
     // Meta-prompt (owner request): the model audits the packet it was handed, surfacing
     // instruction errors / inconsistencies / ambiguities neither the author nor the operator
     // sees from inside. Diagnostic, not pass/fail — the findings ARE the deliverable, so they
