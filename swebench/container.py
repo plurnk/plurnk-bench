@@ -89,7 +89,7 @@ def provisioning_command(request):
         f'useradd --system --uid {MODEL_UID} --user-group --home-dir {MODEL_HOME} --shell /bin/bash {MODEL_ACCOUNT} 2>/dev/null; '
         f'getent passwd {MODEL_ACCOUNT} >/dev/null && mkdir -p {MODEL_HOME} && chown {MODEL_ACCOUNT}:{MODEL_ACCOUNT} {MODEL_HOME} && chmod 700 {MODEL_HOME} '
         f'&& chown -R {owner} /testbed && chmod -R g+w /testbed && find /testbed -type d -exec chmod g+s {{}} + '
-        '&& chmod 700 /var/lib/plurnk'
+        '&& chmod 700 /var/lib/plurnk && rm -rf /root/.cache'
     )
 
 
@@ -100,6 +100,16 @@ def candidate_argv(request):
         "/opt/plurnk/runner.mjs",
         *request["argv"],
     ]
+
+
+def candidate_shell_command(argv):
+    return (
+        "ulimit -c 0; umask 002; export SHELL=/bin/bash HOME=/root/.plurnk "
+        "XDG_CONFIG_HOME=/root/.plurnk/.config "
+        "XDG_DATA_HOME=/root/.plurnk/.local/share "
+        "XDG_STATE_HOME=/root/.plurnk/.local/state "
+        "XDG_CACHE_HOME=/root/.plurnk/.cache; exec " + shlex.join(argv)
+    )
 
 
 async def run(request):
@@ -164,13 +174,7 @@ async def run(request):
         # candidates and the closed bundle stays off PATH ({§swebench-evaluator}).
         # Read the image's login files BEFORE assigning the isolated candidate
         # home. Otherwise SWE-bench's conda activation silently disappears.
-        command = (
-            "umask 002; export HOME=/root/.plurnk "
-            "XDG_CONFIG_HOME=/root/.plurnk/.config "
-            "XDG_DATA_HOME=/root/.plurnk/.local/share "
-            "XDG_STATE_HOME=/root/.plurnk/.local/state "
-            "XDG_CACHE_HOME=/root/.plurnk/.cache; exec " + shlex.join(argv)
-        )
+        command = candidate_shell_command(argv)
         env = {
             **request["env"], "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
             "NODE_OPTIONS": "", "NODE_USE_ENV_PROXY": "1",

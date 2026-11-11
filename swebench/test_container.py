@@ -5,7 +5,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from swebench.container import EnvironmentFormatter, candidate_argv, configuration, provisioning_command, resolver_configuration
+from swebench.container import EnvironmentFormatter, candidate_argv, candidate_shell_command, configuration, provisioning_command, resolver_configuration
 from swebench.oracle import inject_eval_fixes, install_harness_fixes
 
 
@@ -79,10 +79,14 @@ class ContainerContract(unittest.TestCase):
             self.assertEqual(configuration(request)[1]["network_mode"], "no-network")
             self.assertIn("chown -R plurnk:plurnk /testbed", provisioning_command({"argv": ["plurnk"]}))
             self.assertIn("chown -R $(id -u):$(id -g) /testbed", provisioning_command({"argv": ["pi"]}))
+            self.assertIn("rm -rf /root/.cache", provisioning_command({"argv": ["pi"]}))
             self.assertEqual(
                 candidate_argv({"argv": ["plurnk", "-p", "task"]}),
                 ["/opt/plurnk/bin/node", "/opt/plurnk/runner.mjs", "plurnk", "-p", "task"],
             )
+            shell_cmd = candidate_shell_command(candidate_argv({"argv": ["plurnk", "-p", "task"]}))
+            self.assertIn("ulimit -c 0;", shell_cmd)
+            self.assertIn("SHELL=/bin/bash", shell_cmd)
             self.assertEqual(
                 candidate_argv({"argv": ["pi"], "loopbackPorts": [11435]}),
                 ["/opt/plurnk/bin/node", "--import=/var/lib/plurnk/loopback.mjs", "/opt/plurnk/runner.mjs", "pi"],
