@@ -152,7 +152,6 @@ test("{§tier-corpus} publishTierSessions writes per-session record.json and a u
             tier: "live",
             runDir,
             model: "grok",
-            env: {},
         });
         assert.equal(records.length, 1);
         assert.equal(records[0]?.harness, "tier-live");

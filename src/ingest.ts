@@ -11,7 +11,6 @@ import { readFileSync, readdirSync, existsSync } from "node:fs";
 import { basename, join } from "node:path";
 import type { BenchRecord, Outcome, Usage } from "./record.ts";
 import { assertProviderAccountingProjection } from "./accounting.ts";
-import type { WebMaterializationProvenance } from "./web-materialization.ts";
 import {
     Problems,
     Validator,
@@ -191,41 +190,6 @@ const readJson = <T>(path: string): T | null => {
     }
 };
 
-interface BenchProvenanceArtifact {
-    schemaVersion: 1;
-    webMaterialization: WebMaterializationProvenance;
-}
-
-const exactKeys = (value: object, expected: string[]): boolean => {
-    const actual = Object.keys(value).sort();
-    const expectedSorted = expected.toSorted();
-    return actual.length === expected.length
-        && actual.every((key, index) => key === expectedSorted[index]);
-};
-
-const readWebMaterialization = (path: string): WebMaterializationProvenance | undefined => {
-    if (!existsSync(path)) return undefined;
-
-    const artifact = readJson<BenchProvenanceArtifact>(path);
-    if (
-        artifact === null
-        || typeof artifact !== "object"
-        || !exactKeys(artifact, ["schemaVersion", "webMaterialization"])
-        || artifact.schemaVersion !== 1
-        || typeof artifact.webMaterialization !== "object"
-        || artifact.webMaterialization === null
-        || !exactKeys(artifact.webMaterialization, ["tavily"])
-        || typeof artifact.webMaterialization.tavily !== "object"
-        || artifact.webMaterialization.tavily === null
-        || !exactKeys(artifact.webMaterialization.tavily, ["configured", "depth"])
-        || typeof artifact.webMaterialization.tavily.configured !== "boolean"
-        || !["basic", "advanced"].includes(artifact.webMaterialization.tavily.depth)
-    ) {
-        throw new Error(`invalid bench provenance artifact: ${path}`);
-    }
-    return artifact.webMaterialization;
-};
-
 const countPatchLines = (raw: string): number => {
     if (raw === "") return 0;
 
@@ -274,8 +238,6 @@ export const readTrial = (trialDir: string, meta: { harness: string; taskId: str
         ?? readRewardText(join(trialDir, "verifier", "reward.txt"));
     const dbPath = join(trialDir, "agent", "plurnk.db");
     const record = joinRecord({ ...meta, doc, reward, dbPath });
-    const webMaterialization = readWebMaterialization(join(trialDir, "agent", "plurnk-bench.json"));
-    if (webMaterialization !== undefined) record.webMaterialization = webMaterialization;
     // Carry the DB pointer as the digest handle when the loop doc dropped the coordinate.
     if (existsSync(dbPath) && record.run === undefined) record.run = { dbPath };
     // {§publish} — the candidate's own digest, rendered by the runtime that wrote the database.

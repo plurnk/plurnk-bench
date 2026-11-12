@@ -108,17 +108,6 @@ class DriverContractTest(unittest.TestCase):
         self.assertIn('snapshot_db "$DB" /logs/agent/plurnk.db', environment.command)
         self.assertNotRegex(environment.command, r"(?m)^cp ")
 
-    def test_web_materialization_provenance_contains_no_credential(self):
-        agent = driver.PlurnkAgent(tavily_configured="1", tavily_depth="advanced")
-        environment = types.SimpleNamespace()
-
-        asyncio.run(agent.run("task", environment, object()))
-
-        self.assertIn("/logs/agent/plurnk-bench.json", environment.command)
-        self.assertIn('"configured": true', environment.command)
-        self.assertIn('"depth": "advanced"', environment.command)
-        self.assertNotIn("TAVILY_API_KEY", environment.command)
-
     def test_snapshot_includes_committed_wal_state(self):
         # Keep the fixture and oracle independent of the Node backup path under test.
         agent = driver.PlurnkAgent()
@@ -155,20 +144,13 @@ class DriverContractTest(unittest.TestCase):
 
             self.assertEqual(row, ("from-wal",))
 
-    def test_kwargs_survive_pier_literal_parsing(self):
-        # Pier parses --agent-kwarg values as JSON/Python literals: `0` arrives as int.
-        agent = driver.PlurnkAgent(tavily_configured=0)
-
-        self.assertFalse(agent._tavily)
-        self.assertFalse(agent._web_materialization["webMaterialization"]["tavily"]["configured"])
-
     def test_network_allowlist_merges_runner_domains_and_base_url(self):
-        agent = driver.PlurnkAgent(egress_domains="api.deepseek.com, api.tavily.com")
+        agent = driver.PlurnkAgent(egress_domains="api.deepseek.com, openrouter.ai")
         agent._extra_env = {"PLURNK_BASEURL_local": "http://192.168.1.20:8080/v1"}
 
         self.assertEqual(
             agent.network_allowlist().domains,
-            ["api.deepseek.com", "api.tavily.com", "192.168.1.20"],
+            ["api.deepseek.com", "openrouter.ai", "192.168.1.20"],
         )
 
     def test_network_allowlist_fails_hard_without_model_egress(self):
@@ -208,15 +190,6 @@ class DriverContractTest(unittest.TestCase):
         self.assertIn("plurnk --json --yolo ", environment.command)
         self.assertNotIn("--proposals", environment.command)
         self.assertNotIn("--auto", environment.command)
-        self.assertNotIn("--flags", environment.command)
-
-    def test_configured_tavily_route_does_not_deny_web(self):
-        agent = driver.PlurnkAgent(tavily_configured="1")
-        environment = types.SimpleNamespace()
-
-        asyncio.run(agent.run("task", environment, object()))
-
-        self.assertNotIn("--capabilities", environment.command)
         self.assertNotIn("--flags", environment.command)
 
 

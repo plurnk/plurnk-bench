@@ -136,7 +136,6 @@ class DriverContractTest(unittest.TestCase):
         self.assertIn("/logs/agent/plurnk-mcp.json", environment.command)
         self.assertIn('"host": "10.0.0.5"', environment.command)
         self.assertIn(json.dumps(environment.env["PLURNK_MCP_fileserver"]), environment.command)
-        self.assertNotIn("plurnk-bench.json", environment.command)
 
     def test_kwargs_survive_harbor_literal_parsing(self):
         # Harbor parses --agent-kwarg values as literals: a numeric-looking host stays a string.

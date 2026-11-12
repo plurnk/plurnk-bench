@@ -14,7 +14,6 @@ import { benchmarksHome, loadBenchmarkEnvironment, selectedModel } from "../src/
 import { publishedRecord } from "../src/publish.ts";
 import type { BenchRecord, Outcome } from "../src/record.ts";
 import { sourceProvenance } from "../src/source-provenance.ts";
-import { webMaterializationProvenance } from "../src/web-materialization.ts";
 
 export type TierName = "live" | "demo";
 
@@ -171,12 +170,10 @@ export const publishTierSessions = ({
     tier,
     runDir,
     model,
-    env = process.env,
 }: {
     readonly tier: TierName;
     readonly runDir: string;
     readonly model: string;
-    readonly env?: NodeJS.ProcessEnv;
 }): {
     readonly records: BenchRecord[];
     readonly summary: ReturnType<typeof summarizeTasks>;
@@ -199,7 +196,6 @@ export const publishTierSessions = ({
 
     const records: BenchRecord[] = [];
     const sessionAccounting = new Map<string, ReturnType<typeof summarizeDigestAccounting>>();
-    const webMaterialization = webMaterializationProvenance(env);
 
     for (const entry of readdirSync(runDir, { withFileTypes: true })) {
         if (!entry.isDirectory()) continue;
@@ -237,7 +233,6 @@ export const publishTierSessions = ({
                 dbPath,
                 digestDir: join(sessionDir, "digest"),
             },
-            webMaterialization,
         };
         const finalized = publishedRecord(baseRecord, dbPath, digest);
         writeFileSync(join(sessionDir, "record.json"), `${JSON.stringify(finalized, null, 4)}\n`);
@@ -362,7 +357,6 @@ if (import.meta.main) {
                     ...(existsSync(serviceRoot) ? { service: sourceProvenance(serviceRoot) } : {}),
                     ...(existsSync(clientRoot) ? { client: sourceProvenance(clientRoot) } : {}),
                 },
-                webMaterialization: webMaterializationProvenance(process.env),
             },
             null,
             2,

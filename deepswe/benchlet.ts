@@ -20,7 +20,6 @@ import {
 } from "../src/host-paths.ts";
 import { requiredClientCheckout } from "../src/client-checkout.ts";
 import CandidateContainer from "../src/candidate-container.ts";
-import { webMaterializationProvenance } from "../src/web-materialization.ts";
 import {
     addSettledUsd,
     summarizeRequiemAccounting,
@@ -307,7 +306,6 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         // {§bench-relock}
         aliasConfiguration: aliasConfiguration(model, process.env),
         sources,
-        webMaterialization: webMaterializationProvenance(process.env),
         runtime: {
             node: process.version,
             platform: process.platform,

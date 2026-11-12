@@ -16,7 +16,7 @@
 # `all` is the official-corpus mode: it forwards the MINIMAL manifest — the model layer for
 # the run's aliases, their provider credentials, and the unattended executor switch. No MCP fleet, no web
 # keys, no foreign provider credentials inside a container that executes model-authored
-# commands; Tavily is forced absent (contamination honesty). Single-task mode keeps
+# commands. Single-task mode keeps
 # operator-config parity for diagnostics, minus the MCP fleet (structurally dead under the
 # schema-1.3 egress wall — booting servers whose traffic cannot pass only distorts runs).
 #
@@ -181,22 +181,6 @@ else
   done
 fi
 
-# SPEC {§config-carry}: Tavily is ordinary optional provider configuration. Carry
-# it when configured, retain the no-key default, and record only presence + effective depth.
-# The official corpus runs web-free: force the route absent in `all` mode.
-[ "$TASK" = all ] && TAVILY_API_KEY=""
-TAVILY_CONFIGURED=0
-[ -n "${TAVILY_API_KEY:-}" ] && TAVILY_CONFIGURED=1
-TAVILY_DEPTH="${PLURNK_SCHEMES_HTTP_TAVILY_DEPTH:-basic}"
-case "$TAVILY_DEPTH" in
-  basic|advanced) ;;
-  *) echo "smoke: PLURNK_SCHEMES_HTTP_TAVILY_DEPTH must be basic or advanced" >&2; exit 1;;
-esac
-TAVILY_ROUTE=absent
-[ "$TAVILY_CONFIGURED" = 1 ] && TAVILY_ROUTE="configured:$TAVILY_DEPTH"
-# A configured tavily route is deliberate web egress: allowlist its API host too.
-[ "$TAVILY_CONFIGURED" = 1 ] && EGRESS_DOMAINS="${EGRESS_DOMAINS:+$EGRESS_DOMAINS,}api.tavily.com"
-
 # SPEC {§config-carry}: use the task's native CPU allotment. An explicit
 # PLURNK_BENCH_CPUS override is diagnostic, not leaderboard-compliant.
 cpu_flags=()
@@ -244,7 +228,7 @@ if [ "$TASK" = all ]; then
   fi
 fi
 
-echo "smoke: model=$MODEL task=$TASK service=$SERVICE_VERSION client=$CLIENT_VERSION tavily=$TAVILY_ROUTE egress=$EGRESS_DOMAINS cpus=${PLURNK_BENCH_CPUS:-native} client_timeout=${CLIENT_TIMEOUT_SEC}s (budget ${AGENT_BUDGET:-?}s)${PLURNK_BENCH_FORCE_BUILD:+ [force-build]}" >&2
+echo "smoke: model=$MODEL task=$TASK service=$SERVICE_VERSION client=$CLIENT_VERSION egress=$EGRESS_DOMAINS cpus=${PLURNK_BENCH_CPUS:-native} client_timeout=${CLIENT_TIMEOUT_SEC}s (budget ${AGENT_BUDGET:-?}s)${PLURNK_BENCH_FORCE_BUILD:+ [force-build]}" >&2
 # The benchmark runs the product's default policy as-is: PLURNK_SERVICE_POLICY stays unset.
 # SPEC {§publish}: Pier's job scratch and the published runs share ONE tree.
 JOBS_ROOT="$(node src/publish.ts --jobs deepswe)"
@@ -257,8 +241,6 @@ PYTHONPATH=deepswe pier run -p .cache/deep-swe/tasks \
   --agent-kwarg "service_version=$SERVICE_VERSION" \
   --agent-kwarg "client_version=$CLIENT_VERSION" \
   --agent-kwarg "egress_domains=$EGRESS_DOMAINS" \
-  --agent-kwarg "tavily_configured=$TAVILY_CONFIGURED" \
-  --agent-kwarg "tavily_depth=$TAVILY_DEPTH" \
   "${cpu_flags[@]}" \
   "${build[@]}" \
   "${flags[@]}" \

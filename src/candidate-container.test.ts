@@ -10,7 +10,6 @@ import { promisify } from "node:util";
 import { candidateIsolation } from "./candidate-isolation.ts";
 import { requiredClientCheckout } from "./client-checkout.ts";
 import { packRecords, packedContracts } from "./npm-pack.ts";
-import { webMaterializationProvenance } from "./web-materialization.ts";
 
 // ─── candidate-container.test.ts ───
 {
@@ -175,7 +174,7 @@ test("{§benchlet-diagnostic} disables ambient endpoint and skill aliases withou
         PLURNK_MCP_ENABLED: "0",
         PLURNK_MCP_brave_ENABLED: "0", PLURNK_MCP_code_search_ENABLED: "0",
         PLURNK_SKILLS_3d_tools_ENABLED: "0", PLURNK_SKILLS_分析_ENABLED: "0",
-        BRAVE_API_KEY: "", TAVILY_API_KEY: "",
+        BRAVE_API_KEY: "",
         PLURNK_SERVICE_CAPABILITIES: "{\"deny\":[{\"traits\":[\"web\"]},{\"operation\":\"mcp\"}]}",
         PLURNK_SCHEMES_HTTP_HOSTS: "[]",
     });
@@ -272,34 +271,5 @@ test("{§bench-relock} the candidate client takes exactly the contracts package 
     assert.throws(() => packedContracts(JSON.stringify([contracts, service])), refused, "more than the contracts");
     assert.throws(() => packedContracts(JSON.stringify({ [service.name]: service })), refused, "the wrong package");
     assert.throws(() => packedContracts(JSON.stringify([{ name: contracts.name, version: "1.0.0" }])), refused, "a record without an archive name");
-});
-}
-
-// ─── web-materialization.test.ts ───
-{
-test("{§config-carry} absent Tavily configuration records the proprietary route as unavailable", () => {
-    assert.deepEqual(webMaterializationProvenance({
-        XAI_API_KEY: "model-secret",
-    }), {
-        tavily: { configured: false, depth: "basic" },
-    });
-});
-
-test("{§config-carry} configured Tavily records presence and depth without the secret", () => {
-    assert.deepEqual(webMaterializationProvenance({
-        TAVILY_API_KEY: "paid-secret",
-        PLURNK_SCHEMES_HTTP_TAVILY_DEPTH: "advanced",
-    }), {
-        tavily: { configured: true, depth: "advanced" },
-    });
-});
-
-test("{§config-carry} malformed extraction depth fails before a run", () => {
-    assert.throws(
-        () => webMaterializationProvenance({
-            PLURNK_SCHEMES_HTTP_TAVILY_DEPTH: "automatic",
-        }),
-        /PLURNK_SCHEMES_HTTP_TAVILY_DEPTH must be basic or advanced/,
-    );
 });
 }
