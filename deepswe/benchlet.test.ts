@@ -372,6 +372,7 @@ test("{§benchlet-diagnostic} benchlet groups terminal stream channels into one 
 test("{§benchlet-diagnostic} benchlet shell owns the operator environment bootstrap", () => {
     const shell = readFileSync(new URL("./benchlet.sh", import.meta.url), "utf8");
 
+    assert.match(shell, /PLURNK_BENCHLET_DOCKER_READY/);
     assert.match(shell, /PLURNK_BENCHLET_SHELL_READY/);
     assert.match(shell, /\.bashrc/);
     assert.match(shell, /exec node --conditions=plurnk-dev/);
