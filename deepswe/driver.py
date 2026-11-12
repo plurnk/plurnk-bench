@@ -50,33 +50,14 @@ class PlurnkAgent(BaseInstalledAgent):
         client_version: str | None = None,   # npm version spec, e.g. "0.40.2"; None = latest
         service_version: str | None = None,
         egress_domains: str = "",            # comma-separated model-endpoint hosts beyond the forwarded base URLs
-        tavily_configured: str = "0",
-        tavily_depth: str = "basic",
         *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
-        # Pier parses --agent-kwarg values as JSON/Python literals, so `0` arrives
-        # as an int — normalize the presence flag back to its string contract.
-        tavily_configured = str(tavily_configured)
-        if tavily_configured not in {"0", "1"}:
-            raise ValueError("tavily_configured must be 0 or 1")
-        if tavily_depth not in {"basic", "advanced"}:
-            raise ValueError("tavily_depth must be basic or advanced")
         self._client_timeout_sec = int(client_timeout_sec)
         self._client_version = client_version
         self._service_version = service_version
         self._egress_domains = [d.strip() for d in egress_domains.split(",") if d.strip()]
-        self._tavily = tavily_configured == "1"
-        self._web_materialization = {
-            "schemaVersion": 1,
-            "webMaterialization": {
-                "tavily": {
-                    "configured": tavily_configured == "1",
-                    "depth": tavily_depth,
-                },
-            },
-        }
 
     @staticmethod
     def name() -> str:
@@ -148,7 +129,6 @@ class PlurnkAgent(BaseInstalledAgent):
         escaped = shlex.quote(instruction)
         agent_dir = EnvironmentPaths.agent_dir          # /logs/agent
         record = agent_dir / "plurnk.json"               # client --json document → ingest
-        bench_provenance = agent_dir / "plurnk-bench.json"
         stderr = agent_dir / "plurnk.client.stderr"
         daemon_log = agent_dir / "plurnk-service.log"
         db_dest = agent_dir / "plurnk.db"                # daemon DB → digest drill-down
@@ -164,12 +144,10 @@ class PlurnkAgent(BaseInstalledAgent):
         })
 
         # Client approval is explicit (--yolo); the benchmark's environment owns
-        # server approval. Without a Tavily route, the workspace capability ceiling
-        # removes web tools and their teaching from the model's environment.
-        capability_args = ""
-        if not self._tavily:
-            capability_policy = {"deny": [{"traits": ["web"]}]}
-            capability_args = f"--capabilities {shlex.quote(json.dumps(capability_policy))} "
+        # server approval. The workspace capability ceiling removes web tools and
+        # their teaching from the model's environment.
+        capability_policy = {"deny": [{"traits": ["web"]}]}
+        capability_args = f"--capabilities {shlex.quote(json.dumps(capability_policy))} "
 
         # One shell exec: start daemon → wait for ACP → drive client at /app → commit
         # so `git diff base..HEAD` (Pier's pre_artifacts.sh) captures the work →
@@ -189,7 +167,6 @@ snapshot_db() {{
   ' "$1" "$2"
 }}
 plurnk-service start > {shlex.quote(str(daemon_log))} 2>&1 &
-printf '%s\n' {shlex.quote(json.dumps(self._web_materialization))} > {shlex.quote(str(bench_provenance))}
 for _ in $(seq 1 {DAEMON_READY_TIMEOUT_S}); do
   if plurnk models >/dev/null 2>&1; then break; fi
   sleep 1

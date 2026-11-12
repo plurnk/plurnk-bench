@@ -11,7 +11,6 @@
 //   - `outcome`/`reward`/`testPassFraction`: the Pier verifier's score — how the
 //     BENCHMARK graded the produced patch. A loop can end 200 and still fail the oracle.
 
-import type { WebMaterializationProvenance } from "./web-materialization.ts";
 import type {
     ProviderAccountingProjection,
 } from "./accounting.ts";
@@ -70,7 +69,6 @@ export interface BenchRecord {
     run?: RunRef;               // digest drill-down handle (absent if the run never started)
     startedAt?: string;         // ISO 8601, when available (Pier trial timing)
     finishedAt?: string;        // ISO 8601
-    webMaterialization?: WebMaterializationProvenance;
     // {§publish}: the banked exit interview's spend, folded in
     // post-interview so the run dir's ledger is complete in one file.
     requiem?: import("./accounting.ts").RequiemAccountingSummary;

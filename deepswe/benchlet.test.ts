@@ -720,19 +720,14 @@ test("{§config-carry} smoke pins resolved service and client publications", () 
     assert.doesNotMatch(smoke, /after a @plurnk version bump/);
 });
 
-test("{§config-carry} smoke carries configured Tavily like other optional web providers and records the route", () => {
+test("{§config-carry} smoke forwards provider base URLs and credentials in single-task mode", () => {
     assert.doesNotMatch(smoke, /PLAYWRIGHT/);
     assert.match(smoke, /_BASE_URL\$\|_API_KEY\$/);
-    assert.doesNotMatch(smoke, /TAVILY_API_KEY\|PLURNK_SCHEMES_HTTP_TAVILY_DEPTH\) continue/);
-    assert.match(smoke, /TAVILY_CONFIGURED/);
-    assert.match(smoke, /--agent-kwarg "tavily_configured=\$TAVILY_CONFIGURED"/);
-    assert.match(smoke, /--agent-kwarg "tavily_depth=\$TAVILY_DEPTH"/);
 });
 
 test("{§config-carry} smoke derives the allowlist from the run's aliases and forwards it to the driver", () => {
     assert.match(smoke, /providers\.json/);
     assert.match(smoke, /--agent-kwarg "egress_domains=\$EGRESS_DOMAINS"/);
-    assert.match(smoke, /api\.tavily\.com/);
 });
 
 test("{§config-carry} the MCP fleet never rides into the container", () => {
@@ -740,7 +735,6 @@ test("{§config-carry} the MCP fleet never rides into the container", () => {
 });
 
 test("{§config-carry} `all` mode runs the corpus web-free on the minimal manifest", () => {
-    assert.match(smoke, /\[ "\$TASK" = all \] && TAVILY_API_KEY=""/);
     assert.match(smoke, /select_flags=\(-i "\$PLURNK_BENCH_PREFLIGHT" --n-tasks 1\)/);
     assert.match(smoke, /select_flags=\(--n-concurrent "\$\{PLURNK_BENCH_JOBS:-4\}"\)/);
     assert.doesNotMatch(smoke, /\[ "\$TASK" = all \] && exit 0/);

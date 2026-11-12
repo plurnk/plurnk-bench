@@ -218,12 +218,10 @@ class PlurnkAgent(BaseInstalledAgent):
             question = _env_file(Path(__file__).resolve().parent.parent / ".env.defaults")["PLURNK_EXECS_PLURNK_QUESTION"]
         env["PLURNK_EXECS_PLURNK_QUESTION"] = question
 
-        # No web route -> the capability ceiling removes web tools and their
-        # teaching (contamination honesty, the DeepSWE posture).
-        capability_args = ""
-        if not self._host_env("TAVILY_API_KEY"):
-            deny_web = json.dumps({"deny": [{"traits": ["web"]}]})
-            capability_args = f"--capabilities {shlex.quote(deny_web)} "
+        # The capability ceiling removes web tools and their teaching
+        # (contamination honesty, the DeepSWE posture).
+        deny_web = json.dumps({"deny": [{"traits": ["web"]}]})
+        capability_args = f"--capabilities {shlex.quote(deny_web)} "
 
         # {§frontier-evidence}: persistence must not depend on reaching an exit hook.
         command = f"""

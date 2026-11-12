@@ -37,7 +37,6 @@ import {
     type AccountingSummary,
     type ProviderAccountingProjection,
 } from "../src/accounting.ts";
-import { webMaterializationProvenance } from "../src/web-materialization.ts";
 import { readDigest } from "../src/digest.ts";
 import { assertCleanSources } from "../src/source-provenance.ts";
 
@@ -646,7 +645,6 @@ const main = async (): Promise<void> => {
         task,
         model,
         sources,
-        webMaterialization: webMaterializationProvenance(process.env),
         image: {
             reference: image,
             id: resolvedImageId,
