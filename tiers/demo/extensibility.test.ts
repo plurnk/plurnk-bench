@@ -30,14 +30,14 @@ const integrate = async (t: TestContext, label: string, prompt: string): Promise
     } finally { await s.cleanup(); }
 };
 
-test("demo: integrate plurnk with an issue tracker's API", { timeout: 1_800_000 }, async (t) => {
+test("demo: integrate plurnk with an issue tracker's API", { timeout: 1_800_000, requires: ["context:128000"] }, async (t) => {
     await integrate(t, "extend-tracker", "Create an extension that integrates plurnk with Linear, so that you can read and update my Linear issues. Put whatever it needs in this project.");
 });
 
-test("demo: integrate plurnk into a chat bot", { timeout: 1_800_000 }, async (t) => {
+test("demo: integrate plurnk into a chat bot", { timeout: 1_800_000, requires: ["context:128000"] }, async (t) => {
     await integrate(t, "extend-chat", "Create an extension that integrates plurnk into a Discord bot, so people in a Discord channel can talk to plurnk. Put whatever it needs in this project.");
 });
 
-test("demo: watch plurnk notifications and send alerts", { timeout: 1_800_000 }, async (t) => {
+test("demo: watch plurnk notifications and send alerts", { timeout: 1_800_000, requires: ["context:128000"] }, async (t) => {
     await integrate(t, "extend-watch", "Create an extension that watches plurnk and posts to a webhook URL whenever a plurnk session loop finishes or fails. Put whatever it needs in this project.");
 });
