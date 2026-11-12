@@ -1,6 +1,6 @@
 // {§tier-corpus} — the terminal client's own real-model tier, driven from the service's live tier so
 // it has a census row: the client checkout (PLURNK_CLIENT_CHECKOUT, else `../plurnk`) runs
-// `npm run test:tui:live` against this checkout's service on the active route; its output lands in
+// `npm run test:term:live` against this checkout's service on the active route; its output lands in
 // the run directory. Skips by name when there is no client checkout.
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
@@ -13,12 +13,12 @@ import { checkoutPath } from "@plurnk/plurnk-service/harness";
 
 const SERVICE = resolve(process.env.PLURNK_SERVICE_CHECKOUT ?? join(process.cwd(), ".."));
 
-test("live client: the terminal client's real-model TUI tier passes against this service", {
+test("live client: the terminal client's real-model Term tier passes against this service", {
     timeout: 900_000,
     requires: ["checkout:client"],
 }, async () => {
     const client = checkoutPath("client");
-    const run = await liveRun("live-client-tui", { database: false });
+    const run = await liveRun("live-client-term", { database: false });
     const output = createWriteStream(join(run.runDir, "client.log"));
     let transcript = "";
     try {
@@ -26,7 +26,7 @@ test("live client: the terminal client's real-model TUI tier passes against this
         // make a nested runner refuse its files, so the child does not inherit it.
         const env: NodeJS.ProcessEnv = { ...process.env, PLURNK_SERVICE_CHECKOUT: SERVICE };
         delete env.NODE_TEST_CONTEXT;
-        const child = spawn("npm", ["run", "-s", "test:tui:live"], { cwd: client, env, stdio: ["ignore", "pipe", "pipe"] });
+        const child = spawn("npm", ["run", "-s", "test:term:live"], { cwd: client, env, stdio: ["ignore", "pipe", "pipe"] });
         for (const stream of [child.stdout, child.stderr]) {
             stream.setEncoding("utf8");
             stream.on("data", (chunk: string) => { transcript += chunk; });
