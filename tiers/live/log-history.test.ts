@@ -49,7 +49,7 @@ test("live: broad log KILL retires READ receipts without erasing program artifac
             s,
             3,
             {
-                prompt: "Retire every READ observation from the prior loop with one broad KILL against `log:///1/**/read`, then confirm completion without curating this loop.",
+                prompt: "Retire every read observation from the prior loop with one broad kill against `log:///1/**/read`, then confirm completion without curating this loop.",
                 maxTurns: 4,
             },
             { signal: t.signal },

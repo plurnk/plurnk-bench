@@ -7,7 +7,7 @@ test("live: full-text READ answers from the selected source lines", async (t) =>
     try {
         await seedEntry(s.db, s.workspaceId, { pathname: "maintenance.md", content: "The database backup runs on Sunday.\nThe irrigation check runs on Tuesday.\nThe fire alarm test runs on Friday." });
         const loop = await liveLoop(s, 2, {
-            prompt: "Use a full-text pattern on a READ of workspace:///maintenance.md to find the irrigation check. On which day does it run?",
+            prompt: "Use a full-text pattern on a read of workspace:///maintenance.md to find the irrigation check. On which day does it run?",
         }, { signal: t.signal });
         assert.equal(loop.finalStatus, 200);
         assert.match(loop.lastContent, /Tuesday/);

@@ -1,6 +1,6 @@
-// {§tier-corpus} (#893): every EDIT addressing form the card teaches, witnessed live. Each
-// specimen is one sentence whose natural EDIT is one form. The landing is asserted on the entry's
-// content: exactly one EDIT, no refusal on the way, authored in a taught form. Which taught form
+// {§tier-corpus} (#893): every plurnk.edit addressing form the schema teaches, witnessed live. Each
+// specimen is one sentence whose natural edit is one form. The landing is asserted on the entry's
+// content: exactly one edit, no refusal on the way, authored in a taught form. Which taught form
 // the model chose is reported, not required — models take any taught address that lands, and the
 // census on the ladder measures the distribution; the specimen measures the landing.
 import assert from "node:assert/strict";
@@ -16,7 +16,7 @@ const editForms = async (s: LiveWorkspace, sessionId: number): Promise<{ form: E
     return rows.map((row) => ({ form: DigestRender.editForm(row), status: row.status_rx }));
 };
 
-// The card teaches every form but the three-mark offset scope.
+// mcp:///plurnk/edit.json teaches every form but the three-mark offset scope.
 const TAUGHT: readonly EditForm[] = EDIT_FORMS.filter((form) => form !== "offset");
 
 const FORMS: readonly {

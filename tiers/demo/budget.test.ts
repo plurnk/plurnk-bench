@@ -4,7 +4,7 @@
 //
 // Every story is read friction first: a refused or failed model operation is a failure here even
 // when the final text is right, and so is a turn that answers an over-budget packet with anything
-// but KILL, MOVE or NOTE ({§tier-corpus}).
+// but kill, move or note ({§tier-corpus}).
 
 import { liveTest as test } from "@plurnk/plurnk-service/harness";
 import assert from "node:assert/strict";
@@ -20,7 +20,7 @@ import { measureFloor } from "./_floor-probe.ts";
 import { assertContextFitEvidence, seedAttachmentFixture } from "@plurnk/plurnk-service/harness";
 import { initializeDemoRepository } from "@plurnk/plurnk-service/harness";
 
-const OVER_BUDGET = "Context exceeds budget. YOU MUST ONLY KILL, MOVE or NOTE this turn."; // {§tier-corpus}
+const OVER_BUDGET = "Context exceeds budget. YOU MUST ONLY kill, move or note this turn."; // {§tier-corpus}
 const CURATION = new Set(["kill", "move", "note"]);
 
 interface LoopRow { id: number; turn_id: number; op: string | null; origin: string; status_rx: number; rx: string; attrs: string }
@@ -46,7 +46,7 @@ const assertBudgetDiscipline = async (db: Db, loopId: number): Promise<{ overTur
         overTurns += 1;
         const program = rows.filter((row) => row.turn_id === turn.id && row.origin === "model" && !LogEntryProjection.isEmission(row));
         const offending = program.filter(({ op }) => op === null || !CURATION.has(op)).map(({ op }) => op);
-        assert.deepEqual(offending, [], `turn ${turn.id} answered an over-budget packet with ${offending.join(", ")}: only KILL, MOVE or NOTE may follow the row`);
+        assert.deepEqual(offending, [], `turn ${turn.id} answered an over-budget packet with ${offending.join(", ")}: only kill, move or note may follow the row`);
     }
     return { overTurns, modelTurns: turns.filter(({ kind, packet }) => kind === "inference" && packet !== null).length };
 };
@@ -102,7 +102,7 @@ test("budget: a long NOTE in a tight room — receipts by prefix, curation by th
     const doc = await seedLedgerFixture();
     const lifetime = new AsyncDisposableStack();
     lifetime.defer(doc.cleanup);
-    const prompt = "First keep a NOTE quoting ledger.md entries 1 through 25 verbatim, one per line, so they survive curation. Then report the annual reconciliation code for the regional warehouse audit that ledger.md records.";
+    const prompt = "First keep a note quoting ledger.md entries 1 through 25 verbatim, one per line, so they survive curation. Then report the annual reconciliation code for the regional warehouse audit that ledger.md records.";
     try {
         const floor = await measureFloor({ signal: t.signal, label: "over-budget", projectRoot: doc.workspace, prompt });
         const capacity = Math.round(floor.weight * 1.4);

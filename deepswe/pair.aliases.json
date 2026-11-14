@@ -12,9 +12,9 @@
         "reasoningEffort": "max"
     },
     "kimi": {
-        "model": "openai/accounts/fireworks/models/kimi-k3",
+        "model": "openai/accounts/fireworks/models/kimi-k3p1-pro",
         "baseUrl": "https://api.fireworks.ai/inference/v1",
         "keyEnv": "FIREWORKS_API_KEY",
-        "reasoningEffort": "low"
+        "reasoningEffort": "max"
     }
 }

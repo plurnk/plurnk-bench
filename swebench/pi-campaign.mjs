@@ -62,7 +62,7 @@ export async function runCampaign({ corpus, profile, out, attempts, jobs, signal
     const writeSummary = () => {
         const summaries = completed.map(({ summary }) => summary);
         const charged = campaignPrice(summaries, "chargedUsd", "knownChargedUsd", (s) => s.requests - s.unpricedRequests);
-        const repriced = campaignPrice(summaries, "repricedUsd", "knownRepricedUsd", (s) => s.responsesWithTokenBreakdown);
+        const repriced = campaignPrice(summaries, "repricedUsd", "knownRepricedUsd", (s) => s.repricedResponses ?? s.responsesWithTokenBreakdown);
         save(join(out, "summary.json"), { planned: plan.trials.length, finished: completed.length,
             passes: completed.filter(({ reward }) => reward?.reward === 1).length,
             chargedUsd: charged.total, knownChargedUsd: charged.known,

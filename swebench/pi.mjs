@@ -189,7 +189,7 @@ export function summarizePi(agentDir, rates) {
     const subtotalUsage = Object.fromEntries(Object.entries(knownUsage).map(([key, value]) => [key,
         requests.length === 0 || (key === "reasoning" ? responsesWithReasoningBreakdown : responsesWithTokenBreakdown) > 0 ? value : null]));
     const limits = join(agentDir, "limits.jsonl");
-    return { requests: requests.length, responsesWithUsage, responsesWithTokenBreakdown, responsesWithReasoningBreakdown,
+    return { requests: requests.length, responsesWithUsage, responsesWithTokenBreakdown, responsesWithReasoningBreakdown, repricedResponses,
         chargedUsd: unpricedRequests === 0 ? chargedUsd : null,
         knownChargedUsd: requests.length === 0 || unpricedRequests < requests.length ? chargedUsd : null,
         unpricedRequests,
