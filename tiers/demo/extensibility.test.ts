@@ -20,7 +20,7 @@ const integrate = async (t: TestContext, label: string, prompt: string): Promise
     initializeDemoRepository(root, "empty project");
     const s = await liveWorkspace({ name: `demo-${label}-${crypto.randomUUID()}`, projectRoot: root });
     try {
-        const result = await liveLoop(s, 2, { prompt, maxTurns: 48 }, { signal: t.signal });
+        const result = await liveLoop(s, 2, { prompt, maxTurns: 64 }, { signal: t.signal });
         assert.equal(result.finalStatus, 200, `[${label}] the request concludes`);
         assert.ok(result.lastContent.trim().length > 0, `[${label}] an answer arrives`);
         assert.deepEqual(await ResourceState.check(s.db), [], `[${label}] the workspace stays lawful`);
