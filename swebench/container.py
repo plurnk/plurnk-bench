@@ -187,6 +187,8 @@ async def run(request):
             sys.stderr.write(result.stdout or result.stderr or "candidate exited without diagnostics\n")
         return result.return_code
     except asyncio.CancelledError:
+        for name in (signal.SIGINT, signal.SIGTERM):
+            loop.remove_signal_handler(name)
         if started:
             # Signal the supervisor, not every process by a shared name. Its
             # finally block stops the daemon and writes a consistent digest.
@@ -197,6 +199,8 @@ async def run(request):
             ), timeout_sec=65)
         return 143
     finally:
+        for name in (signal.SIGINT, signal.SIGTERM):
+            loop.remove_signal_handler(name)
         await environment.stop(delete=True)
 
 

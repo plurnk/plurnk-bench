@@ -23,8 +23,8 @@ export PLURNK_MODEL="your-model-alias"
 ## Run a tier or single specimen
 
 ```sh
-npm run tier:live -- --specimen "live: bare completion"
-npm run tier:demo -- --specimen "demo: one-entry loop reads and completes"
+npm run tier:live -- --specimen "{§tier-corpus} live: delegate two isolated questions and consume their answers"
+npm run tier:demo -- --specimen "budget: attachments beyond the room land as receipts; the model retrieves the recovery site"
 npm run tier:live
 npm run tier:demo
 ```

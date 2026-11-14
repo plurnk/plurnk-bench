@@ -12,7 +12,7 @@ import { liveTest as test } from "@plurnk/plurnk-service/harness";
 import assert from "node:assert/strict";
 import { liveWorkspace, liveLoop } from "@plurnk/plurnk-service/harness";
 
-test("live exec: model emits a sh fence and the spawn captures stdout", async (t) => {
+test("live exec: model emits plurnk.sh and the spawn captures stdout", async (t) => {
     const s = await liveWorkspace({ name: `live-exec-${crypto.randomUUID()}` });
     try {
         const userPrompt = [
@@ -20,11 +20,11 @@ test("live exec: model emits a sh fence and the spawn captures stdout", async (t
             "",
             "If you see the exec's stdout stream (a `sh:///...` entry) containing",
             "`plurnk-exec-live-ok`, emit this complete turn:",
-            'await plurnk.done({ text: "plurnk-exec-live-ok" });',
+            'plurnk.done({ text: "plurnk-exec-live-ok" })',
             "",
             "Otherwise, emit this complete turn to run `echo plurnk-exec-live-ok` and await its result:",
-            'await plurnk.sh({ text: "echo plurnk-exec-live-ok" });',
-            'await plurnk.wait({}); // Await the stdout probe result.',
+            'plurnk.sh({ text: "echo plurnk-exec-live-ok" })',
+            'plurnk.wait({}) // Await the stdout probe result.',
             "",
             "Do not repeat the command once you see the `sh:///...` stream entry in the log.",
         ].join("\n");
