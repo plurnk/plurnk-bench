@@ -33,7 +33,7 @@ test("members: a READ of an untracked file admits it as the model's own definiti
             prompt: `What coverage percentage does ${REPORT} record? It is generated output and is not committed. Reply with just the number.`,
             maxTurns: 8,
         }, { signal: t.signal });
-        const rows = await s.db.engine_render_log.all<LogRow>({ session_id: loop.modelSessionId });
+        const rows = await s.db.test_log_entries_by_loop.all<LogRow>({ loop_id: loop.loopId });
         const targetOf = (row: LogRow): string => { try { return (JSON.parse(row.tx) as { target?: { raw?: string } }).target?.raw ?? ""; } catch { return ""; } };
         const problemOf = (row: LogRow): { type?: string; recovery?: string } => { try { return (JSON.parse(row.rx) as { problem?: { type?: string; recovery?: string } }).problem ?? {}; } catch { return {}; } };
 

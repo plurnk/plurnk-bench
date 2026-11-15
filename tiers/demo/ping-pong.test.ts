@@ -33,7 +33,9 @@ test("delegation: ping/pong with one named session — spawn, answer, message by
         const pong = sessions.filter((session) => session.name === "pong");
         const logs = new Map<string, LogRow[]>();
         for (const session of sessions) {
-            logs.set(session.name, await s.db.engine_render_log.all<LogRow>({ session_id: session.id }));
+            const sessionLoops = await s.db.test_loop_queue_by_session.all<{ id: number }>({ session_id: session.id });
+            const rows = (await Promise.all(sessionLoops.map(({ id }) => s.db.test_log_entries_by_loop.all<LogRow>({ loop_id: id })))).flat();
+            logs.set(session.name, rows);
         }
         // Friction first: every model operation of every session succeeded.
         const refused = [...logs.entries()].flatMap(([name, rows]) => rows
