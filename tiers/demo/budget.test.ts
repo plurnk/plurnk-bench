@@ -26,7 +26,7 @@ const CURATION = new Set(["kill", "move", "note"]);
 interface LoopRow { id: number; turn_id: number; op: string | null; origin: string; status_rx: number; rx: string; attrs: string }
 
 // {§tier-corpus} — the loop's discipline: every turn whose packet was
-// over, its head carrying the over-budget row, was answered with curation alone, and no model
+// over, its notices carrying the over-budget mandate, was answered with curation alone, and no model
 // operation was refused. Fit receipts ({§tier-corpus}) are outcomes, never friction.
 const assertBudgetDiscipline = async (db: Db, loopId: number): Promise<{ overTurns: number; modelTurns: number }> => {
     const turns = await db.test_list_turns_in_loop.all<{ id: number; kind: string; status: number; packet: string | null }>({ loop_id: loopId });
@@ -40,13 +40,12 @@ const assertBudgetDiscipline = async (db: Db, loopId: number): Promise<{ overTur
     assert.deepEqual(refused, [], "friction first: no model operation was refused or failed, and no strike was recorded");
     let overTurns = 0;
     for (const turn of turns) {
-        const over = rows.some((row) => row.turn_id === turn.id && row.origin === "_plurnk"
-            && (JSON.parse(row.rx) as { problem?: { detail?: string } }).problem?.detail === OVER_BUDGET);
+        const over = turn.packet !== null && turn.packet.includes(OVER_BUDGET);
         if (!over) continue;
         overTurns += 1;
         const program = rows.filter((row) => row.turn_id === turn.id && row.origin === "model" && !LogEntryProjection.isEmission(row));
         const offending = program.filter(({ op }) => op === null || !CURATION.has(op)).map(({ op }) => op);
-        assert.deepEqual(offending, [], `turn ${turn.id} answered an over-budget packet with ${offending.join(", ")}: only kill, move or note may follow the row`);
+        assert.deepEqual(offending, [], `turn ${turn.id} answered an over-budget packet with ${offending.join(", ")}: only kill, move or note may follow the mandate`);
     }
     return { overTurns, modelTurns: turns.filter(({ kind, packet }) => kind === "inference" && packet !== null).length };
 };
