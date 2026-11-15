@@ -8,13 +8,31 @@ import { join } from "node:path";
 
 const evidence = "/var/lib/plurnk";
 const requests = [];
-const op = (header, body = "") => `\`\`\`\`${header}\n${body}\n\`\`\`\``;
-const programs = [
-    op("ts", 'await sh("printf \'shell original\\\\n\' > native.txt\\ngit status --short -- native.txt\\npwd\\npython -c \'import sys; print(sys.executable)\'");\nawait plurnk.note("created native.txt");'),
-    op("ts", 'await plurnk.read({ path: "native.txt" });\nawait plurnk.read({ path: "/testbed/native.txt" });\nawait plurnk.edit({ path: "/testbed/probe.js", content: \'import { readFileSync } from "node:fs"; console.log("NODE_READ=" + readFileSync("/testbed/native.txt", "utf8").trim());\' });\nawait plurnk.note("read native.txt and created probe.js");'),
-    op("ts", 'await plurnk.edit({ path: "native.txt", range: "1,-1", content: "native edited" });\nawait plurnk.note("edited native.txt");'),
-    op("ts", 'await node({ path: "probe.js" });\nawait plurnk.note("ran probe.js");'),
-    op("ts", 'await plurnk.done("FIXTURE_COMPLETE");'),
+const expressions = [
+    [
+        "plurnk.sh({ text: <<<EOF",
+        "printf 'shell original\\n' > native.txt",
+        "git status --short -- native.txt",
+        "pwd",
+        "python -c 'import sys; print(sys.executable)'",
+        "EOF})",
+        'plurnk.note({ text: "created native.txt" })',
+    ].join("\n"),
+    [
+        'plurnk.read({ path: "native.txt" })',
+        'plurnk.read({ path: "/testbed/native.txt" })',
+        'plurnk.edit({ path: "/testbed/probe.js", text: "import { readFileSync } from \\"node:fs\\"; console.log(\\"NODE_READ=\\" + readFileSync(\\"/testbed/native.txt\\", \\"utf8\\").trim());" })',
+        'plurnk.note({ text: "read native.txt and created probe.js" })',
+    ].join("\n"),
+    [
+        'plurnk.edit({ path: "native.txt", range: "1,-1", text: "native edited" })',
+        'plurnk.note({ text: "edited native.txt" })',
+    ].join("\n"),
+    [
+        'plurnk.js({ script: "probe.js" })',
+        'plurnk.note({ text: "ran probe.js" })',
+    ].join("\n"),
+    'plurnk.done({ text: "FIXTURE_COMPLETE" })',
 ];
 const tool = (id, name, args) => ({ index: 0, id, type: "function", function: { name, arguments: JSON.stringify(args) } });
 const piCalls = [
@@ -35,7 +53,7 @@ export function createFixtureServer(kind, evidenceDir = evidence) {
         const index = captured.length - 1;
         const pi = kind === "pi";
         const call = pi ? piCalls[index] : undefined;
-        const content = pi ? (call ? undefined : "FIXTURE_COMPLETE") : programs[index];
+        const content = pi ? (call ? undefined : "FIXTURE_COMPLETE") : expressions[index];
         if (!content && !call) { response.writeHead(409); response.end("Unexpected extra turn"); return; }
         const chunk = (delta, finish_reason = null) => ({ id: `fixture-${index}`, object: "chat.completion.chunk",
             created: 1, model: "fixture", choices: [{ index: 0, delta, finish_reason }] });

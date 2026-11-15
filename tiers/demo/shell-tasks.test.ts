@@ -1,5 +1,5 @@
 // Demos that require the model to run shell commands to answer
-// correctly. Natural prompts — no syntax hints, no mention of execution,
+// correctly. Natural prompts — no MCP expression hints, no mention of execution,
 // no exec:/// references. The model has to recognize from plurnk.md's
 // sysprompt that execution is the right tool.
 //

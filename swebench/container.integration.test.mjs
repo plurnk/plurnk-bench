@@ -59,10 +59,10 @@ for (const kind of ["plurnk", "pi"]) test(`{§swebench-evaluator} installed ${ki
         assert.equal(reads.length, 2, "relative and absolute native READ address one file");
         assert.ok(reads.every((row) => row.status_rx === 200));
         assert.deepEqual(digest.log_entries.filter((row) => row.status_rx >= 400), [], "no operation failed behind the final answer");
-        assert.ok(digest.log_entries.some((row) => row.op === "node" && row.status_rx === 200));
+        assert.ok(digest.log_entries.some((row) => row.op === "js" && row.status_rx === 200));
         assert.match(await readFile(join(repository, "probe.js"), "utf8"), /NODE_READ=/);
         await assert.rejects(access(join(repository, "testbed")), { code: "ENOENT" });
-        assert.doesNotMatch(JSON.stringify(requests[0].messages), /```lua /, "missing optional interpreter is not advertised");
+        assert.doesNotMatch(JSON.stringify(requests[0].messages), /plurnk\.lua/, "missing optional interpreter is not advertised");
         assert.match(await readFile(join(agent, "plurnk.stdout.log"), "utf8"), /FIXTURE_COMPLETE/);
     } else assert.match(await readFile(join(agent, "pi.stdout.jsonl"), "utf8"), /FIXTURE_COMPLETE/);
     // Completed fixture data is reproducible; retain only failure evidence.

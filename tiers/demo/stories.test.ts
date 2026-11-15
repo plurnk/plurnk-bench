@@ -17,7 +17,7 @@
 //     thing" — gives weaker models a clear stopping point. Open-ended phrasings
 //     let small models over-investigate and stall on Completion.
 //   - The configurable timeout leaves room for multi-step local-model reasoning.
-//   - Assertions target task outcomes and named behavioral invariants, not incidental exact OP sequences.
+//   - Assertions target task outcomes and named behavioral invariants, not incidental exact MCP expression sequences.
 
 import { liveTest as test } from "@plurnk/plurnk-service/harness";
 import assert from "node:assert/strict";

@@ -1,5 +1,5 @@
 // Live exec — STRUCTURAL prompts allowed here. The model is explicitly
-// told to use the execution op shape per plurnk.md; we're testing the
+// told to emit the `plurnk.sh` MCP expression per plurnk.md; we're testing the
 // machinery (parser → engine → exec scheme → spawn → channels → wake)
 // against a real provider, not the model's tool-discovery ability.
 //

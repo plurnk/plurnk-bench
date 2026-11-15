@@ -2,7 +2,7 @@
 // came out. This is the canonical "create artifact + execute it"
 // workflow — common across real assistant interactions.
 //
-// User-facing prompt is natural: no operation syntax, no
+// User-facing prompt is natural: no MCP expressions, no
 // mention of `exec:///` or file conventions. Pure intent.
 //
 // Driven through the REAL prod loop (loop.run via the daemon). workspace.create

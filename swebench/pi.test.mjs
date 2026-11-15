@@ -570,7 +570,7 @@ for (const { provider, api, effort, credential } of [
                 else assert.equal(request.reasoning_effort, effort);
                 if (api === "openai-completions") assert.equal(request.max_tokens, undefined);
                 assert.equal(request.frequency_penalty, undefined);
-                assert.doesNotMatch(JSON.stringify(request.messages), /FORBIDDEN_PERSONAL_CONTEXT_MARKER|Operation Syntax|plurnk\.md/);
+                assert.doesNotMatch(JSON.stringify(request.messages), /FORBIDDEN_PERSONAL_CONTEXT_MARKER|MCP expressions|plurnk\.md/);
             }
             assert.equal(readFileSync(join(repo, "native.txt"), "utf8"), "native write");
             if (turnCap > 1) assert.match(JSON.stringify(requests[1].messages), /NATIVE_SHELL_PATH_USED/);
