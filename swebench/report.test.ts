@@ -115,8 +115,7 @@ test("{§swebench-comparison} the campaign sheet counts friction before verdicts
     const sheet = render({ corpus: "harnesstax-swe-lite-30", model: "deepdumb", ids: ["a", "b", "c"] }, rows, summary);
     assert.match(sheet, /## Friction[\s\S]*## Verdicts[\s\S]*## Spend[\s\S]*## Trials/, "friction first, then verdicts, then spend");
     assert.match(sheet, /failed authored receipts by family: edit 2/);
-    assert.match(sheet, /fence-free content: 3; with admitted content operations: 0; engine no-operation outcomes: 3/);
-    assert.match(sheet, /turn evidence: 3\/3 trials; raw content 3\/3 model turns/);
+    assert.match(sheet, /turn evidence: 3\/3 trials; raw content 3\/3 model turns; engine no-operation outcomes: 3/);
     assert.match(sheet, /- EDITs: 5 \(hash 4, whole 1\) · refused 0 · revisits 1/, "EDIT friction reads on the sheet before verdicts");
     assert.match(sheet, /\| 5\/0\/1 \|/, "a trial row carries count\/refused\/revisits");
     assert.match(sheet, /\| — \| TimeoutError/, "a trial whose digest has no census reads as unknown, not zero");
@@ -336,9 +335,9 @@ const trial = (t: TestContext, turns: Array<{ id: number; program?: string | nul
     return readTrialRow(root, 1)!;
 };
 
-test("{§swebench-comparison} nineteen fence-free emissions include seven admitted programs and twelve no-operation turns", (t) => {
+test("{§swebench-comparison} nineteen raw emissions include seven admitted turns and twelve no-operation turns", (t) => {
     const turns = Array.from({ length: 19 }, (_, index) => ({
-        id: index + 1, producer: "model", program: index < 7 ? "<invoke name=\"sh\">printf 42</invoke>" : "I will inspect the project.",
+        id: index + 1, producer: "model", program: index < 7 ? "{\"server\":\"plurnk\",\"tool\":\"sh\",\"arguments\":{\"text\":\"printf 42\"}}" : "",
     }));
     const entries = turns.flatMap(({ id }) => id <= 7 ? [
         entry({ id: id * 2, turn_id: id, origin: "_plurnk", attrs: { kind: "emission" } }),
@@ -347,16 +346,16 @@ test("{§swebench-comparison} nineteen fence-free emissions include seven admitt
         status_rx: 422, problem: { type: noOperation } })]);
     const row = trial(t, turns, entries);
     assert.deepEqual(row.friction.turns, {
-        modelTurns: 19, rawEmissions: 19, fenceFree: 19, fenceFreeAdmitted: 7, noOperation: 12,
+        modelTurns: 19, rawEmissions: 19, noOperation: 12,
     });
 });
 
-test("{§swebench-comparison} admission outcomes do not follow fence shape, content presence, or copied programs", () => {
+test("{§swebench-comparison} admission outcomes do not follow content presence or copied programs", () => {
     const result = frictionOf({
         turn_attempts: [{ turn_id: 1 }, { turn_id: 2 }, { turn_id: 2 }, { turn_id: 3 }, { turn_id: 4 }],
         turns: [
             { id: 0, program: "initialization" }, { id: 1, program: "" },
-            { id: 2, program: "```not-an-operation\n```" }, { id: 3, program: "```ts\nawait plurnk.read({ path: \"file\" });\n```" },
+            { id: 2, program: "unstructured" }, { id: 3, program: "{\"server\":\"plurnk\",\"tool\":\"read\",\"arguments\":{\"path\":\"file\"}}" },
             { id: 4, program: null }, { id: 5, program: "copied no-operation" },
         ],
         log_entries: [
@@ -369,12 +368,12 @@ test("{§swebench-comparison} admission outcomes do not follow fence shape, cont
             entry({ turn_id: 5, origin: "_plurnk", inherited_history: true, op: "error", problem: { type: noOperation }, status_rx: 422 }),
         ],
     });
-    assert.deepEqual(result.turns, { modelTurns: 4, rawEmissions: 3, fenceFree: 1, fenceFreeAdmitted: 0, noOperation: 1 });
+    assert.deepEqual(result.turns, { modelTurns: 4, rawEmissions: 3, noOperation: 1 });
 });
 
 test("{§swebench-comparison} failed receipts preserve provenance and channels do not multiply failed executions", (t) => {
     const failure = { status_rx: 500, problem: { type: nonzero }, target: "sh:///process#stdout" };
-    const row = trial(t, [{ id: 1, program: "```ts\nawait plurnk.read({ path: \"sh:///process\" });\n```" }], [
+    const row = trial(t, [{ id: 1, program: "{\"server\":\"plurnk\",\"tool\":\"read\",\"arguments\":{\"path\":\"sh:///process\"}}" }], [
         entry({ ...failure, ambient_event_id: 71 }),
         entry({ ...failure, origin: "_plurnk", target: "sh:///process#stderr" }),
         entry({ ...failure, origin: "_plurnk", target: "sh:///process#stdout" }),
@@ -408,7 +407,7 @@ test("{§swebench-comparison} absent evidence is unknown, while legacy receipts 
     assert.deepEqual(legacy.failures?.receipts, { authored: {}, automatic: {}, ambient: {}, inherited: { edit: 1 }, unknown: { edit: 1, read: 2 } });
     assert.deepEqual(legacy.failures?.executionStreams, [{ path: "sh:///old", receipts: 1 }]);
     const withoutRows = frictionOf({ turn_attempts: [{ turn_id: 1 }], turns: [{ id: 1, program: "hello" }] });
-    assert.deepEqual(withoutRows, { turns: { modelTurns: 1, rawEmissions: 1, fenceFree: 1, fenceFreeAdmitted: null, noOperation: null }, failures: null });
+    assert.deepEqual(withoutRows, { turns: { modelTurns: 1, rawEmissions: 1, noOperation: null }, failures: null });
     const summary = summarizeFriction([legacy, withoutRows, frictionOf(null), legacy]);
     assert.equal(summary.turnTrials, 3);
     assert.equal(summary.failureTrials, 2);

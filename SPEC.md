@@ -149,8 +149,6 @@ Exception type is preserved alongside state; only `verifier/reward.txt` determin
 | Friction View | Evidence and Meaning |
 | --- | --- |
 | Model turns | Distinct `turn_attempts.turn_id`; copied history and runtime turns are not new model work. |
-| Fence-free content | Raw `turn.program` has no backtick fence opener (format observation, not failed admission; missing source is unknown). |
-| Admitted fence-free content | Fence-free turn carrying an engine emission receipt (`attrs.kind=emission`). |
 | No-operation turns | Distinct attempted turns with an engine `error` receipt for `engine/rail/no-operation`. |
 | Failed receipts | Status `>= 400`, grouped by family and provenance (authored model work, automatic runtime, ambient, inherited history, or unknown; inheritance takes precedence). |
 | Failed execution streams | `read` receipts carrying an `executor/*` Problem, grouped by resource URI without channel fragment within one trial. |

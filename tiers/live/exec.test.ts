@@ -1,6 +1,6 @@
 // Live exec — STRUCTURAL prompts allowed here. The model is explicitly
-// told to emit the `plurnk.sh` MCP expression per plurnk.md; we're testing the
-// machinery (parser → engine → exec scheme → spawn → channels → wake)
+// told to invoke the `sh` tool via `mcp`; we're testing the
+// machinery (lowering → engine → exec scheme → spawn → channels → wake)
 // against a real provider, not the model's tool-discovery ability.
 //
 // Driven through the REAL prod loop (loop.run via the daemon — liveWorkspace +
@@ -12,19 +12,19 @@ import { liveTest as test } from "@plurnk/plurnk-service/harness";
 import assert from "node:assert/strict";
 import { liveWorkspace, liveLoop } from "@plurnk/plurnk-service/harness";
 
-test("live exec: model emits plurnk.sh and the spawn captures stdout", async (t) => {
+test("live exec: model invokes sh tool and the spawn captures stdout", async (t) => {
     const s = await liveWorkspace({ name: `live-exec-${crypto.randomUUID()}` });
     try {
         const userPrompt = [
             "Two-turn probe.",
             "",
             "If you see the exec's stdout stream (a `sh:///...` entry) containing",
-            "`plurnk-exec-live-ok`, emit this complete turn:",
-            'plurnk.done({ text: "plurnk-exec-live-ok" })',
+            "`plurnk-exec-live-ok`, call `mcp` with:",
+            '{"server":"plurnk","tool":"done","arguments":{"text":"plurnk-exec-live-ok"}}',
             "",
-            "Otherwise, emit this complete turn to run `echo plurnk-exec-live-ok` and await its result:",
-            'plurnk.sh({ text: "echo plurnk-exec-live-ok" })',
-            'plurnk.wait({}) // Await the stdout probe result.',
+            "Otherwise, call `mcp` to run `echo plurnk-exec-live-ok` and await its result:",
+            '{"server":"plurnk","tool":"sh","arguments":{"text":"echo plurnk-exec-live-ok"}}',
+            '{"server":"plurnk","tool":"wait","arguments":{},"aside":"Await the stdout probe result."}',
             "",
             "Do not repeat the command once you see the `sh:///...` stream entry in the log.",
         ].join("\n");

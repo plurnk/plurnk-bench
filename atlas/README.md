@@ -16,7 +16,7 @@ keeping the protocol claim precise:
 - The candidate's answer is the task loop's terminal content; an empty answer
   scores zero coverage without invoking Atlas's scorer.
 - The model must call an enabled `atlas` tool; an answer without a successful
-  `atlas` MCP expression does not pass the diagnostic.
+  `atlas` tool call does not pass the diagnostic.
 
 Atlas's bundled servers use older and mixed MCP revisions. The adapter does not
 claim that they are current. It preserves Atlas's task and sandbox boundary

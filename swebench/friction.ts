@@ -29,8 +29,6 @@ export type ReceiptCounts = Record<ReceiptOrigin, Record<string, number>>;
 export interface TurnFriction {
     modelTurns: number;
     rawEmissions: number;
-    fenceFree: number;
-    fenceFreeAdmitted: number | null;
     noOperation: number | null;
 }
 
@@ -62,16 +60,12 @@ export const frictionOf = (digest: FrictionInput | null): Friction => {
     const attempted = digest?.turn_attempts;
     const turnIds = new Set(attempted?.flatMap(({ turn_id }) => typeof turn_id === "number" ? [turn_id] : []));
     const raw = (digest?.turns ?? []).filter((turn) => turnIds.has(turn.id!) && typeof turn.program === "string");
-    const fenceFree = raw.filter((turn) => !/^ {0,3}```/mu.test(turn.program!));
-    const emitted = new Set(entries?.filter((entry) => entry.origin === "_plurnk" && entry.attrs?.kind === "emission").map((entry) => entry.turn_id));
     const noOperation = new Set(entries?.filter((entry) => entry.origin === "_plurnk" && entry.op === "error"
         && entry.inherited_history !== true && entry.ambient_event_id == null
         && entry.problem?.type === noOperationProblem && turnIds.has(entry.turn_id!)).map((entry) => entry.turn_id));
     const turns = attempted === undefined || attempted.some(({ turn_id }) => typeof turn_id !== "number") ? null : {
         modelTurns: turnIds.size,
         rawEmissions: raw.length,
-        fenceFree: fenceFree.length,
-        fenceFreeAdmitted: entries === undefined ? null : fenceFree.filter((turn) => emitted.has(turn.id)).length,
         noOperation: entries === undefined ? null : noOperation.size,
     };
     if (entries === undefined) return { turns, failures: null };
@@ -115,8 +109,8 @@ export const summarizeFriction = (items: readonly Friction[]): FrictionSummary =
         turnTrials: turns.length,
         failureTrials: failures.length,
         turns: turns.length === 0 ? null : {
-            modelTurns: sum(turns.map((turn) => turn.modelTurns)), rawEmissions: sum(turns.map((turn) => turn.rawEmissions)),
-            fenceFree: sum(turns.map((turn) => turn.fenceFree)), fenceFreeAdmitted: complete(turns.map((turn) => turn.fenceFreeAdmitted)),
+            modelTurns: sum(turns.map((turn) => turn.modelTurns)),
+            rawEmissions: sum(turns.map((turn) => turn.rawEmissions)),
             noOperation: complete(turns.map((turn) => turn.noOperation)),
         },
         receipts: failures.length === 0 ? null : receipts,

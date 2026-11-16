@@ -33,6 +33,7 @@ const provider = (): ModelProvider => new ModelProvider({
 test("live llama-server honors PLURNK's request-scoped reasoning allowance", { requires: [...REQUIRES] }, async () => {
     const response = await provider().generate({
         sessionId: "llama-reasoning-contract",
+        callKind: "bare",
         messages: [{
             role: "user",
             content: "Use at least 500 tokens of private reasoning before answering with exactly OK.",

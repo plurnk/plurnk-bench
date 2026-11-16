@@ -33,7 +33,7 @@ const HTTP_URL = "https://www.google.com/robots.txt";
 test("live web: a discovered http:// READ atomically materializes a real URL (no model, no mock)",
     { requires: [`url:${HTTP_URL}`] },
     async () => {
-        const source = `await plurnk.read({ path: ${JSON.stringify(HTTP_URL)} });`;
+        const source = `plurnk.read({ path: ${JSON.stringify(HTTP_URL)} })`;
         const parsed = PlurnkParser.parseStatements(source, { executors: fixtureExecutors(source) });
         const item = parsed.items.find((i: { kind: string; statement?: PlurnkStatement }) => i.kind === "statement" && i.statement?.op === "read") as { statement: PlurnkStatement } | undefined;
         if (item === undefined) throw new Error("parse produced no statement");

@@ -8,38 +8,53 @@ import { join } from "node:path";
 
 const evidence = "/var/lib/plurnk";
 const requests = [];
-const expressions = [
+const tool = (index, id, name, args) => ({ index, id, type: "function", function: { name, arguments: JSON.stringify(args) } });
+const plurnkTurns = [
     [
-        "plurnk.sh({ text: <<<EOF",
-        "printf 'shell original\\n' > native.txt",
-        "git status --short -- native.txt",
-        "pwd",
-        "python -c 'import sys; print(sys.executable)'",
-        "EOF})",
-        'plurnk.note({ text: "created native.txt" })',
-    ].join("\n"),
+        tool(0, "p0_0", "mcp", {
+            server: "plurnk",
+            tool: "sh",
+            arguments: {
+                text: [
+                    "printf 'shell original\\n' > native.txt",
+                    "git status --short -- native.txt",
+                    "pwd",
+                    "python -c 'import sys; print(sys.executable)'",
+                ].join("\n"),
+            },
+        }),
+        tool(1, "p0_1", "mcp", { server: "plurnk", tool: "note", arguments: { text: "created native.txt" } }),
+    ],
     [
-        'plurnk.read({ path: "native.txt" })',
-        'plurnk.read({ path: "/testbed/native.txt" })',
-        'plurnk.edit({ path: "/testbed/probe.js", text: "import { readFileSync } from \\"node:fs\\"; console.log(\\"NODE_READ=\\" + readFileSync(\\"/testbed/native.txt\\", \\"utf8\\").trim());" })',
-        'plurnk.note({ text: "read native.txt and created probe.js" })',
-    ].join("\n"),
+        tool(0, "p1_0", "mcp", { server: "plurnk", tool: "read", arguments: { path: "native.txt" } }),
+        tool(1, "p1_1", "mcp", { server: "plurnk", tool: "read", arguments: { path: "/testbed/native.txt" } }),
+        tool(2, "p1_2", "mcp", {
+            server: "plurnk",
+            tool: "edit",
+            arguments: {
+                path: "/testbed/probe.js",
+                text: 'import { readFileSync } from "node:fs"; console.log("NODE_READ=" + readFileSync("/testbed/native.txt", "utf8").trim());',
+            },
+        }),
+        tool(3, "p1_3", "mcp", { server: "plurnk", tool: "note", arguments: { text: "read native.txt and created probe.js" } }),
+    ],
     [
-        'plurnk.edit({ path: "native.txt", range: "1,-1", text: "native edited" })',
-        'plurnk.note({ text: "edited native.txt" })',
-    ].join("\n"),
+        tool(0, "p2_0", "mcp", { server: "plurnk", tool: "edit", arguments: { path: "native.txt", range: "1,-1", text: "native edited" } }),
+        tool(1, "p2_1", "mcp", { server: "plurnk", tool: "note", arguments: { text: "edited native.txt" } }),
+    ],
     [
-        'plurnk.js({ script: "probe.js" })',
-        'plurnk.note({ text: "ran probe.js" })',
-    ].join("\n"),
-    'plurnk.done({ text: "FIXTURE_COMPLETE" })',
+        tool(0, "p3_0", "mcp", { server: "plurnk", tool: "js", arguments: { script: "probe.js" } }),
+        tool(1, "p3_1", "mcp", { server: "plurnk", tool: "note", arguments: { text: "ran probe.js" } }),
+    ],
+    [
+        tool(0, "p4_0", "mcp", { server: "plurnk", tool: "done", arguments: { text: "FIXTURE_COMPLETE" } }),
+    ],
 ];
-const tool = (id, name, args) => ({ index: 0, id, type: "function", function: { name, arguments: JSON.stringify(args) } });
 const piCalls = [
-    tool("a", "bash", { command: "printf 'shell original\\n' > native.txt; git status --short -- native.txt; pwd; python -c 'import sys; print(sys.executable)'" }),
-    tool("b", "read", { path: "/testbed/native.txt" }),
-    tool("c", "edit", { path: "native.txt", oldText: "shell original", newText: "native edited" }),
-    tool("d", "bash", { command: 'node -e \'console.log("NODE_READ=" + require("node:fs").readFileSync("/testbed/native.txt", "utf8").trim())\'' }),
+    tool(0, "a", "bash", { command: "printf 'shell original\\n' > native.txt; git status --short -- native.txt; pwd; python -c 'import sys; print(sys.executable)'" }),
+    tool(0, "b", "read", { path: "/testbed/native.txt" }),
+    tool(0, "c", "edit", { path: "native.txt", oldText: "shell original", newText: "native edited" }),
+    tool(0, "d", "bash", { command: 'node -e \'console.log("NODE_READ=" + require("node:fs").readFileSync("/testbed/native.txt", "utf8").trim())\'' }),
 ];
 export function createFixtureServer(kind, evidenceDir = evidence) {
     const captured = [];
@@ -52,15 +67,15 @@ export function createFixtureServer(kind, evidenceDir = evidence) {
         if (process.env.FIXTURE_WAIT === "1") return;
         const index = captured.length - 1;
         const pi = kind === "pi";
-        const call = pi ? piCalls[index] : undefined;
-        const content = pi ? (call ? undefined : "FIXTURE_COMPLETE") : expressions[index];
-        if (!content && !call) { response.writeHead(409); response.end("Unexpected extra turn"); return; }
+        const calls = pi ? (piCalls[index] ? [piCalls[index]] : undefined) : plurnkTurns[index];
+        const content = pi && !calls ? "FIXTURE_COMPLETE" : undefined;
+        if (!content && !calls) { response.writeHead(409); response.end("Unexpected extra turn"); return; }
         const chunk = (delta, finish_reason = null) => ({ id: `fixture-${index}`, object: "chat.completion.chunk",
             created: 1, model: "fixture", choices: [{ index: 0, delta, finish_reason }] });
         response.writeHead(200, { "content-type": "text/event-stream" });
         response.write(`data: ${JSON.stringify(chunk({ role: "assistant", reasoning_content: "Perform the next fixture step." }))}\n\n`);
-        response.write(`data: ${JSON.stringify(chunk(call ? { tool_calls: [call] } : { content }))}\n\n`);
-        response.end(`data: ${JSON.stringify({ ...chunk({}, call ? "tool_calls" : "stop"), usage: {
+        response.write(`data: ${JSON.stringify(chunk(calls ? { tool_calls: calls } : { content }))}\n\n`);
+        response.end(`data: ${JSON.stringify({ ...chunk({}, calls ? "tool_calls" : "stop"), usage: {
             prompt_tokens: 100, completion_tokens: 80, total_tokens: 180, prompt_tokens_details: { cached_tokens: 0 },
         } })}\n\ndata: [DONE]\n\n`);
     });

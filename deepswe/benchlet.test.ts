@@ -193,7 +193,7 @@ test("{§benchlet-diagnostic} benchlet summary preserves the terminal loop Probl
                 status: 500,
                 content: "invalid emission",
                 problem: {
-                    type: "https://problems.plurnk.xyz/engine/generation/invalid-emission-exhausted",
+                    type: "https://problems.plurnk.xyz/engine/invalid-emission-exhausted",
                     status: 500,
                 },
             },
@@ -237,7 +237,7 @@ test("{§benchlet-diagnostic} benchlet summary preserves the terminal loop Probl
         terminalMessage: "invalid emission",
         terminatedBy: null,
         problem: {
-            type: "https://problems.plurnk.xyz/engine/generation/invalid-emission-exhausted",
+            type: "https://problems.plurnk.xyz/engine/invalid-emission-exhausted",
             status: 500,
         },
     }, {

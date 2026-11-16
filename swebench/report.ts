@@ -266,8 +266,7 @@ export const render = (campaign: { corpus?: string; model?: string | null; servi
         const failure = evaluationFailure(row.evaluation);
         return failure === null ? [] : [`- ${row.instance} attempt ${row.attempt}: evaluator: ${failure}; evidence ${join(row.evidence, "oracle", row.evaluation!.runId)}`];
     }),
-    `- turn evidence: ${summary.friction.turnTrials}/${summary.trials} trials; raw content ${num(summary.friction.turns?.rawEmissions ?? null)}/${num(summary.friction.turns?.modelTurns ?? null)} model turns`,
-    `- fence-free content: ${num(summary.friction.turns?.fenceFree ?? null)}; with admitted content operations: ${num(summary.friction.turns?.fenceFreeAdmitted ?? null)}; engine no-operation outcomes: ${num(summary.friction.turns?.noOperation ?? null)}`,
+    `- turn evidence: ${summary.friction.turnTrials}/${summary.trials} trials; raw content ${num(summary.friction.turns?.rawEmissions ?? null)}/${num(summary.friction.turns?.modelTurns ?? null)} model turns; engine no-operation outcomes: ${num(summary.friction.turns?.noOperation ?? null)}`,
     `- EDITs: ${summary.edits.count} (${pairs(summary.edits.forms)}) · refused ${summary.edits.refused} · revisits ${summary.edits.revisits}`,
     `- isolation witness: ${summary.isolation.webReferences} web references taught; ${summary.isolation.classifiedTrials}/${summary.trials} trials with classified operations: ${summary.isolation.webAttempts} model-issued web operations attempted, ${summary.isolation.webReads} served, ${summary.isolation.mcpCalls} MCP calls; ${summary.isolation.trialsTouched} trials leaked`,
     `- loops ended by the daemon (status ≥ 400): ${pairs(summary.loopsEnded)}`,
