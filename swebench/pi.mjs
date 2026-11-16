@@ -11,7 +11,7 @@ import { capturePatch, dockerImageId, exceptionInfo, prepareRepository, pruneIma
 const directory = dirname(fileURLToPath(import.meta.url));
 const json = (path, value) => writeFileSync(path, JSON.stringify(value, null, 2) + "\n");
 
-const HOSTED_CREDENTIALS = { openrouter: "OPENROUTER_API_KEY", deepseek: "DEEPSEEK_API_KEY", fireworks: "FIREWORKS_API_KEY" };
+const HOSTED_CREDENTIALS = { openrouter: "OPENROUTER_API_KEY", deepseek: "DEEPSEEK_API_KEY", fireworks: "FIREWORKS_API_KEY", google: "GEMINI_API_KEY" };
 const LOCAL_CREDENTIAL = "PLURNK_PI_LOCAL_KEY";
 
 // The provider definition Pi reads from models.json for a baseUrl profile, as the native test writes it.
@@ -48,11 +48,11 @@ export const selectedModel = (profile, catalog, credential) => {
 };
 
 export function validateProfile(profile) {
-    // {§swebench-pi} A hosted provider path, or any OpenAI-compatible endpoint named by baseUrl and api
+    // {§swebench-pi} A hosted provider path, or any OpenAI-compatible, Messages, or Gemini endpoint named by baseUrl and api
     // (a local llama-server among them): the comparator then writes Pi's own provider definition.
     if (!HOSTED_CREDENTIALS[profile.provider]) {
-        if (typeof profile.baseUrl !== "string" || !/^https?:\/\//.test(profile.baseUrl)) throw new Error("The Pi comparator profile supports the openrouter, deepseek and fireworks providers, or any provider with a baseUrl and api");
-        if (!["openai-completions", "anthropic-messages"].includes(profile.api)) throw new Error("A baseUrl provider needs api openai-completions or anthropic-messages");
+        if (typeof profile.baseUrl !== "string" || !/^https?:\/\//.test(profile.baseUrl)) throw new Error("The Pi comparator profile supports the openrouter, deepseek, fireworks and google providers, or any provider with a baseUrl and api");
+        if (!["openai-completions", "anthropic-messages", "google-generative-ai"].includes(profile.api)) throw new Error("A baseUrl provider needs api openai-completions, anthropic-messages or google-generative-ai");
         for (const key of ["contextWindow", "maxOutputTokens"]) if (!Number.isSafeInteger(profile[key]) || profile[key] <= 0) throw new Error(`A baseUrl provider needs a positive ${key}`);
         if (profile.credential !== undefined && (typeof profile.credential !== "string" || !profile.credential)) throw new Error("credential names an environment variable, never a value");
         // A twin of a built-in preset replicates its compatibility flags and thinking-level map verbatim.
@@ -115,6 +115,17 @@ function responseUsage(frames) {
             cacheRead: total.cache_read_input_tokens ?? 0, cacheWrite: total.cache_creation_input_tokens ?? 0,
             reasoning: total.output_tokens_details?.reasoning_tokens };
     }
+    const googleTerminal = frames.findLast((frame) => frame.usageMetadata?.promptTokenCount !== undefined);
+    if (googleTerminal) {
+        const meta = googleTerminal.usageMetadata;
+        const prompt = meta.promptTokenCount;
+        const cacheRead = meta.cachedContentTokenCount ?? 0;
+        const candidates = meta.candidatesTokenCount ?? 0;
+        const thoughts = meta.thoughtsTokenCount;
+        const output = candidates + (thoughts ?? 0);
+        const reasoning = thoughts ?? (meta.totalTokenCount === prompt + candidates ? 0 : undefined);
+        return { total: meta, input: prompt - cacheRead, output, cacheRead, cacheWrite: 0, reasoning };
+    }
     const terminal = frames.findLast((frame) => frame.usage?.prompt_tokens !== undefined);
     const total = terminal?.usage;
     if (!total) return;
@@ -151,6 +162,10 @@ export function summarizePi(agentDir, rates) {
         const frames = [];
         for (const line of body.split(/\r?\n/).filter((line) => line.startsWith("data: ") && line !== "data: [DONE]")) {
             try { frames.push(JSON.parse(line.slice(6))); }
+            catch (error) { failures.push({ request: stem, error: `Incomplete provider frame: ${error.message}` }); }
+        }
+        if (frames.length === 0 && !body.includes("data: ") && body.trim().length > 0) {
+            try { frames.push(JSON.parse(body)); }
             catch (error) { failures.push({ request: stem, error: `Incomplete provider frame: ${error.message}` }); }
         }
         const tokens = responseUsage(frames);
@@ -219,8 +234,13 @@ export async function runPiTrial({ instance, profilePath, preflight = false, sig
     const repository = join(trialDir, "repo");
     const startHead = prepareRepository(manifest, repository);
     try {
-        const allowedHosts = modelHosts(process.env, preflight, [profile.baseUrl]);
-        const loopback = preflight ? [] : loopbackPorts({}, [profile.baseUrl]);
+        const routeUrls = [profile.baseUrl ?? model.baseUrl].filter(Boolean);
+        const rawHosts = process.env.PLURNK_SWEBENCH_MODEL_HOSTS;
+        const hostEnv = (!rawHosts || rawHosts === "[]") && routeUrls.length > 0
+            ? { ...process.env, PLURNK_SWEBENCH_MODEL_HOSTS: JSON.stringify([...new Set(routeUrls.map((u) => new URL(u).hostname).filter((h) => h !== "127.0.0.1" && h !== "localhost"))]) }
+            : process.env;
+        const allowedHosts = modelHosts(hostEnv, preflight, routeUrls);
+        const loopback = preflight ? [] : loopbackPorts({}, routeUrls);
         const runtime = await prepareRuntime({ kind: "pi", piRoot: await installedPiRoot(profile.executable), version });
         json(join(trialDir, "runtime.json"), runtime.provenance);
         const agentDir = join(trialDir, "agent");

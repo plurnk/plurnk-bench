@@ -34,6 +34,44 @@ host and does not need setting. When an isolated daemon is genuinely needed,
 select only an unused `PLURNK_PORT`; use the installed binaries and their normal
 configuration cascade.
 
+## SWE-bench & HarnessTax quickstart
+
+Use frozen lanes (`~/ptl/bench-lanes`) so editing `../plurnk-service` or `../plurnk` never mutates a live run:
+
+1. **Relock frozen lanes to the target service and client commits:**
+
+   ```sh
+   deepswe/relock.sh <service-ref> <client-ref>
+   export PLURNK_SWEBENCH_SERVICE_ROOT=~/ptl/bench-lanes/plurnk-service
+   export PLURNK_SWEBENCH_CLIENT_ROOT=~/ptl/bench-lanes/plurnk
+   ```
+
+2. **Rudimentary 1-task SWE-bench check (preflight, then single graded task):**
+
+   ```sh
+   npm run swebench -- --instance django__django-11019 --preflight
+   ~/ptl/bench-lanes/plurnk-service/scripts/operator-environment.sh \
+     npm run swebench -- --instance django__django-11019 --model <alias>
+   ```
+
+3. **HarnessTax-30 campaign (`npm run ht30`) & paired native Pi comparison (`swebench/pi-campaign.mjs`):**
+
+   ```sh
+   # Plurnk arm (--halt-on clean continues past ordinary oracle misses; omit to halt on first non-pass)
+   ~/ptl/bench-lanes/plurnk-service/scripts/operator-environment.sh \
+     npm run ht30 -- --model <alias> --attempts 1 --jobs 6 --halt-on clean
+
+   # Native Pi arm (sharing identical corpus, model, effort, and Harbor network isolation)
+   ~/ptl/bench-lanes/plurnk-service/scripts/operator-environment.sh \
+     node swebench/pi-campaign.mjs \
+       --corpus swebench/corpora/harnesstax-swe-lite-30.json \
+       --profile /path/to/pi-profile.json \
+       --out /path/to/pi-campaign \
+       --attempts 1 --jobs 6
+   ```
+
+   If Docker's embedded DNS stub cannot resolve external provider hosts inside Harbor's private bridge network, pass `PLURNK_SWEBENCH_RESOLV_CONF=/path/to/resolv.conf` (containing reachable resolvers such as `8.8.8.8` / `1.1.1.1`). Inspect a Plurnk campaign with `node swebench/report.ts <campaign-dir>`.
+
 ## DeepSWE smoke
 
 Pier's Docker environment is the canonical benchmark path. Do not replace it

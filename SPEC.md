@@ -157,16 +157,16 @@ Exception type is preserved alongside state; only `verifier/reward.txt` determin
 
 ### §swebench-pi 12.1 Native Pi Comparison
 
-`swebench/pi.mjs` and `swebench/pi-campaign.mjs` run the installed Pi CLI (`PLURNK_BENCH_PI`) over the same corpus/attempt plan, supporting `openrouter`, `deepseek`, `fireworks`, or custom `baseUrl`/`api`/`contextWindow`/`maxOutputTokens` profiles (writing `models.json`).
+`swebench/pi.mjs` and `swebench/pi-campaign.mjs` run the installed Pi CLI (`PLURNK_BENCH_PI`) over the same corpus/attempt plan, supporting `openrouter`, `deepseek`, `fireworks`, `google`, or custom `baseUrl`/`api`/`contextWindow`/`maxOutputTokens` profiles (writing `models.json`).
 
 | Boundary | Contract |
 | --- | --- |
 | Agent | Stock system prompt, default tools, sampling, output/retry behavior, and stock compaction unless profile declares `contextWindow` with `compaction.reserveTokens` and `keepRecentTokens`; frozen version and catalog; no request-payload rewriting. |
 | Personal context | Fresh Pi configuration per trial; no operator/project extensions, skills, prompt templates, AGENTS/CLAUDE files, or Plurnk teaching. |
-| Environment | Reuses {§swebench-evaluator} trial, network, and container runtime (keeping image user and `/testbed` ownership for Pi tools) on the same provisioned Node runtime. |
+| Environment | Reuses {§swebench-evaluator} trial, network, and container runtime (keeping image user and `/testbed` ownership for Pi tools) on the same provisioned Node runtime, deriving `allowedHosts` from the selected route URL when `PLURNK_SWEBENCH_MODEL_HOSTS` is unset or `[]`. |
 | Limits | Benchmark-only extension aborts before the next model turn beyond the declared cap; common wall-clock guard applies; no model-facing instructions added. |
-| Evidence | Observes native Chat Completions or Messages requests and responses without mutation; retains raw streams, Pi JSON events, session files, configuration, errors, patch, and official oracle. |
-| Cost | OpenRouter `cost` (+ `cost_details.upstream_inference_cost` when `is_byok` is true) owns charged cost; Messages usage merges cumulative counters after terminal event; `llama-server` `timings` terminal chunks settle streamed `reasoning_content` token frames when `completion_tokens_details.reasoning_tokens` is absent; responses without a charge use explicitly labeled fixed-rate repricing (including optional `rates.reasoning`). |
+| Evidence | Observes native Chat Completions, Messages, or Google `generateContent` / `streamGenerateContent` requests and responses without mutation; retains raw streams, Pi JSON events, session files, configuration, errors, patch, and official oracle. |
+| Cost | OpenRouter `cost` (+ `cost_details.upstream_inference_cost` when `is_byok` is true) owns charged cost; Messages usage merges cumulative counters after terminal event; Google `usageMetadata` extracts `promptTokenCount - cachedContentTokenCount` uncached input, `cachedContentTokenCount` cache read, `candidatesTokenCount + thoughtsTokenCount` output, and `thoughtsTokenCount` reasoning; `llama-server` `timings` terminal chunks settle streamed `reasoning_content` token frames when `completion_tokens_details.reasoning_tokens` is absent; responses without a charge use explicitly labeled fixed-rate repricing (including optional `rates.reasoning`). |
 | Failure | Grades available work regardless of agent outcome; adapter/setup failures, absent requests/verdicts, and evaluator process failures pause for review while preserving saved verdicts. |
 
 Pi trial and campaign `chargedUsd` and `repricedUsd` are `null` unless every request supplies the respective charge or complete rate-card token breakdown; `knownChargedUsd` and `knownRepricedUsd` preserve available subtotals (`null` when none is known); `usage` contains only complete per-field totals while `knownUsage` carries available subtotals. Per the {§verdicts} verifier-independence doctrine, `swebench/pi.mjs` computes token accounting directly from raw wire captures independently of `@plurnk/plurnk-providers`.

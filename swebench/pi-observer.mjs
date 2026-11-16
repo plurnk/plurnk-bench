@@ -10,7 +10,10 @@ export function observeFetch(original, directory) {
     mkdirSync(directory, { recursive: true });
     return async (input, init) => {
         const url = new URL(typeof input === "string" || input instanceof URL ? input : input.url);
-        if (!url.pathname.endsWith("/chat/completions") && !url.pathname.endsWith("/messages")) return original(input, init);
+        if (!url.pathname.endsWith("/chat/completions")
+            && !url.pathname.endsWith("/messages")
+            && !url.pathname.endsWith(":streamGenerateContent")
+            && !url.pathname.endsWith(":generateContent")) return original(input, init);
         const id = String(++sequence).padStart(4, "0");
         const startedAt = new Date().toISOString();
         // Both SDKs send JSON strings. Refuse unobserved request shapes before spend.
