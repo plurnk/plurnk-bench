@@ -172,7 +172,7 @@ A profile JSON supplies these fields:
 | Fields | Meaning |
 |---|---|
 | `executable`, `version` | Installed Pi executable and its exact expected version. |
-| `provider`, `model`, `effort` | Model selection. `openrouter`, `deepseek` and `fireworks` are the hosted paths with their credentials; any other provider name is an OpenAI-compatible endpoint and also sets `baseUrl`, `api` (`openai-completions` or `anthropic-messages`), `contextWindow` and `maxOutputTokens`. The comparator writes Pi's provider definition (`models.json`) for it; `credential` optionally names the environment variable Pi reads, and a local server gets a placeholder. |
+| `provider`, `model`, `effort` | Model selection. `openrouter`, `deepseek`, `fireworks`, and `google` are the hosted paths with their credentials; any other provider name is an OpenAI-compatible, Messages, or Gemini endpoint and also sets `baseUrl`, `api` (`openai-completions`, `anthropic-messages`, or `google-generative-ai`), `contextWindow` and `maxOutputTokens`. The comparator writes Pi's provider definition (`models.json`) for it; `credential` optionally names the environment variable Pi reads, and a local server gets a placeholder. |
 | `compat`, `thinkingLevelMap`, `compaction` | A `baseUrl` provider may replicate a built-in preset's compatibility flags and thinking-level map verbatim, and declare a compaction partition (`reserveTokens`, `keepRecentTokens`, together below `contextWindow`) — the comparator's analogue of the service's window cap. Otherwise compaction is stock. |
 | `catalogPath` | Frozen `models-store.json` containing the selected model. |
 | `turnCap`, `timeoutSeconds` | Positive run limits. |

@@ -206,9 +206,40 @@ test("{§swebench-pi} unfinished Messages usage is not reported as a fully price
     assert.equal(summary.unpricedRequests, 1);
 });
 
+test("{§swebench-pi} Google streamGenerateContent and generateContent capture usageMetadata, cached tokens, and omitted zero fields", async () => {
+    const agent = mkdtempSync(join(root, "google-"));
+    const wire = join(agent, "wire");
+    const streamFrames = [
+        { candidates: [{ content: { role: "model", parts: [{ text: "Checking", thought: true }] } }] },
+        { candidates: [{ content: { role: "model", parts: [{ text: "Done." }] }, finishReason: "STOP" }],
+            usageMetadata: { promptTokenCount: 1000, cachedContentTokenCount: 800, candidatesTokenCount: 50, thoughtsTokenCount: 30, totalTokenCount: 1080 } },
+    ];
+    const streamRaw = streamFrames.map((frame) => `data: ${JSON.stringify(frame)}\r\n\r\n`).join("");
+    const unaryRaw = JSON.stringify({
+        candidates: [{ content: { role: "model", parts: [{ text: "Unary." }] }, finishReason: "STOP" }],
+        usageMetadata: { promptTokenCount: 400, candidatesTokenCount: 25, totalTokenCount: 425 },
+    });
+    const fetch = observeFetch(async (url) => new Response(
+        String(url).includes(":streamGenerateContent") ? streamRaw : unaryRaw,
+        { headers: { "content-type": String(url).includes(":streamGenerateContent") ? "text/event-stream" : "application/json" } },
+    ), wire);
+    await (await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-4-hydrogen:streamGenerateContent?alt=sse", { body: '{"contents":[]}' })).text();
+    await (await fetch("https://generativelanguage.googleapis.com/v1beta/models/gemini-4-hydrogen:generateContent", { body: '{"contents":[]}' })).text();
+    await drainCaptures();
+    writeFileSync(join(agent, "pi.stdout.jsonl"), "");
+    const geminiRates = { input: 1.5, cacheRead: 0.075, cacheWrite: 0, output: 7.5 };
+    const summary = summarizePi(agent, geminiRates);
+    assert.equal(summary.requests, 2);
+    assert.equal(summary.responsesWithUsage, 2);
+    assert.equal(summary.responsesWithTokenBreakdown, 2);
+    assert.equal(summary.responsesWithReasoningBreakdown, 2);
+    assert.deepEqual(summary.usage, { input: 600, cacheRead: 800, cacheWrite: 0, output: 105, reasoning: 30 });
+    assert.equal(summary.repricedUsd, (600 * 1.5 + 800 * 0.075 + 105 * 7.5) / 1e6);
+});
+
 test("{§swebench-pi} profiles require explicit route, version, limits and rates", () => {
-    assert.throws(() => validateProfile({}), /openrouter, deepseek and fireworks/);
-    assert.throws(() => validateProfile({ provider: "local", baseUrl: "https://model.example/v1" }), /api openai-completions or anthropic-messages/, "a baseUrl provider names its api");
+    assert.throws(() => validateProfile({}), /openrouter, deepseek, fireworks and google/);
+    assert.throws(() => validateProfile({ provider: "local", baseUrl: "https://model.example/v1" }), /api openai-completions, anthropic-messages or google-generative-ai/, "a baseUrl provider names its api");
     const local = { provider: "local", baseUrl: "https://model.example/v1", api: "openai-completions", contextWindow: 86016, maxOutputTokens: 24576,
         executable: "pi", version: "fixture", model: "fixture", catalogPath: "/dev/null", effort: "medium", turnCap: 100, timeoutSeconds: 30,
         rates: { input: 0, cacheRead: 0, cacheWrite: 0, output: 0 } };
@@ -226,6 +257,8 @@ test("{§swebench-pi} profiles require explicit route, version, limits and rates
     const profile = { provider: "fireworks", executable: "pi", version: "fixture", model: "fixture",
         catalogPath: "catalog.json", effort: "medium", turnCap: 100, timeoutSeconds: 14400, rates };
     assert.equal(validateProfile(profile), profile);
+    const googleProfile = { ...profile, provider: "google", model: "gemini-4-hydrogen", effort: "low" };
+    assert.equal(validateProfile(googleProfile), googleProfile);
     assert.deepEqual(selectedModel(local, {}, "PLURNK_PI_LOCAL_KEY"), providerDefinition(local, "PLURNK_PI_LOCAL_KEY").providers.local.models[0],
         "a baseUrl provider's model is the profile's own definition; the frozen catalog never carries it");
     assert.equal(selectedModel(profile, { fireworks: { models: [{ id: "fixture", name: "Fixture" }] } }, "FIREWORKS_API_KEY").name, "Fixture", "a hosted model is its catalog entry");
@@ -489,6 +522,7 @@ for (const { provider, api, effort, credential } of [
     { provider: "openrouter", api: "openai-completions", effort: "low", credential: "OPENROUTER_API_KEY" },
     { provider: "fireworks", api: "openai-completions", effort: "medium", credential: "FIREWORKS_API_KEY" },
     { provider: "fireworks", api: "anthropic-messages", effort: "xhigh", credential: "FIREWORKS_API_KEY" },
+    { provider: "google", api: "google-generative-ai", effort: "low", credential: "GEMINI_API_KEY" },
     { provider: "local", api: "openai-completions", effort: "medium", credential: "PLURNK_PI_LOCAL_KEY" },
 ]) for (const turnCap of [1, 100]) {
     test(`{§swebench-pi} installed native Pi ${provider}/${api}: isolated context, tools, wire effort and ${turnCap}-turn bound`, {
@@ -536,19 +570,38 @@ for (const { provider, api, effort, credential } of [
                 response.end(frames.map((value) => `event: ${value.type}\ndata: ${JSON.stringify(value)}\n\n`).join(""));
                 return;
             }
+            if (api === "google-generative-ai") {
+                const geminiFrame = {
+                    candidates: [{
+                        content: {
+                            role: "model",
+                            parts: first ? [
+                                { functionCall: { name: "bash", args: { command: "printf shell-tested" } } },
+                                { functionCall: { name: "write", args: { path: "native.txt", content: "native write" } } },
+                            ] : [{ text: "Verified." }],
+                        },
+                        finishReason: "STOP",
+                    }],
+                    usageMetadata: { promptTokenCount: 25, cachedContentTokenCount: 5, candidatesTokenCount: 6, thoughtsTokenCount: 4, totalTokenCount: 35 },
+                };
+                response.end(`data: ${JSON.stringify(geminiFrame)}\r\n\r\n`);
+                return;
+            }
             response.end(`data: ${JSON.stringify(frame)}\n\ndata: [DONE]\n\n`);
         });
         server.listen(0, "127.0.0.1");
         await once(server, "listening");
         try {
-            const profile = { executable: process.env.PLURNK_BENCH_PI, version: "fixture", provider, model: "fixture",
-                baseUrl: `http://127.0.0.1:${server.address().port}/v1`, effort, turnCap, maxOutputTokens: 32768,
+            const modelId = api === "google-generative-ai" ? "gemini-4-hydrogen" : "fixture";
+            const profile = { executable: process.env.PLURNK_BENCH_PI, version: "fixture", provider, model: modelId,
+                baseUrl: `http://127.0.0.1:${server.address().port}/${api === "google-generative-ai" ? "v1beta" : "v1"}`, effort, turnCap, maxOutputTokens: 32768,
                 timeoutSeconds: 30, contextWindow: 1000000, rates };
             json(join(configDir, "settings.json"), piConfiguration(shellPath));
             json(join(configDir, "models.json"), { providers: { [provider]: {
                 baseUrl: profile.baseUrl, api, apiKey: `$${credential}`,
-                models: [{ id: "fixture", reasoning: true, input: ["text"], contextWindow: 1000000, maxTokens: 32768, cost: rates,
-                    ...(api === "anthropic-messages" ? { compat: { forceAdaptiveThinking: true }, thinkingLevelMap: { xhigh: "xhigh" } } : {}) }],
+                models: [{ id: modelId, reasoning: true, input: ["text"], contextWindow: 1000000, maxTokens: 32768, cost: rates,
+                    ...(api === "anthropic-messages" ? { compat: { forceAdaptiveThinking: true }, thinkingLevelMap: { xhigh: "xhigh" } } : {}),
+                    ...(api === "google-generative-ai" ? { thinkingLevelMap: { low: "low" } } : {}) }],
             } } });
             json(join(agent, "profile.json"), profile);
             const launch = piLaunch(profile.executable, piArguments(profile, join(agent, "sessions"), "Run the tool check."));
@@ -560,26 +613,32 @@ for (const { provider, api, effort, credential } of [
             });
             assert.equal(result.status, 0, readFileSync(join(agent, "pi.stderr.log"), "utf8"));
             assert.equal(requests.length, turnCap === 1 ? 1 : 2, readFileSync(join(agent, "pi.stdout.jsonl"), "utf8") + readFileSync(join(agent, "pi.stderr.log"), "utf8"));
-            assert.deepEqual(requests[0].tools.map((tool) => api === "anthropic-messages" ? tool.name : tool.function.name).sort(), ["bash", "edit", "read", "write"]);
+            const declaredTools = api === "google-generative-ai"
+                ? requests[0].tools[0].functionDeclarations.map((tool) => tool.name)
+                : requests[0].tools.map((tool) => api === "anthropic-messages" ? tool.name : tool.function.name);
+            assert.deepEqual(declaredTools.sort(), ["bash", "edit", "read", "write"]);
             for (const request of requests) {
                 if (api === "anthropic-messages") {
                     assert.equal(request.max_tokens, 32768);
                     assert.equal(request.thinking.type, "adaptive");
                     assert.equal(request.output_config.effort, effort);
+                } else if (api === "google-generative-ai") {
+                    assert.equal(request.generationConfig.thinkingConfig.includeThoughts, true);
+                    assert.equal(request.generationConfig.thinkingConfig.thinkingLevel.toLowerCase(), effort);
                 } else if (provider === "openrouter") assert.equal(request.reasoning.effort, effort);
                 else assert.equal(request.reasoning_effort, effort);
                 if (api === "openai-completions") assert.equal(request.max_tokens, undefined);
                 assert.equal(request.frequency_penalty, undefined);
-                assert.doesNotMatch(JSON.stringify(request.messages), /FORBIDDEN_PERSONAL_CONTEXT_MARKER|MCP expressions|plurnk\.md/);
+                assert.doesNotMatch(JSON.stringify(request.messages ?? request.contents), /FORBIDDEN_PERSONAL_CONTEXT_MARKER|MCP expressions|plurnk\.md/);
             }
             assert.equal(readFileSync(join(repo, "native.txt"), "utf8"), "native write");
-            if (turnCap > 1) assert.match(JSON.stringify(requests[1].messages), /NATIVE_SHELL_PATH_USED/);
+            if (turnCap > 1) assert.match(JSON.stringify(requests[1].messages ?? requests[1].contents), /NATIVE_SHELL_PATH_USED/);
             const summary = summarizePi(agent, rates);
             assert.equal(summary.responsesWithUsage, requests.length);
-            assert.equal(summary.unpricedRequests, provider === "fireworks" ? requests.length : 0);
+            assert.equal(summary.unpricedRequests, provider === "fireworks" || provider === "google" ? requests.length : 0);
             assert.equal(summary.responsesWithTokenBreakdown, requests.length);
             assert.equal(summary.repricedUsd, 0.00000815 * requests.length);
-            assert.equal(summary.chargedUsd, provider === "fireworks" ? null : 0.003 * requests.length);
+            assert.equal(summary.chargedUsd, provider === "fireworks" || provider === "google" ? null : 0.003 * requests.length);
             assert.equal(summary.limits.length, turnCap === 1 ? 1 : 0);
         } finally { server.closeAllConnections(); await new Promise((resolve) => server.close(resolve)); }
     });
