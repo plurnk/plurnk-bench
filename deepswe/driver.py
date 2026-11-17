@@ -16,7 +16,6 @@ live task: the daemon boots, drives a real multi-turn loop, commits, and grades.
 
 from __future__ import annotations
 
-import json
 import shlex
 from pathlib import Path
 from urllib.parse import urlparse
@@ -141,13 +140,12 @@ class PlurnkAgent(BaseInstalledAgent):
             # Pier's NO_PROXY keeps the client->daemon loopback direct. No-op in
             # a proxyless (allow_internet) environment.
             "NODE_USE_ENV_PROXY": "1",
+            # Disable HTTP schemes so web tools and their teaching are omitted.
+            "PLURNK_SCHEMES_HTTP_ENABLED": "0",
         })
 
         # Client approval is explicit (--yolo); the benchmark's environment owns
-        # server approval. The workspace capability ceiling removes web tools and
-        # their teaching from the model's environment.
-        capability_policy = {"deny": [{"traits": ["web"]}]}
-        capability_args = f"--capabilities {shlex.quote(json.dumps(capability_policy))} "
+        # server approval.
 
         # One shell exec: start daemon → wait for ACP → drive client at /app → commit
         # so `git diff base..HEAD` (Pier's pre_artifacts.sh) captures the work →
@@ -171,7 +169,7 @@ for _ in $(seq 1 {DAEMON_READY_TIMEOUT_S}); do
   if plurnk models >/dev/null 2>&1; then break; fi
   sleep 1
 done
-plurnk --json --yolo {capability_args}--project-root /app --timeout {self._client_timeout_sec} -- {escaped} \
+plurnk --json --yolo --project-root /app --timeout {self._client_timeout_sec} -- {escaped} \
   > {shlex.quote(str(record))} 2> {shlex.quote(str(stderr))} || true
 cd /app
 git add -A

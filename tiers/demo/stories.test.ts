@@ -30,14 +30,12 @@ import { latestStableNodeVersion, versionsNamed } from "./_web-oracle.ts";
 import { hasAuditOutcome } from "./_audit-oracle.ts";
 import { failAfterCleanup } from "@plurnk/plurnk-service/harness";
 import { ResourceState } from "@plurnk/plurnk-service/harness";
-import type { CapabilityPolicy } from "@plurnk/plurnk-contracts";
 
 interface StoryOpts {
     signal: AbortSignal;
     label: string;
     prompt: string;
     maxTurns?: number;
-    capabilities?: CapabilityPolicy;
     setup?: (workspace: LiveWorkspace) => Promise<void>;
 }
 
@@ -59,7 +57,6 @@ const runStory = async (opts: StoryOpts): Promise<StoryResult> => {
     const cleanup = () => lifetime.disposeAsync();
     try {
         const s = await liveWorkspace({ name: `demo-${opts.label}-${crypto.randomUUID()}`, projectRoot: fixture.workspace });
-        if (opts.capabilities !== undefined) await s.daemon.setWorkspaceCapabilities({ workspaceId: s.workspaceId, policy: opts.capabilities });
         lifetime.defer(s.cleanup);
         await opts.setup?.(s);
         const loop = await liveLoop(
@@ -447,23 +444,6 @@ test("story: compute a value too big for arithmetic shortcuts", async (t) => {
         assert.equal(story.finalStatus, 200);
         assert.match(story.lastContent, wanted,
             `computed 25! exactly; got: ${story.lastContent.slice(0, 200)}`);
-    } finally { await story.cleanup(); }
-});
-
-test("an execution-restricted workspace answers a shell-tempting question without a denial cycle", async (t) => {
-    // Deterministic coverage pins policy projection and dispatch; this story
-    // probes whether a model naturally uses the remaining admitted surface.
-    const story = await runStory({
-        signal: t.signal,
-        label: "capability-steer",
-        prompt: "How many files are in this project, roughly? A ballpark from what you can see is fine.",
-        maxTurns: 6,
-        capabilities: { deny: [{ scheme: "exec" }] },
-    });
-    try {
-        if (story.finalStatus !== 200) await story.dump();
-        assert.equal(story.finalStatus, 200, "the attenuated loop concluded (no 403-cycle 508, no max_turns)");
-        assert.ok(story.lastContent.length > 0, "a direct prose answer landed");
     } finally { await story.cleanup(); }
 });
 

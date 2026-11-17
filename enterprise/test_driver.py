@@ -112,10 +112,8 @@ class DriverContractTest(unittest.TestCase):
 
         asyncio.run(agent.run("- List the accounts.", environment, object()))
 
-        self.assertIn("plurnk --json --yolo ", environment.command)
-        self.assertIn('--capabilities \'{"deny": [{"traits": ["web"]}]}\'', environment.command)
+        self.assertIn("plurnk --json --yolo --project-root '' ", environment.command)
         self.assertNotIn("--flags", environment.command)
-        self.assertIn("--project-root '' ", environment.command)
         self.assertIn("--timeout 480 -- '- List the accounts.' ", environment.command)
         self.assertNotIn("submit_agent_response", environment.command)
         self.assertNotIn("git ", environment.command)
@@ -124,6 +122,7 @@ class DriverContractTest(unittest.TestCase):
         self.assertEqual(environment.env["PLURNK_MODEL"], "deepdumb")
         self.assertEqual(environment.env["DEEPSEEK_API_KEY"], "k")
         self.assertEqual(environment.env["PLURNK_CLIENT_PROJECT_ROOT"], "/workspace")
+        self.assertEqual(environment.env["PLURNK_SCHEMES_HTTP_ENABLED"], "0")
         self.assertEqual(json.loads(environment.env["PLURNK_MCP_crm"])["url"], "http://10.0.0.5:8012/mcp")
         self.assertEqual(environment.env["PLURNK_EXECS_ONLY"], "sh,pm,crm,fileserver")
 

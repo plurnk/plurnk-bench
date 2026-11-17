@@ -162,20 +162,19 @@ test("{§bench-relock} a fresh client builds against the selected packed contrac
 
 
 test("{§benchlet-diagnostic} disables ambient endpoint and skill aliases without blanking definitions, and retains independent network ceilings", () => {
-    const { overrides, masked, capabilities } = candidateIsolation([
+    const { overrides, masked } = candidateIsolation([
         "PLURNK_MCP_brave_TOOLS", "PLURNK_MCP_CONNECT_TIMEOUT",
         "PLURNK_MCP_code_search", "PLURNK_MCP_code_search_ENABLED",
         "PLURNK_MODEL_dumbox", "DEEPSEEK_API_KEY",
         "PLURNK_SKILLS_3d_tools", "PLURNK_SKILLS_分析", "PLURNK_SKILLS_分析_ENABLED", "PLURNK_SKILLS_ENABLED",
     ]);
     assert.deepEqual(masked, ["PLURNK_MCP_brave", "PLURNK_MCP_code_search", "PLURNK_SKILLS_3d_tools", "PLURNK_SKILLS_分析"]);
-    assert.deepEqual(capabilities, { deny: [{ traits: ["web"] }, { operation: "mcp" }] }, "the ceiling names the trait the web schemes declare and the family it masks, never a host");
     assert.deepEqual(overrides, {
         PLURNK_MCP_ENABLED: "0",
         PLURNK_MCP_brave_ENABLED: "0", PLURNK_MCP_code_search_ENABLED: "0",
         PLURNK_SKILLS_3d_tools_ENABLED: "0", PLURNK_SKILLS_分析_ENABLED: "0",
         BRAVE_API_KEY: "",
-        PLURNK_SERVICE_CAPABILITIES: "{\"deny\":[{\"traits\":[\"web\"]},{\"operation\":\"mcp\"}]}",
+        PLURNK_SCHEMES_HTTP_ENABLED: "0",
         PLURNK_SCHEMES_HTTP_HOSTS: "[]",
     });
 });

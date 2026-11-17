@@ -68,10 +68,11 @@ docker cp "$TASK_PATH/tests/." "$CONTAINER:/tests/"
 
 # The same posture the Harbor driver carries (SPEC {§enterprise}), on a host daemon.
 export PLURNK_MODEL="$MODEL"
-# The run owns complete definitions, not plugin installations.
+# The run owns complete definitions in its isolated configuration root.
 CONFIG_ROOT="$RUN_DIR/config"
 mkdir -p "$CONFIG_ROOT"
 export XDG_CONFIG_HOME="$CONFIG_ROOT" PLURNK_SERVICE_ROOTS=plurnk
+export PLURNK_SCHEMES_HTTP_ENABLED=0
 export PLURNK_MCP_ENABLED=1
 export PLURNK_MCP_pm='{"type":"streamable-http","url":"http://127.0.0.1:8011/mcp"}'
 export PLURNK_MCP_crm='{"type":"streamable-http","url":"http://127.0.0.1:8012/mcp"}'
@@ -80,7 +81,7 @@ export PLURNK_EXECS_ONLY="sh,pm,crm,fileserver"
 export PLURNK_CLIENT_CHECKOUT="$CLIENT_ROOT" PLURNK_BENCHMARKS="$HOME_DIR" PLURNK_CANDIDATE_DIR="$RUN_DIR"
 INSTRUCTION="$(cat "$TASK_PATH/instruction.md")"
 set +e
-( cd "$SERVICE_ROOT" && node scripts/candidate.mjs --json --yolo --capabilities '{"deny":[{"traits":["web"]}]}' --project-root '' --timeout "$TIMEOUT" -- "$INSTRUCTION" ) > "$RUN_DIR/candidate.stdout" 2> "$RUN_DIR/candidate.stderr"
+( cd "$SERVICE_ROOT" && node scripts/candidate.mjs --json --yolo --project-root '' --timeout "$TIMEOUT" -- "$INSTRUCTION" ) > "$RUN_DIR/candidate.stdout" 2> "$RUN_DIR/candidate.stderr"
 echo "candidate_exit=$?" >> "$RUN_DIR/provenance.txt"
 set -e
 # The client's --json document leads the candidate's stdout; the digest's own line follows it.
