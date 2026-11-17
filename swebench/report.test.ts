@@ -297,6 +297,17 @@ test("{§swebench-comparison} {§swebench-evaluator} the cited corpus carries th
     assert.ok(baselines !== null);
     assert.equal(baselines.size, 30);
     assert.deepEqual(baselines.get("astropy__astropy-7746"), { cc: 0, codex: 0, pi: 0 });
+    const gimp = baselinesFor("gimpbench");
+    assert.ok(gimp !== null);
+    assert.equal(gimp.size, 7);
+    for (const [id, baseline] of gimp) {
+        assert.deepEqual(baseline, baselines.get(id), `${id} preserves its upstream K3 baseline`);
+        assert.equal(existsSync(new URL(`./manifests/${id}.json`, import.meta.url)), true, `${id} has a pinned manifest`);
+    }
+    const corpus = JSON.parse(readFileSync(new URL("./corpora/gimpbench.json", import.meta.url), "utf8"));
+    assert.equal(corpus.label, "gimpbench");
+    assert.equal(corpus.count, 7);
+    assert.deepEqual(corpus.instances, [...gimp.keys()].toSorted());
     assert.equal(baselinesFor("no-such-corpus"), null);
 });
 }

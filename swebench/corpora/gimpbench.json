@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "harness": "swebench",
+  "dataset": "SWE-bench/SWE-bench_Lite",
+  "label": "gimpbench",
+  "mode": "cited",
+  "source": {
+    "study": "HarnessTax: How Much Does the Harness Matter for Coding Agents?",
+    "url": "https://harnesstax.github.io/",
+    "repository": "harnesstax/harnesstax.github.io",
+    "commit": "fe4512fe112d13da52dd26e6d0fe99a4debff332",
+    "cohort": "swe:all-arena-v14",
+    "datasetRevision": "6ec7bb89b9342f664a54a6e0a6ea6501d3437cc2",
+    "attemptsPerTask": 3,
+    "turnCap": 100,
+    "brief": "~/ptl/ht-k3-swe.md (hyzen_claude, 2026-09-20)",
+    "note": "Seven-specimen subset of harnesstax-swe-lite-30 for single-wave 7-lane local model and curation-vs-compaction evaluation (#93), retaining the study's protocol constants and per-task K3 baselines."
+  },
+  "count": 7,
+  "instances": [
+    "django__django-12308",
+    "django__django-12747",
+    "psf__requests-1963",
+    "pylint-dev__pylint-5859",
+    "sphinx-doc__sphinx-10325",
+    "sympy__sympy-15345",
+    "sympy__sympy-23117"
+  ],
+  "repos": {
+    "django/django": 2,
+    "psf/requests": 1,
+    "pylint-dev/pylint": 1,
+    "sphinx-doc/sphinx": 1,
+    "sympy/sympy": 2
+  }
+}

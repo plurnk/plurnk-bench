@@ -1,0 +1,79 @@
+{
+  "cited": {
+    "study": "HarnessTax: How Much Does the Harness Matter for Coding Agents?",
+    "url": "https://harnesstax.github.io/",
+    "repository": "harnesstax/harnesstax.github.io",
+    "commit": "fe4512fe112d13da52dd26e6d0fe99a4debff332",
+    "cohort": "swe:all-arena-v14",
+    "datasetRevision": "6ec7bb89b9342f664a54a6e0a6ea6501d3437cc2",
+    "attemptsPerTask": 3,
+    "turnCap": 100,
+    "brief": "~/ptl/ht-k3-swe.md (hyzen_claude, 2026-09-20)",
+    "note": "Seven-specimen subset of harnesstax-swe-lite-30 for single-wave 7-lane local model and curation-vs-compaction evaluation (#93), retaining the study's protocol constants and per-task K3 baselines."
+  },
+  "tasks": [
+    {
+      "instance_id": "django__django-12308",
+      "base_commit": "2e0f04507b17362239ba49830d26fec504d46978",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    },
+    {
+      "instance_id": "django__django-12747",
+      "base_commit": "c86201b6ed4f8256b0a0520c08aa674f623d4127",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    },
+    {
+      "instance_id": "psf__requests-1963",
+      "base_commit": "110048f9837f8441ea536804115e80b69f400277",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 2
+      }
+    },
+    {
+      "instance_id": "pylint-dev__pylint-5859",
+      "base_commit": "182cc539b8154c0710fcea7e522267e42eba8899",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-10325",
+      "base_commit": "7bdc11e87c7d86dcc2a087eccb7a7c129a473415",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    },
+    {
+      "instance_id": "sympy__sympy-15345",
+      "base_commit": "9ef28fba5b4d6d0168237c9c005a550e6dc27d81",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    },
+    {
+      "instance_id": "sympy__sympy-23117",
+      "base_commit": "c5cef2499d6eed024b0db5c792d6ec7c53baa470",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    }
+  ]
+}

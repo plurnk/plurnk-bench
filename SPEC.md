@@ -127,7 +127,7 @@ Exception type is preserved alongside state; only `verifier/reward.txt` determin
 
 `swebench/` drives pinned SWE-bench Lite tasks through the ordinary plurnk client/service boundary and grades with the official evaluator (`swebench/evaluator.ts` -> `RewardJson`).
 
-- **Corpus & sampling**: `swebench/pin-task.mjs` writes `swebench/manifests/<instance>.json` including `datasetRevision` (cache in `.cache/swebench`). `swebench/sample.ts` draws deterministic hash-seeded `uniform` or `stratified` corpora under `swebench/corpora/<label>.json`.
+- **Corpus & sampling**: `swebench/pin-task.mjs` writes `swebench/manifests/<instance>.json` including `datasetRevision` (cache in `.cache/swebench`). `swebench/sample.ts` draws deterministic hash-seeded `uniform` or `stratified` corpora, or materializes `cited` corpora, under `swebench/corpora/<label>.json`.
 - **Official evaluator & recovery**: Translates official per-instance report (must name requested instance with boolean `resolved`) into `RewardJson`; empty prediction scores `{reward: 0, empty_patch: 1}`; absent report or infra failure is `null`. Evaluator-only recovery reuses the same instance, label, and patch SHA-256 without invoking a model (settling under `--halt-on clean` and Pi driver, or regrading/skipping abnormal evaluator exits under `--halt-on pass`).
 
 | Evidence | Lifetime and Effect |
@@ -142,7 +142,7 @@ Exception type is preserved alongside state; only `verifier/reward.txt` determin
 
 ## §swebench-comparison 12. SWE-bench Campaigns, Matrix, Friction, and Statistical Comparison
 
-- **Campaigns (`swebench/campaign.sh`, `swebench/plan.ts`)**: Runs 3 attempts x 30 tasks under `PLURNK_BENCH_JOBS` (default `1`), halting at the first non-clean pass or under `--halt-on clean` only on non-clean exit (decorating engine-ended passes as `pass (turn ceiling exhausted)` and verdictless engine terminals as `fail: <cause>`). `--resume` skips completed pairs and `--skip` ids persisted in `accepted`. Manifest turn cap bounds each attempt, with wall clock as a runaway guard.
+- **Campaigns (`swebench/campaign.sh`, `swebench/plan.ts`)**: Runs `PLURNK_SWEBENCH_ATTEMPTS` (default `3`, or `--attempts`) across a checked-in corpus (`npm run ht30` for `harnesstax-swe-lite-30`'s 30 tasks; `npm run gimpbench` for `gimpbench`'s 7-task subset) under `PLURNK_BENCH_JOBS` (default `1`), halting at the first non-clean pass or under `--halt-on clean` only on non-clean exit (decorating engine-ended passes as `pass (turn ceiling exhausted)` and verdictless engine terminals as `fail: <cause>`). `--resume` skips completed pairs and `--skip` ids persisted in `accepted`. Manifest turn cap bounds each attempt, with wall clock as a runaway guard.
 - **Profile matrix (`swebench/matrix.mjs`)**: Rotates profile order across instances and repetitions through `swebench/run.sh`, recording an immutable plan and append-only launch/results records while draining in-flight trials on missing evidence or interruption without auto-retry.
 - **Friction & statistical comparison (`swebench/friction.ts`, `swebench/report.ts`, `swebench/comparison.ts`, `src/statistics.ts`)**: Reports digest EDIT census (`count/refused/revisits`) and overlapping friction views, followed by task-averaged pass rates, 10,000 hash-seeded bootstrap resamples for 95% confidence intervals, paired sign-flip permutation tests with Holm correction against K3 baselines (wins, losses, ties), cost per solve, and rollout medians (with catalog vs study direct-API pricing noted as a confound).
 
