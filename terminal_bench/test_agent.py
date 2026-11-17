@@ -73,6 +73,7 @@ class PlainTaskTreeTest(unittest.TestCase):
         self.assertNotIn("git init", command, "the harness never turns a task tree into a repository")
         self.assertEqual(environment.env["PLURNK_MODEL"], "test")
         self.assertEqual(environment.env["PLURNK_SERVICE_DB_PATH"], "/logs/agent/plurnk.db")
+        self.assertEqual(environment.env["PLURNK_SCHEMES_HTTP_ENABLED"], "0")
 
     def test_unattended_executor_switch_and_explicit_override(self):
         for override in (None, "1", "false"):

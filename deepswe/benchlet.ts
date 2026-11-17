@@ -396,7 +396,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
     writeJson(resolve(runDir, "candidate-execution.json"), containerExec.record);
     // {§benchlet-diagnostic}
     const isolation = candidateIsolation([...envFileKeyNames(operatorEnv), ...Object.keys(process.env)]);
-    writeJson(resolve(runDir, "candidate-isolation.json"), { masked: isolation.masked, webHosts: [], capabilities: isolation.capabilities });
+    writeJson(resolve(runDir, "candidate-isolation.json"), { masked: isolation.masked, webHosts: [] });
     const candidateEnvironmentOverrides = {
         ...isolation.overrides,
         ...containerExec.env,

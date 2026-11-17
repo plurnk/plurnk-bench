@@ -169,7 +169,7 @@ const ensureAtlasSource = (
     }
 };
 
-// The fixture supplies one complete connection definition, without a plugin wrapper.
+// The fixture supplies one complete connection definition in its configuration root.
 export const atlasEnvironment = (adapterArgs: readonly string[], node: string): Record<string, string> => ({
     PLURNK_MCP_ENABLED: "1",
     PLURNK_MCP_atlas: JSON.stringify({ name: "atlas", type: "stdio", command: node, args: [...adapterArgs] }),

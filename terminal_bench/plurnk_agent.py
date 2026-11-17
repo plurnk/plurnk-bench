@@ -213,15 +213,13 @@ class PlurnkAgent(BaseInstalledAgent):
         env = self._model_env()
         env["NODE_USE_ENV_PROXY"] = "1"
         env["PLURNK_SERVICE_DB_PATH"] = str(db_dest)
+        # Disable HTTP schemes so web tools and their teaching are omitted
+        # (contamination honesty, the DeepSWE posture).
+        env["PLURNK_SCHEMES_HTTP_ENABLED"] = "0"
         question = self._host_env("PLURNK_EXECS_PLURNK_QUESTION")
         if question is None:
             question = _env_file(Path(__file__).resolve().parent.parent / ".env.defaults")["PLURNK_EXECS_PLURNK_QUESTION"]
         env["PLURNK_EXECS_PLURNK_QUESTION"] = question
-
-        # The capability ceiling removes web tools and their teaching
-        # (contamination honesty, the DeepSWE posture).
-        deny_web = json.dumps({"deny": [{"traits": ["web"]}]})
-        capability_args = f"--capabilities {shlex.quote(deny_web)} "
 
         # {§frontier-evidence}: persistence must not depend on reaching an exit hook.
         command = f"""
@@ -263,7 +261,7 @@ if [ "$ready" -ne 1 ]; then
   echo 'plurnk agent: daemon did not become ready' >&2
   exit 1
 fi
-plurnk --json --auto {capability_args}--project-root "$project_root" --timeout {self._client_timeout_sec} -- {escaped} \
+plurnk --json --auto --project-root "$project_root" --timeout {self._client_timeout_sec} -- {escaped} \
   > {shlex.quote(str(record))} 2> {shlex.quote(str(stderr))}
 client_result=$?
 printf '%s\\n' "$client_result" > {shlex.quote(str(agent_dir / 'client-exit-code.txt'))}

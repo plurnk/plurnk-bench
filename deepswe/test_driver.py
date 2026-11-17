@@ -178,16 +178,14 @@ class DriverContractTest(unittest.TestCase):
 
         self.assertIn(" -- '- Update the display style property.' ", environment.command)
 
-    def test_default_run_denies_web_and_states_an_accepting_disposition(self):
+    def test_default_run_disables_web_and_states_an_accepting_disposition(self):
         agent = driver.PlurnkAgent()
         environment = types.SimpleNamespace()
 
         asyncio.run(agent.run("task", environment, object()))
 
-        self.assertIn(
-            "--capabilities '{\"deny\": [{\"traits\": [\"web\"]}]}'", environment.command
-        )
-        self.assertIn("plurnk --json --yolo ", environment.command)
+        self.assertEqual(environment.env["PLURNK_SCHEMES_HTTP_ENABLED"], "0")
+        self.assertIn("plurnk --json --yolo --project-root /app ", environment.command)
         self.assertNotIn("--proposals", environment.command)
         self.assertNotIn("--auto", environment.command)
         self.assertNotIn("--flags", environment.command)

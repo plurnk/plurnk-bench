@@ -11,7 +11,7 @@
 //
 //  - http: a finite GET writes its complete canonical representation before READ returns 200;
 //    genuine event streams retain the subscription lifecycle ({§tier-corpus}).
-//  - Materializer page production is exercised by the installed plugin's own live
+//  - Materializer page production is exercised by the installed extension's own live
 //    test; the built-in local projection is proven by the demo web-retrieve story.
 
 import { liveTest as test } from "@plurnk/plurnk-service/harness";
