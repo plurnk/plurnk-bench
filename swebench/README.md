@@ -87,10 +87,10 @@ node swebench/evaluate.ts --instance mwaskom__seaborn-3010 --patch gold --out /p
 
 [corpora/](corpora/) holds task selections and their provenance. A seeded sample
 is a new selection; the checked-in
-[HarnessTax corpus](corpora/harnesstax-swe-lite-30.json) identifies its cited study
-and exact task set. Matching tasks alone does not match a study's model,
-effort, attempt count, or limits.
-
+[HarnessTax corpus](corpora/harnesstax-swe-lite-30.json) (`npm run ht30`, 30 tasks)
+and [gimpbench subset](corpora/gimpbench.json) (`npm run gimpbench`, 7 tasks for
+single-wave local-lane evaluation) identify their cited study and exact task sets.
+Matching tasks alone does not match a study's model, effort, attempt count, or limits.
 To create a separate reproducible sample:
 
 ```sh
@@ -100,8 +100,9 @@ node swebench/sample.ts --label my-sample --seed my-seed --mode stratified --pin
 Run a checked-in corpus by its filename stem:
 
 ```sh
-swebench/campaign.sh --corpus harnesstax-swe-lite-30 --attempts 3 --jobs 1 --preflight
-swebench/campaign.sh --corpus harnesstax-swe-lite-30 --attempts 3 --jobs 1
+npm run ht30 -- --attempts 3 --jobs 1 --preflight
+npm run ht30 -- --model <alias> --attempts 3 --jobs 1
+npm run gimpbench -- --model <alias> --attempts 1 --jobs 7 --halt-on clean
 node swebench/report.ts /path/to/campaign
 ```
 

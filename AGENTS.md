@@ -54,20 +54,22 @@ Use frozen lanes (`~/ptl/bench-lanes`) so editing `../plurnk-service` or `../plu
      npm run swebench -- --instance django__django-11019 --model <alias>
    ```
 
-3. **HarnessTax-30 campaign (`npm run ht30`) & paired native Pi comparison (`swebench/pi-campaign.mjs`):**
+3. **HarnessTax-30 (`npm run ht30`), GimpBench-7 (`npm run gimpbench`), & paired native Pi comparison (`swebench/pi-campaign.mjs`):**
 
    ```sh
    # Plurnk arm (--halt-on clean continues past ordinary oracle misses; omit to halt on first non-pass)
    ~/ptl/bench-lanes/plurnk-service/scripts/operator-environment.sh \
      npm run ht30 -- --model <alias> --attempts 1 --jobs 6 --halt-on clean
+   ~/ptl/bench-lanes/plurnk-service/scripts/operator-environment.sh \
+     npm run gimpbench -- --model <alias> --attempts 1 --jobs 7 --halt-on clean
 
    # Native Pi arm (sharing identical corpus, model, effort, and Harbor network isolation)
    ~/ptl/bench-lanes/plurnk-service/scripts/operator-environment.sh \
      node swebench/pi-campaign.mjs \
-       --corpus swebench/corpora/harnesstax-swe-lite-30.json \
+       --corpus swebench/corpora/gimpbench.json \
        --profile /path/to/pi-profile.json \
        --out /path/to/pi-campaign \
-       --attempts 1 --jobs 6
+       --attempts 1 --jobs 7
    ```
 
    If Docker's embedded DNS stub cannot resolve external provider hosts inside Harbor's private bridge network, pass `PLURNK_SWEBENCH_RESOLV_CONF=/path/to/resolv.conf` (containing reachable resolvers such as `8.8.8.8` / `1.1.1.1`). Inspect a Plurnk campaign with `node swebench/report.ts <campaign-dir>`.

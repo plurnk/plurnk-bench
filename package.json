@@ -16,7 +16,8 @@
         "tier:live": "tiers/live.sh",
         "tier:demo": "tiers/demo.sh",
         "swebench": "swebench/run.sh",
-        "ht30": "swebench/campaign.sh --corpus harnesstax-swe-lite-30"
+        "ht30": "swebench/campaign.sh --corpus harnesstax-swe-lite-30",
+        "gimpbench": "swebench/campaign.sh --corpus gimpbench"
     },
     "dependencies": {
         "@modelcontextprotocol/client": "2.4.0",
