@@ -22,15 +22,6 @@
       }
     },
     {
-      "instance_id": "django__django-12747",
-      "base_commit": "c86201b6ed4f8256b0a0520c08aa674f623d4127",
-      "k3": {
-        "cc": 3,
-        "codex": 3,
-        "pi": 3
-      }
-    },
-    {
       "instance_id": "psf__requests-1963",
       "base_commit": "110048f9837f8441ea536804115e80b69f400277",
       "k3": {
@@ -51,6 +42,15 @@
     {
       "instance_id": "sphinx-doc__sphinx-10325",
       "base_commit": "7bdc11e87c7d86dcc2a087eccb7a7c129a473415",
+      "k3": {
+        "cc": 3,
+        "codex": 3,
+        "pi": 3
+      }
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8435",
+      "base_commit": "5d8d6275a54f2c5fb72b82383b5712c22d337634",
       "k3": {
         "cc": 3,
         "codex": 3,

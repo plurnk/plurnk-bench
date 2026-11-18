@@ -149,7 +149,8 @@ node swebench/matrix.mjs --profiles swebench/profiles/packet-memory.json \
 Replace `--instance <id>` with `--corpus swebench/corpora/harnesstax-swe-lite-30.json`
 to run every task in that pinned corpus. Each task visits every profile on every repetition.
 
-The profile file is an array of `{ "name": "label", "env": { "PLURNK_...": "value" } }`.
+The profile file is an array of `{ "name": "label", "env": { "PLURNK_...": "value" } }`
+(see [packet-memory.json](profiles/packet-memory.json) and [local-32k.json](profiles/local-32k.json)).
 Profiles may select distinct frozen `PLURNK_SWEBENCH_SERVICE_ROOT` and
 `PLURNK_SWEBENCH_CLIENT_ROOT` checkouts; their exact revisions are recorded separately.
 Instance and repetition order rotate profile order. Plans, launches, every trial path, and per-profile
@@ -157,6 +158,18 @@ accounting/friction summaries land in `~/benchmarks/jobs/swebench-matrices/`.
 Setup failures stop new launches while current trials finish; ordinary oracle misses
 remain results. An interrupt stops launching without cancelling model requests.
 There is no automatic retry or resume; inspect retained failures before another study.
+
+## Constrained `32k` `llama-server` lanes (`gimpbench`)
+
+Single-lane `< 8 GiB` local evaluations allocate `32,768` KV tokens per slot
+(`--ctx-size $((32768 * N)) --parallel N --no-kv-unified -fa on -ctk q8_0 -ctv q8_0 --jinja --reasoning-budget 8192`).
+When `--reasoning-effort-allow` omits `low`, add `low` explicitly if sweeping sub-`medium`
+template branches; otherwise `llama-server` clamps `low` to `--reasoning-effort-fallback`.
+
+| Harness | `32,768`-token slot tuning |
+|---|---|
+| Plurnk | Shipped `PLURNK_PROVIDERS_OUTPUT_BUDGET=35%` (`11,468` reserved; `21,300` curation target) and `PLURNK_PROVIDERS_OUTPUT_FLOOR=10%` (`3,276` floor; `29,492` hard `413` wall), leaving `--reasoning-budget 8192` uncapped so `6.8k–8.1k` synthesis turns are not clipped while `flexedResponseMax` grants the exact `/input_tokens` remainder. Keep `PLURNK_PROVIDERS_MAX_CONCURRENCY=-1` so probed `total_slots` bounds multi-session concurrency. |
+| Native Pi | `contextWindow: 32768`, `maxOutputTokens: 11468` (exceeding `--reasoning-budget 8192`), `compat: { "thinkingFormat": "openai", "thinkingTokenBudgetField": "thinking_budget_tokens", "supportsDeveloperRole": false, "supportsStore": false, "maxTokensField": "max_tokens" }` (so Pi clamps `thinking_budget_tokens` to `max_tokens - 1024`), and an explicit `compaction` partition (`reserveTokens + keepRecentTokens < 32768`; stock `16384 + 20000` exceeds `32,768`). |
 
 ## Native Pi comparison
 

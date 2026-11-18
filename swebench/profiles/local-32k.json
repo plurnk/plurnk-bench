@@ -1,0 +1,31 @@
+[
+    {
+        "name": "stock",
+        "env": {
+            "PLURNK_PROVIDERS_OUTPUT_BUDGET": "35%",
+            "PLURNK_PROVIDERS_OUTPUT_FLOOR": "10%"
+        }
+    },
+    {
+        "name": "rb6144-28pct",
+        "env": {
+            "PLURNK_PROVIDERS_OUTPUT_BUDGET": "28%",
+            "PLURNK_PROVIDERS_OUTPUT_FLOOR": "10%",
+            "PLURNK_PROVIDERS_REASONING_BUDGET": "6144",
+            "PLURNK_SERVICE_BUDGET_PRESSURE": "75%",
+            "PLURNK_SERVICE_BUDGET_OUTLIER_TOKENS": "4096"
+        }
+    },
+    {
+        "name": "tight-floor",
+        "env": {
+            "PLURNK_PROVIDERS_OUTPUT_BUDGET": "8192",
+            "PLURNK_PROVIDERS_OUTPUT_FLOOR": "7168",
+            "PLURNK_PROVIDERS_REASONING_BUDGET": "6144",
+            "PLURNK_SERVICE_BUDGET_PRESSURE": "75%",
+            "PLURNK_SERVICE_BUDGET_OUTLIER_TOKENS": "4096",
+            "PLURNK_SERVICE_PREVIEW_LINES": "60",
+            "PLURNK_SERVICE_PREVIEW_CHARS": "8000"
+        }
+    }
+]
