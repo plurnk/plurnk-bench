@@ -19,18 +19,18 @@
   "count": 7,
   "instances": [
     "django__django-12308",
-    "django__django-12747",
     "psf__requests-1963",
     "pylint-dev__pylint-5859",
     "sphinx-doc__sphinx-10325",
+    "sphinx-doc__sphinx-8435",
     "sympy__sympy-15345",
     "sympy__sympy-23117"
   ],
   "repos": {
-    "django/django": 2,
+    "django/django": 1,
     "psf/requests": 1,
     "pylint-dev/pylint": 1,
-    "sphinx-doc/sphinx": 1,
+    "sphinx-doc/sphinx": 2,
     "sympy/sympy": 2
   }
 }
