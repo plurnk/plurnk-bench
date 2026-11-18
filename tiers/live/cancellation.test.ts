@@ -8,7 +8,7 @@ test("live: cancellation settles an active model request", { requires: ["reasoni
     const cancellation = new AbortController();
     const reason = new Error("live cancellation after first reasoning delta");
     let loopId: number | undefined;
-    const unsubscribe = s.daemon.subscribeToEvents((_workspaceId, method, params) => {
+    const unsubscribe = s.daemon.subscribeToRuntimeStream((_workspaceId, method, params) => {
         if (method !== "reasoning/event" || (params as { phase?: string }).phase !== "content") return;
         loopId = (params as { loopId: number }).loopId;
         cancellation.abort(reason);
