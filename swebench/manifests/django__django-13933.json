@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "harness": "swebench",
+  "dataset": "SWE-bench/SWE-bench_Lite",
+  "datasetRevision": "b0dde1093fe417d83b7184254edf8199c1f0dff5",
+  "instance": "django__django-13933",
+  "repo": "django/django",
+  "baseCommit": "42e8cf47c7ee2db238bf91197ea398126c546741",
+  "environmentCommit": "475cffd1d64c690cdad16ede4d5e81985738ceb4",
+  "version": "4.0",
+  "environment": {
+    "kind": "docker",
+    "image": "swebench/sweb.eval.x86_64.django_1776_django-13933:latest",
+    "network": "none",
+    "cpus": 4,
+    "memoryMb": 8192
+  },
+  "budgetSeconds": 14400,
+  "turnCap": 100,
+  "failToPass": [
+    "test_modelchoicefield_value_placeholder (forms_tests.tests.test_error_messages.ModelChoiceFieldErrorMessagesTestCase)"
+  ],
+  "passToPass": [
+    "test_modelchoicefield (forms_tests.tests.test_error_messages.ModelChoiceFieldErrorMessagesTestCase)",
+    "test_booleanfield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+    "test_charfield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+    "test_choicefield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+    "test_datefield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+    "test_datetimefield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+    "test_decimalfield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+    "test_emailfield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+    "test_error_messages_escaping (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+    "test_filefield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+    "test_floatfield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+    "test_generic_ipaddressfield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+    "test_integerfield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+    "test_multiplechoicefield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+    "test_regexfield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+    "test_splitdatetimefield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+    "test_subclassing_errorlist (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+    "test_timefield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)",
+    "test_urlfield (forms_tests.tests.test_error_messages.FormsErrorMessagesTestCase)"
+  ],
+  "problemStatement": "ModelChoiceField does not provide value of invalid choice when raising ValidationError\nDescription\n\t \n\t\t(last modified by Aaron Wiegel)\n\t \nCompared with ChoiceField and others, ModelChoiceField does not show the value of the invalid choice when raising a validation error. Passing in parameters with the invalid value and modifying the default error message for the code invalid_choice should fix this.\nFrom source code:\nclass ModelMultipleChoiceField(ModelChoiceField):\n\t\"\"\"A MultipleChoiceField whose choices are a model QuerySet.\"\"\"\n\twidget = SelectMultiple\n\thidden_widget = MultipleHiddenInput\n\tdefault_error_messages = {\n\t\t'invalid_list': _('Enter a list of values.'),\n\t\t'invalid_choice': _('Select a valid choice. %(value)s is not one of the'\n\t\t\t\t\t\t\t' available choices.'),\n\t\t'invalid_pk_value': _('“%(pk)s” is not a valid value.')\n\t}\n\t...\nclass ModelChoiceField(ChoiceField):\n\t\"\"\"A ChoiceField whose choices are a model QuerySet.\"\"\"\n\t# This class is a subclass of ChoiceField for purity, but it doesn't\n\t# actually use any of ChoiceField's implementation.\n\tdefault_error_messages = {\n\t\t'invalid_choice': _('Select a valid choice. That choice is not one of'\n\t\t\t\t\t\t\t' the available choices.'),\n\t}\n\t...\n"
+}

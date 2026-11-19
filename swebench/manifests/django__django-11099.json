@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "harness": "swebench",
+  "dataset": "SWE-bench/SWE-bench_Lite",
+  "datasetRevision": "b0dde1093fe417d83b7184254edf8199c1f0dff5",
+  "instance": "django__django-11099",
+  "repo": "django/django",
+  "baseCommit": "d26b2424437dabeeca94d7900b37d2df4410da0c",
+  "environmentCommit": "419a78300f7cd27611196e1e464d50fd0385ff27",
+  "version": "3.0",
+  "environment": {
+    "kind": "docker",
+    "image": "swebench/sweb.eval.x86_64.django_1776_django-11099:latest",
+    "network": "none",
+    "cpus": 4,
+    "memoryMb": 8192
+  },
+  "budgetSeconds": 14400,
+  "turnCap": 100,
+  "failToPass": [
+    "test_ascii_validator (auth_tests.test_validators.UsernameValidatorsTests)",
+    "test_unicode_validator (auth_tests.test_validators.UsernameValidatorsTests)",
+    "test_help_text (auth_tests.test_validators.UserAttributeSimilarityValidatorTest)"
+  ],
+  "passToPass": [
+    "test_help_text (auth_tests.test_validators.MinimumLengthValidatorTest)",
+    "test_validate (auth_tests.test_validators.MinimumLengthValidatorTest)",
+    "test_help_text (auth_tests.test_validators.NumericPasswordValidatorTest)",
+    "test_validate (auth_tests.test_validators.NumericPasswordValidatorTest)",
+    "test_validate (auth_tests.test_validators.UserAttributeSimilarityValidatorTest)",
+    "test_validate_property (auth_tests.test_validators.UserAttributeSimilarityValidatorTest)",
+    "test_empty_password_validator_help_text_html (auth_tests.test_validators.PasswordValidationTest)",
+    "test_get_default_password_validators (auth_tests.test_validators.PasswordValidationTest)",
+    "test_get_password_validators_custom (auth_tests.test_validators.PasswordValidationTest)",
+    "test_password_changed (auth_tests.test_validators.PasswordValidationTest)",
+    "test_password_changed_with_custom_validator (auth_tests.test_validators.PasswordValidationTest)",
+    "test_password_validators_help_text_html (auth_tests.test_validators.PasswordValidationTest)",
+    "test_password_validators_help_text_html_escaping (auth_tests.test_validators.PasswordValidationTest)",
+    "test_password_validators_help_texts (auth_tests.test_validators.PasswordValidationTest)",
+    "test_validate_password (auth_tests.test_validators.PasswordValidationTest)",
+    "test_help_text (auth_tests.test_validators.CommonPasswordValidatorTest)",
+    "test_validate (auth_tests.test_validators.CommonPasswordValidatorTest)",
+    "test_validate_custom_list (auth_tests.test_validators.CommonPasswordValidatorTest)",
+    "test_validate_django_supplied_file (auth_tests.test_validators.CommonPasswordValidatorTest)"
+  ],
+  "problemStatement": "UsernameValidator allows trailing newline in usernames\nDescription\n\t\nASCIIUsernameValidator and UnicodeUsernameValidator use the regex \nr'^[\\w.@+-]+$'\nThe intent is to only allow alphanumeric characters as well as ., @, +, and -. However, a little known quirk of Python regexes is that $ will also match a trailing newline. Therefore, the user name validators will accept usernames which end with a newline. You can avoid this behavior by instead using \\A and \\Z to terminate regexes. For example, the validator regex could be changed to\nr'\\A[\\w.@+-]+\\Z'\nin order to reject usernames that end with a newline.\nI am not sure how to officially post a patch, but the required change is trivial - using the regex above in the two validators in contrib.auth.validators.\n"
+}

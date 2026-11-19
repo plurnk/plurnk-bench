@@ -1,0 +1,186 @@
+{
+  "cited": {
+    "study": "SWE-bench Verified: Human-Validated Subset of SWE-bench (exhaustive unseen <15 min fix Lite census)",
+    "url": "https://huggingface.co/datasets/SWE-bench/SWE-bench_Verified",
+    "repository": "SWE-bench/SWE-bench_Verified",
+    "commit": "78f471bf655a3137b2e8a75af1501690ec009ec3",
+    "cohort": "SWE-bench_Lite \u2229 SWE-bench_Verified[difficulty='<15 min fix'] \\ plurnk-bench@v3.0.0",
+    "datasetRevision": "b0dde1093fe417d83b7184254edf8199c1f0dff5",
+    "attemptsPerTask": 1,
+    "turnCap": 100,
+    "brief": "https://repo.possumtech.com/plurnk/plurnk-bench/issues/93 pre-registration against frozen @plurnk/plurnk-service@8.0.0 (559adf644852) and @plurnk/plurnk@8.0.0 (21e9c9d48ea6)",
+    "note": "Exhaustive 34-instance census (zero subsampling, zero seed) of all SWE-bench_Lite test instances rated '<15 min fix' in SWE-bench_Verified and absent from all prior plurnk-bench corpora and manifests at tag v3.0.0 (d3b3941)."
+  },
+  "tasks": [
+    {
+      "instance_id": "astropy__astropy-14995",
+      "base_commit": "b16c7d12ccbc7b2d20364b89fb44285bcbfede54",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "django__django-10914",
+      "base_commit": "e7fd69d051eaa67cb17f172a39b57253e9cb831a",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "django__django-11099",
+      "base_commit": "d26b2424437dabeeca94d7900b37d2df4410da0c",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "django__django-11133",
+      "base_commit": "879cc3da6249e920b8d54518a0ae06de835d7373",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "django__django-11964",
+      "base_commit": "fc2b1cc926e34041953738e58fa6ad3053059b22",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "django__django-12125",
+      "base_commit": "89d41cba392b759732ba9f1db4ff29ed47da6a56",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "django__django-13933",
+      "base_commit": "42e8cf47c7ee2db238bf91197ea398126c546741",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "django__django-14534",
+      "base_commit": "910ecd1b8df7678f45c3d507dde6bcb1faafa243",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "django__django-14580",
+      "base_commit": "36fa071d6ebd18a61c4d7f1b5c9d17106134bd44",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "django__django-14752",
+      "base_commit": "b64db05b9cedd96905d637a2d824cbbf428e40e7",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "django__django-14855",
+      "base_commit": "475cffd1d64c690cdad16ede4d5e81985738ceb4",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "django__django-14915",
+      "base_commit": "903aaa35e5ceaa33bfc9b19b7f6da65ce5a91dd4",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "django__django-14999",
+      "base_commit": "a754b82dac511475b6276039471ccd17cc64aeb8",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "django__django-15851",
+      "base_commit": "b4817d20b9e55df30be0b1b2ca8c8bb6d61aab07",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "django__django-16139",
+      "base_commit": "d559cb02da30f74debbb1fc3a46de0df134d2d80",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "django__django-16255",
+      "base_commit": "444b6da7cc229a58a2c476a52e45233001dc7073",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "django__django-17087",
+      "base_commit": "4a72da71001f154ea60906a2f74898d32b7322a7",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-23476",
+      "base_commit": "33a0599711d26dc2b79f851c6daed4947df7c167",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-24149",
+      "base_commit": "af39f1edffcd828f05cfdd04f2e59506bb4a27bc",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "matplotlib__matplotlib-25332",
+      "base_commit": "66ba515e671638971bd11a34cff12c107a437e0b",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "psf__requests-2317",
+      "base_commit": "091991be0da19de9108dbe5e3752917fea3d7fdc",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "pydata__xarray-4094",
+      "base_commit": "a64cf2d5476e7bbda099b34c40b7be1880dbd39a",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "pytest-dev__pytest-7432",
+      "base_commit": "e6e300e729dd33956e5448d8be9a0b1540b4e53a",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-13142",
+      "base_commit": "1c8668b0a021832386470ddf740d834e02c66f69",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-13439",
+      "base_commit": "a62775e99f2a5ea3d51db7160fad783f6cd8a4c5",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "scikit-learn__scikit-learn-13779",
+      "base_commit": "b34751b7ed02b2cfcc36037fb729d4360480a299",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8595",
+      "base_commit": "b19bce971e82f2497d67fdacdeca8db08ae0ba56",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "sphinx-doc__sphinx-8721",
+      "base_commit": "82ef497a8c88f0f6e50d84520e7276bfbf65025d",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "sympy__sympy-12481",
+      "base_commit": "c807dfe7569692cad24f02a08477b70c1679a4dd",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "sympy__sympy-13480",
+      "base_commit": "f57fe3f4b3f2cab225749e1b3b38ae1bf80b62f0",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "sympy__sympy-17139",
+      "base_commit": "1d3327b8e90a186df6972991963a5ae87053259d",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "sympy__sympy-17655",
+      "base_commit": "f5e965947af2410ded92cfad987aaf45262ea434",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "sympy__sympy-21847",
+      "base_commit": "d9b18c518d64d0ebe8e35a98c2fb519938b9b151",
+      "difficulty": "<15 min fix"
+    },
+    {
+      "instance_id": "sympy__sympy-22714",
+      "base_commit": "3ff4717b6aef6086e78f01cdfa06f64ae23aed7e",
+      "difficulty": "<15 min fix"
+    }
+  ]
+}

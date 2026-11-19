@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "harness": "swebench",
+  "dataset": "SWE-bench/SWE-bench_Lite",
+  "datasetRevision": "b0dde1093fe417d83b7184254edf8199c1f0dff5",
+  "instance": "django__django-14915",
+  "repo": "django/django",
+  "baseCommit": "903aaa35e5ceaa33bfc9b19b7f6da65ce5a91dd4",
+  "environmentCommit": "647480166bfe7532e8c471fef0146e3a17e6c0c9",
+  "version": "4.1",
+  "environment": {
+    "kind": "docker",
+    "image": "swebench/sweb.eval.x86_64.django_1776_django-14915:latest",
+    "network": "none",
+    "cpus": 4,
+    "memoryMb": 8192
+  },
+  "budgetSeconds": 14400,
+  "turnCap": 100,
+  "failToPass": [
+    "test_choice_value_hash (model_forms.test_modelchoicefield.ModelChoiceFieldTests)"
+  ],
+  "passToPass": [
+    "test_basics (model_forms.test_modelchoicefield.ModelChoiceFieldTests)",
+    "test_choice_iterator_passes_model_to_widget (model_forms.test_modelchoicefield.ModelChoiceFieldTests)",
+    "test_choices (model_forms.test_modelchoicefield.ModelChoiceFieldTests)",
+    "test_choices_bool (model_forms.test_modelchoicefield.ModelChoiceFieldTests)",
+    "test_choices_bool_empty_label (model_forms.test_modelchoicefield.ModelChoiceFieldTests)",
+    "test_choices_freshness (model_forms.test_modelchoicefield.ModelChoiceFieldTests)",
+    "test_choices_not_fetched_when_not_rendering (model_forms.test_modelchoicefield.ModelChoiceFieldTests)",
+    "test_choices_radio_blank (model_forms.test_modelchoicefield.ModelChoiceFieldTests)",
+    "test_clean_model_instance (model_forms.test_modelchoicefield.ModelChoiceFieldTests)",
+    "test_clean_to_field_name (model_forms.test_modelchoicefield.ModelChoiceFieldTests)",
+    "test_custom_choice_iterator_passes_model_to_widget (model_forms.test_modelchoicefield.ModelChoiceFieldTests)",
+    "test_deepcopies_widget (model_forms.test_modelchoicefield.ModelChoiceFieldTests)",
+    "test_disabled_modelchoicefield (model_forms.test_modelchoicefield.ModelChoiceFieldTests)",
+    "test_disabled_modelchoicefield_has_changed (model_forms.test_modelchoicefield.ModelChoiceFieldTests)",
+    "test_disabled_modelchoicefield_initial_model_instance (model_forms.test_modelchoicefield.ModelChoiceFieldTests)",
+    "test_disabled_modelmultiplechoicefield_has_changed (model_forms.test_modelchoicefield.ModelChoiceFieldTests)",
+    "test_disabled_multiplemodelchoicefield (model_forms.test_modelchoicefield.ModelChoiceFieldTests)",
+    "ModelChoiceField with RadioSelect widget doesn't produce unnecessary",
+    "Widgets that render multiple subwidgets shouldn't make more than one",
+    "Iterator defaults to ModelChoiceIterator and can be overridden with",
+    "test_queryset_manager (model_forms.test_modelchoicefield.ModelChoiceFieldTests)",
+    "test_queryset_none (model_forms.test_modelchoicefield.ModelChoiceFieldTests)",
+    "test_result_cache_not_shared (model_forms.test_modelchoicefield.ModelChoiceFieldTests)"
+  ],
+  "problemStatement": "ModelChoiceIteratorValue is not hashable.\nDescription\n\t\nRecently I migrated from Django 3.0 to Django 3.1. In my code, I add custom data-* attributes to the select widget options. After the upgrade some of those options broke. Error is {TypeError}unhashable type: 'ModelChoiceIteratorValue'.\nExample (this one breaks):\n\tdef create_option(self, name, value, label, selected, index, subindex=None, attrs=None):\n\t\tcontext = super().create_option(name, value, label, selected, index, subindex, attrs)\n\t\tif not value:\n\t\t\treturn context\n\t\tif value in self.show_fields: # This is a dict {1: ['first_name', 'last_name']}\n\t\t\tcontext['attrs']['data-fields'] = json.dumps(self.show_fields[value])\nHowever, working with arrays is not an issue:\n\tdef create_option(self, name, value, label, selected, index, subindex=None, attrs=None):\n\t\tcontext = super().create_option(name, value, label, selected, index, subindex, attrs)\n\t\tif not value:\n\t\t\treturn context\n\t\tif value in allowed_values: # This is an array [1, 2]\n\t\t\t...\n"
+}
