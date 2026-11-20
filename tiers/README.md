@@ -32,7 +32,8 @@ npm run tier:demo
 Repeat `--specimen <exact-test-name>` to run a subset; passing an unknown
 specimen name refuses before invoking a model and lists the available names.
 Running without `--specimen` executes the full tier and can incur substantial
-inference cost.
+inference cost. Zero-model live-network probes (`tiers/network/`) run separately
+via `node --conditions=plurnk-dev tiers/runner.ts --tier network`.
 
 ## Retained evidence
 
