@@ -261,7 +261,7 @@ if [ "$ready" -ne 1 ]; then
   echo 'plurnk agent: daemon did not become ready' >&2
   exit 1
 fi
-plurnk --json --auto --project-root "$project_root" --timeout {self._client_timeout_sec} -- {escaped} \
+plurnk --json --auto --project-root "$project_root" --timeout-sec {self._client_timeout_sec} -- {escaped} \
   > {shlex.quote(str(record))} 2> {shlex.quote(str(stderr))}
 client_result=$?
 printf '%s\\n' "$client_result" > {shlex.quote(str(agent_dir / 'client-exit-code.txt'))}

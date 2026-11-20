@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import {
-    copyFileSync,
     existsSync,
     mkdirSync,
     mkdtempSync,
@@ -32,8 +31,6 @@ import { readDigest } from "../src/digest.ts";
 import {
     aliasConfiguration,
     candidateOutcome,
-    candidatePolicyPath,
-    candidatePolicySnapshotPath,
     candidateTimeoutMs,
     dockerImageId,
     EMPTY_SHA256,
@@ -97,8 +94,6 @@ export {
     aliasConfiguration,
     baselineInvalidity,
     candidateOutcome,
-    candidatePolicyPath,
-    candidatePolicySnapshotPath,
     candidateTimeoutMs,
     captureTree,
     digestSummary,
@@ -200,7 +195,6 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         process.env,
         "PLURNK_BENCHLET_CLIENT_ROOT",
     );
-    const candidatePolicy = candidatePolicyPath(serviceRoot);
     const candidateTimeout = isTreeManifest(manifest)
         ? manifest.budgetSeconds
         : Number(process.env.PLURNK_BENCHLET_CANDIDATE_TIMEOUT_SEC);
@@ -234,7 +228,6 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         throw new Error("PLURNK_BENCHLET_REQUIEM_TIMEOUT_SEC must be a positive integer");
     }
     if (!existsSync(operatorEnv)) throw new Error(`operator model environment is missing: ${operatorEnv}`);
-    if (!existsSync(candidatePolicy)) throw new Error(`candidate policy is missing: ${candidatePolicy}`);
 
     const config = validateFixture(manifest, taskDir);
     const imageId = manifest.environment.kind === "docker"
@@ -273,8 +266,6 @@ const main = async (signal?: AbortSignal): Promise<void> => {
     }
 
     const runDir = allocateRun(runsRoot, manifest.task, model, isTreeManifest(manifest) ? "terminal-bench" : "deepswe");
-    const candidatePolicySnapshot = candidatePolicySnapshotPath(runDir);
-    copyFileSync(candidatePolicy, candidatePolicySnapshot);
     snapshotTask(runDir, manifestPath, manifest, taskDir);
     const startedAt = new Date();
     activeRunDir = runDir;
@@ -327,11 +318,6 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             requiemEnabled,
             operatorEnv,
             operatorEnvKeys: envFileKeyNames(operatorEnv),
-            candidatePolicy: {
-                sourcePath: candidatePolicy,
-                snapshotPath: candidatePolicySnapshot,
-                sha256: sha256(candidatePolicySnapshot),
-            },
             shellCredentialKeys: environmentKeyNames(process.env),
         },
     };
@@ -375,7 +361,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         "--yolo",
         "--project-root",
         repository,
-        ...(clientTimeout === -1 ? [] : ["--timeout", String(clientTimeout)]),
+        ...(clientTimeout === -1 ? [] : ["--timeout-sec", String(clientTimeout)]),
         instruction,
     ];
     // {§benchlet-diagnostic}
@@ -404,7 +390,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         PLURNK_MODEL: model,
         PLURNK_CLIENT_CHECKOUT: clientRoot,
         ...(isTreeManifest(manifest) ? { PLURNK_MEMBERS_task: "**", PLURNK_MEMBERS_ENABLED: "1" } : {}),
-        PLURNK_SERVICE_POLICY: candidatePolicySnapshot,
+        PLURNK_SERVICE_POLICY: "",
         ...(timeless ? { PLURNK_CANDIDATE_GRADE_DEADLINE_SEC: String(candidateTimeout) } : {}),
     };
     writeJson(resolve(runDir, "candidate-command.json"), {

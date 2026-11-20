@@ -68,7 +68,7 @@ class PlainTaskTreeTest(unittest.TestCase):
         command = environment.command
         guard = command.index('if ! git -C "$PWD" rev-parse --show-toplevel')
         self.assertIn('PLURNK_MEMBERS_task="${PWD#/}/**"', command)
-        self.assertIn('--project-root "$project_root" --timeout', command)
+        self.assertIn('--project-root "$project_root" --timeout-sec', command)
         self.assertLess(guard, command.index("plurnk-service start"), "membership is decided before the daemon boots")
         self.assertNotIn("git init", command, "the harness never turns a task tree into a repository")
         self.assertEqual(environment.env["PLURNK_MODEL"], "test")

@@ -68,7 +68,7 @@ LAN_IP="$(hostname -I | awk '{print $1}')"
 
 # Give the agent the BENCHMARK's own budget, not an arbitrary cap: read the task's
 # [agent] timeout_sec and use it minus headroom (daemon boot + commit + DB copy). A
-# shorter client --timeout would starve the model below the benchmark's intended
+# shorter client --timeout-sec would starve the model below the benchmark's intended
 # allowance and understate every result (SPEC {§config-carry}). Override with PLURNK_BENCH_TIMEOUT_SEC for quick dev.
 if [ "$TASK" = all ]; then
   # One global client timeout is only honest if every task grants the same budget.
@@ -278,7 +278,7 @@ done
 (
   # The 1.0 floor is READER-DECLARES: every installed member ships its own .env.defaults
   # and the platform assembles them into ONE floor (bench#2). Source them ALL — a knob now
-  # lives with its owner (e.g. PLURNK_PROVIDERS_FETCH_TIMEOUT in @plurnk/plurnk-providers).
+  # lives with its owner (e.g. PLURNK_PROVIDERS_FETCH_TIMEOUT_MS in @plurnk/plurnk-providers).
   for f in node_modules/@plurnk/*/.env.defaults; do [ -f "$f" ] && source_env_file "$f"; done
   source_env_file "$OPERATOR_ENV"
   export PLURNK_MODEL="$MODEL"

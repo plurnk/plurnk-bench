@@ -82,7 +82,7 @@ test("{§config-carry} the runner uses the ordinary PLURNK_MODEL cascade", () =>
 const specimen = readFileSync(new URL("./specimen.sh", import.meta.url), "utf8");
 
 test("{§enterprise} the daemon comes from a checkout, the benchmark keeps its endpoint and judge", () => {
-    assert.match(specimen, /node scripts\/candidate\.mjs --json --yolo --project-root '' --timeout "\$TIMEOUT" -- "\$INSTRUCTION"/);
+    assert.match(specimen, /node scripts\/candidate\.mjs --json --yolo --project-root '' --timeout-sec "\$TIMEOUT" -- "\$INSTRUCTION"/);
     assert.match(specimen, /docker run -d --rm --name "\$CONTAINER" -p 127\.0\.0\.1:8000:8000 "\$BENCH_IMAGE"/);
     assert.match(specimen, /docker cp "\$TASK_PATH\/tests\/\." "\$CONTAINER:\/tests\/"/);
     assert.match(specimen, /python -m utils\.test_helpers/);

@@ -52,12 +52,6 @@ export const expandHome = (value: string): string =>
 export const resolveFrom = (root: string, value: string): string =>
     resolve(root, expandHome(value));
 
-export const candidatePolicyPath = (serviceRoot: string): string =>
-    resolve(serviceRoot, "plurnk-meta", "POLICY.md");
-
-export const candidatePolicySnapshotPath = (runDir: string): string =>
-    resolve(runDir, "candidate-policy.md");
-
 export const sha256 = (path: string): string =>
     createHash("sha256").update(readFileSync(path)).digest("hex");
 

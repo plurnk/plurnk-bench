@@ -352,7 +352,7 @@ test("{§swebench-comparison} nineteen raw emissions include seven admitted turn
     }));
     const entries = turns.flatMap(({ id }) => id <= 7 ? [
         entry({ id: id * 2, turn_id: id, origin: "_plurnk", attrs: { kind: "emission" } }),
-        entry({ id: id * 2 + 1, turn_id: id, op: "sh", target: null, attrs: { stream: `sh:///${id}` } }),
+        entry({ id: id * 2 + 1, turn_id: id, op: "sh", target: null, attrs: { stream: `exec:///sh/${id}` } }),
     ] : [entry({ id: id * 2, turn_id: id, origin: "_plurnk", source: "rail", op: "error", target: null,
         status_rx: 422, problem: { type: noOperation } })]);
     const row = trial(t, turns, entries);
@@ -383,22 +383,22 @@ test("{§swebench-comparison} admission outcomes do not follow content presence 
 });
 
 test("{§swebench-comparison} failed receipts preserve provenance and channels do not multiply failed executions", (t) => {
-    const failure = { status_rx: 500, problem: { type: nonzero }, target: "sh:///process#stdout" };
-    const row = trial(t, [{ id: 1, program: "{\"server\":\"plurnk\",\"tool\":\"read\",\"arguments\":{\"path\":\"sh:///process\"}}" }], [
+    const failure = { status_rx: 500, problem: { type: nonzero }, target: "exec:///sh/process#stdout" };
+    const row = trial(t, [{ id: 1, program: "{\"server\":\"plurnk\",\"tool\":\"read\",\"arguments\":{\"path\":\"exec:///sh/process\"}}" }], [
         entry({ ...failure, ambient_event_id: 71 }),
-        entry({ ...failure, origin: "_plurnk", target: "sh:///process#stderr" }),
-        entry({ ...failure, origin: "_plurnk", target: "sh:///process#stdout" }),
+        entry({ ...failure, origin: "_plurnk", target: "exec:///sh/process#stderr" }),
+        entry({ ...failure, origin: "_plurnk", target: "exec:///sh/process#stdout" }),
         entry({ ...failure, origin: "_plurnk", ambient_event_id: 71 }),
         entry({ ...failure, inherited_history: true, ambient_event_id: 71 }),
         entry({ ...failure, origin: "_plurnk", inherited_history: true, ambient_event_id: 71 }),
-        entry({ ...failure, origin: "_plurnk", target: "sh:///second#stdout" }),
-        entry({ status_rx: 416, problem: { type: range }, target: "sh:///third#stdout" }),
+        entry({ ...failure, origin: "_plurnk", target: "exec:///sh/second#stdout" }),
+        entry({ status_rx: 416, problem: { type: range }, target: "exec:///sh/third#stdout" }),
         entry({ ...failure, origin: "_plurnk", target: null }),
         entry({ status_rx: 422, op: "edit", problem: { type: range } }),
     ]);
     assert.deepEqual(row.friction.failures, {
         receipts: { authored: { read: 2, edit: 1 }, automatic: { read: 4 }, ambient: { read: 1 }, inherited: { read: 2 }, unknown: {} },
-        executionStreams: [{ path: "sh:///process", receipts: 6 }, { path: "sh:///second", receipts: 1 }],
+        executionStreams: [{ path: "exec:///sh/process", receipts: 6 }, { path: "exec:///sh/second", receipts: 1 }],
         unaddressedExecutionReceipts: 1,
     });
 });
@@ -482,7 +482,7 @@ test("{§swebench-evaluator} the candidate runs the ordinary client: --json, --y
         "--yolo",
         "--max-turns", "100",
         "--project-root", "/runs/run1/repo",
-        "--timeout", "1680",
+        "--timeout-sec", "1680",
         "--", "Fix the missing-data crash",
     ]);
 });
@@ -494,7 +494,7 @@ test("{§swebench-evaluator} the candidate approves locally without retired per-
     assert.ok(!argv.includes("--proposals"));
 });
 
-test("{§swebench-evaluator} -1 is the no-limit idiom: no --timeout flag is emitted", () => {
+test("{§swebench-evaluator} -1 is the no-limit idiom: no --timeout-sec flag is emitted", () => {
     assert.deepEqual(candidateArgv("/r", -1, "p", 100), [
         "plurnk", "--json", "--yolo",
         "--max-turns", "100", "--project-root", "/r", "--", "p",
@@ -583,7 +583,7 @@ test("{§swebench-comparison} the study's turn cap is the bound, not our wall cl
     assert.equal(argv[argv.indexOf("--max-turns") + 1], "100", "HarnessTax capped each attempt at 100 model turns");
     // The wall clock is a runaway guard: it must sit far above any plausible 100-turn rollout, or
     // a slow route records a timeout where the study would have recorded a turn count.
-    assert.equal(argv[argv.indexOf("--timeout") + 1], "14400");
+    assert.equal(argv[argv.indexOf("--timeout-sec") + 1], "14400");
 });
 }
 
