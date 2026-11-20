@@ -70,7 +70,7 @@ export const candidateArgv = (
     "--yolo",
     "--max-turns", String(turnCap),
     "--project-root", repository,
-    ...(timeout === -1 ? [] : ["--timeout", String(timeout)]),
+    ...(timeout === -1 ? [] : ["--timeout-sec", String(timeout)]),
     "--", instruction,
 ];
 

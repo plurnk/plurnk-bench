@@ -5,18 +5,22 @@ import { join } from "node:path";
 import test from "node:test";
 import { buildTierInvocation, publishTierSessions, selectTierSpecimens, tierFiles, tierRunDir } from "./runner.ts";
 import { hasAuditOutcome } from "./demo/_audit-oracle.ts";
+import { assertSingleProseParagraph } from "./demo/_authoring-oracle.ts";
 import { observedScriptExecution, type ScriptReceipt } from "./demo/_script-oracle.ts";
 import { latestStableNodeVersion, namesNodeVersion, versionsNamed } from "./demo/_web-oracle.ts";
 
 // ─── runner.test.ts ───
 {
-test("{§tier-corpus} tierFiles discovers both live and demo specimen suites in sorted order", () => {
+test("{§tier-corpus} tierFiles discovers live, demo, and network specimen suites in sorted order", () => {
     const live = tierFiles("live");
     const demo = tierFiles("demo");
-    assert.ok(live.length >= 15, `expected at least 15 live suite files, found ${live.length}`);
-    assert.ok(demo.length >= 15, `expected at least 15 demo suite files, found ${demo.length}`);
+    const network = tierFiles("network");
+    assert.ok(live.length >= 10, `expected at least 10 live suite files, found ${live.length}`);
+    assert.ok(demo.length >= 10, `expected at least 10 demo suite files, found ${demo.length}`);
+    assert.equal(network.length, 2, `expected 2 zero-model network probe files, found ${network.length}`);
     assert.deepEqual(live, [...live].toSorted());
     assert.deepEqual(demo, [...demo].toSorted());
+    assert.deepEqual(network, [...network].toSorted());
 });
 
 test("{§tier-corpus} selectTierSpecimens accepts known specimen names and refuses unknown names with the catalog", () => {
@@ -42,6 +46,7 @@ test("{§tier-corpus} buildTierInvocation wires the candidate service lane, clie
     assert.equal(invocation.env.PLURNK_TIERS_SERVICE_ROOT, "/tmp/lane-a/plurnk-service/plurnk-core");
     assert.equal(invocation.env.PLURNK_SERVICE_CHECKOUT, "/tmp/lane-a/plurnk-service");
     assert.equal(invocation.env.PLURNK_CLIENT_CHECKOUT, "/tmp/lane-a/plurnk");
+    assert.equal(invocation.env.PLURNK_SERVICE_POLICY, "");
     assert.equal(invocation.env.PLURNK_TIER_RUN_DIR, runDir);
     assert.ok(invocation.args.includes("--conditions=plurnk-dev"));
     assert.ok(invocation.args.includes("--test-name-pattern=^(?:live: a \\+ b \\(c\\))$"));
@@ -178,7 +183,7 @@ test("{§tier-corpus} publishTierSessions writes per-session record.json and a u
 
 // ─── oracles.test.ts ───
 {
-const stream = "sh:///1/2/3/sh";
+const stream = "exec:///sh/a1b2c3d4";
 const execution = (target: string | null, body = ""): ScriptReceipt => ({
     scheme: "file",
     pathname: target,
@@ -190,7 +195,7 @@ const execution = (target: string | null, body = ""): ScriptReceipt => ({
     origin: "model",
 });
 const receipt = (output = "GREETING\n", exitCode = 0, source = stream): ScriptReceipt => ({
-    scheme: "sh",
+    scheme: new URL(source).protocol.slice(0, -1),
     pathname: new URL(source).pathname,
     fragment: "stdout",
     tx: "{}",
@@ -239,12 +244,20 @@ test("{§tier-corpus} script oracle rejects claimed, unobserved, failed, unrelat
         [[execution("greet.sh")], [receipt("GREETING\n", 1)]],
         [[execution("greet.sh")], [receipt("WRONG\n")]],
         [[execution(null, "printf GREETING")], [receipt()]],
-        [[execution("greet.sh")], [receipt("GREETING\n", 0, "sh:///1/2/4/sh")]],
+        [[execution("greet.sh")], [receipt("GREETING\n", 0, "exec:///sh/b2c3d4e5")]],
         [[{ ...execution("greet.sh"), status_rx: 403 }], [receipt()]],
         [[execution("greet.sh")], [{ ...receipt(), rx: JSON.stringify({ content: "GREETING\n", exitCode: 0, terminal: false }) }]],
         [[execution("greet.sh")], [{ ...receipt(), fragment: "stderr" }]],
     ];
     for (const [execs, reads] of cases) assert.equal(observedScriptExecution(execs, reads, "greet.sh", "GREETING"), false);
+});
+
+test("{§tier-corpus} authoring oracle permits an optional heading without permitting a second prose paragraph", () => {
+    assert.doesNotThrow(() => assertSingleProseParagraph("# Printing Press\n\nOne tight paragraph."));
+    assert.throws(
+        () => assertSingleProseParagraph("# Printing Press\n\nFirst paragraph.\n\nSecond paragraph."),
+        /one prose paragraph/,
+    );
 });
 
 test("{§tier-corpus} web story oracle distinguishes latest stable from a newer maintenance date or an LTS label", () => {

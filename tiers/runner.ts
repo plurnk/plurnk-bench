@@ -15,7 +15,7 @@ import { publishedRecord } from "../src/publish.ts";
 import type { BenchRecord, Outcome } from "../src/record.ts";
 import { sourceProvenance } from "../src/source-provenance.ts";
 
-export type TierName = "live" | "demo";
+export type TierName = "live" | "demo" | "network";
 
 const moduleDir = dirname(fileURLToPath(import.meta.url));
 const benchRoot = resolve(moduleDir, "..");
@@ -110,7 +110,7 @@ export const buildTierInvocation = ({
             PLURNK_TIERS_SERVICE_ROOT: serviceCore,
             PLURNK_SERVICE_CHECKOUT: serviceRoot,
             PLURNK_CLIENT_CHECKOUT: clientRoot,
-            PLURNK_SERVICE_POLICY: "../plurnk-meta/POLICY.md",
+            PLURNK_SERVICE_POLICY: "",
             PLURNK_BENCHMARKS: base.startsWith("tier-") ? dirname(runDir) : runDir,
             PLURNK_TIER_RUN: tierRun,
             PLURNK_TIER_RUN_DIR: runDir,
@@ -321,14 +321,14 @@ if (import.meta.main) {
         process.exit(0);
     }
     const tier = values.tier;
-    if (tier !== "live" && tier !== "demo") {
-        throw new Error(`--tier must be 'live' or 'demo' (got ${JSON.stringify(tier)})`);
+    if (tier !== "live" && tier !== "demo" && tier !== "network") {
+        throw new Error(`--tier must be 'live', 'demo', or 'network' (got ${JSON.stringify(tier)})`);
     }
     const operatorEnv = loadBenchmarkEnvironment(
         process.env.PLURNK_BENCHLET_OPERATOR_ENV,
         resolve(benchRoot, ".env.defaults"),
     );
-    const model = selectedModel();
+    const model = tier === "network" ? (process.env.PLURNK_MODEL?.trim() || "none") : selectedModel();
     const serviceRoot = resolve(benchRoot, process.env.PLURNK_BENCHLET_SERVICE_ROOT ?? "../plurnk-service");
     const configuredClient = process.env.PLURNK_BENCHLET_CLIENT_ROOT?.trim() || process.env.PLURNK_CLIENT_CHECKOUT?.trim();
     const clientRoot = configuredClient !== undefined && configuredClient !== ""

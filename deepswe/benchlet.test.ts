@@ -6,21 +6,10 @@ import test from "node:test";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
-import { aliasConfiguration, allocateRun, captureTree, isTreeManifest, treeInstruction, parseTreeVerifierArtifacts, candidateTimeoutMs, candidateOutcome, producedNoPatch, EMPTY_SHA256, candidatePolicyPath, candidatePolicySnapshotPath, digestSummary, baselineInvalidity, EXECUTOR_SHIMS, executorShim, environmentExcludedP2p, gradeObservations, manifestPathForTask, parseGoTestEvents, parseTaskVerifierArtifacts, recordInfrastructureFailure, requiemIsComplete, requiemModelAlias, runToFiles, summarizeFailures, withoutExcluded } from "./benchlet.ts";
+import { aliasConfiguration, allocateRun, captureTree, isTreeManifest, treeInstruction, parseTreeVerifierArtifacts, candidateTimeoutMs, candidateOutcome, producedNoPatch, EMPTY_SHA256, digestSummary, baselineInvalidity, EXECUTOR_SHIMS, executorShim, environmentExcludedP2p, gradeObservations, manifestPathForTask, parseGoTestEvents, parseTaskVerifierArtifacts, recordInfrastructureFailure, requiemIsComplete, requiemModelAlias, runToFiles, summarizeFailures, withoutExcluded } from "./benchlet.ts";
 
 // ─── benchlet.test.ts ───
 {
-test("{§benchlet-diagnostic} benchlet resolves and snapshots the service candidate policy", () => {
-    assert.equal(
-        candidatePolicyPath("/source/plurnk-service"),
-        "/source/plurnk-service/plurnk-meta/POLICY.md",
-    );
-    assert.equal(
-        candidatePolicySnapshotPath("/artifacts/run46"),
-        "/artifacts/run46/candidate-policy.md",
-    );
-});
-
 test("{§benchlet-diagnostic} benchlet parses exact go test events and keeps failure output", () => {
     const events = [
         JSON.stringify({ Action: "run", Package: "example.test/pkg", Test: "TestOne" }),
@@ -285,14 +274,14 @@ test("{§benchlet-diagnostic} benchlet groups terminal stream channels into one 
             op: "sh",
             target: null,
             status_rx: 200,
-            attrs: { stream: "sh:///1/2/3" },
+            attrs: { stream: "exec:///sh/1234abcd" },
             problem: null,
         }, {
             id: 11,
             session_id: 4,
             origin: "_plurnk",
             op: "read",
-            target: "sh:///1/2/3#stdout",
+            target: "exec:///sh/1234abcd#stdout",
             status_rx: 500,
             attrs: { terminal: true },
             problem: {
@@ -307,7 +296,7 @@ test("{§benchlet-diagnostic} benchlet groups terminal stream channels into one 
             session_id: 4,
             origin: "_plurnk",
             op: "read",
-            target: "sh:///1/2/3#stderr",
+            target: "exec:///sh/1234abcd#stderr",
             status_rx: 500,
             attrs: { terminal: true },
             problem: {
@@ -322,14 +311,14 @@ test("{§benchlet-diagnostic} benchlet groups terminal stream channels into one 
             session_id: 4,
             origin: "model",
             op: "sh",
-            target: "sh:///1/1/9",
+            target: "exec:///sh/deadbeef",
             status_rx: 404,
-            attrs: { stream: "sh:///1/3/3" },
+            attrs: { stream: "exec:///sh/5678ef01" },
             problem: {
                 type: entryNotFound,
                 title: "Entry not found",
                 status: 404,
-                detail: "No entry exists at sh:///1/1/9.",
+                detail: "No entry exists at exec:///sh/deadbeef.",
                 instance: "log:///1/3/3/sh",
             },
         }],
@@ -344,7 +333,7 @@ test("{§benchlet-diagnostic} benchlet groups terminal stream channels into one 
         incidents: [{
             kind: "stream",
             sessionId: 4,
-            address: "sh:///1/2/3",
+            address: "exec:///sh/1234abcd",
             operation: "sh",
             operationEntryId: 10,
             status: 500,
@@ -362,7 +351,7 @@ test("{§benchlet-diagnostic} benchlet groups terminal stream channels into one 
             status: 404,
             problemType: entryNotFound,
             title: "Entry not found",
-            detail: "No entry exists at sh:///1/1/9.",
+            detail: "No entry exists at exec:///sh/deadbeef.",
             observationRows: 1,
             channels: [],
         }],
@@ -600,7 +589,7 @@ test("{§benchlet-diagnostic} summarizeFailures: a child's reconciled execution 
     const exec = (id: number, source: string | null, origin: string) => ({
         id, session_id: 3, op: "sh", origin, state: "resolved", outcome: null,
         target: null, source, status_rx: 200, problem: null,
-        attrs: { stream: "sh:///1/2/3", runtime: "sh" },
+        attrs: { stream: "exec:///sh/1234abcd", runtime: "sh" },
     });
     // run206's true shape: the parent's own execution plus the child's execution reconciled in with its
     // child-relative coordinate intact.

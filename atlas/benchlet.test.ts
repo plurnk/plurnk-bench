@@ -90,7 +90,7 @@ test("{§benchlet-diagnostic} Atlas candidate is rooted in the run's scratch wor
         "--files-items=-1",
         "--max-turns",
         "10",
-        "--timeout",
+        "--timeout-sec",
         "900",
         "task",
     ]);
@@ -109,21 +109,21 @@ test("{§benchlet-diagnostic} Atlas evidence comes from a successful allowed too
             origin: "model",
             op: "atlas",
             status_rx: 200,
-            stream: "atlas:///1/2/3",
+            stream: "exec:///atlas/1234abcd",
             target: "filesystem_read_text_file",
         },
         {
             origin: "model",
             op: "sh",
             status_rx: 200,
-            stream: "sh:///1/2/4",
+            stream: "exec:///sh/5678ef01",
             target: "filesystem_read_text_file",
         },
         {
             origin: "model",
             op: "atlas",
             status_rx: 400,
-            stream: "atlas:///1/2/5",
+            stream: "exec:///atlas/90abcdef",
             target: "filesystem_read_text_file",
         },
     ];

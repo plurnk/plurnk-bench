@@ -397,7 +397,7 @@ export const atlasClientArgs = (options: {
     `--files-items=${options.filesItems}`,
     "--max-turns",
     String(options.maxTurns),
-    "--timeout",
+    "--timeout-sec",
     String(options.timeoutSeconds),
     options.prompt,
 ];
@@ -412,7 +412,7 @@ export const successfulExecutorCalls = (
     entry.origin === "model"
     && entry.op === runtime
     && entry.status_rx < 400
-    && entry.stream?.startsWith(`${runtime}:///`) === true
+    && entry.stream?.startsWith(`exec:///${runtime}/`) === true
     && typeof entry.target === "string"
     && allowedTools.includes(entry.target)).length;
 
@@ -609,11 +609,9 @@ const main = async (): Promise<void> => {
         process.env,
         "PLURNK_BENCH_ATLAS_CLIENT_ROOT",
     );
-    const policy = resolve(serviceRoot, "plurnk-meta", "POLICY.md");
     if (requiemEnabled && !existsSync(operatorEnv)) {
         throw new Error(`Atlas requiem environment is missing: ${operatorEnv}`);
     }
-    if (!existsSync(policy)) throw new Error(`Candidate policy is missing: ${policy}`);
     if (task.oracle.kind === "claims") {
         ensureAtlasSource(sourceRepository, sourceRevision, sourceRoot);
     }
@@ -629,7 +627,6 @@ const main = async (): Promise<void> => {
     activeRunDir = runDir;
     activeStartedAt = new Date();
     copyFileSync(selectedTaskPath, resolve(runDir, "task.json"));
-    copyFileSync(policy, resolve(runDir, "candidate-policy.md"));
 
     activeStage = "image";
     const resolvedImageId = imageId(image);
@@ -741,7 +738,7 @@ const main = async (): Promise<void> => {
         PLURNK_MODEL: model,
         PLURNK_CANDIDATE_SKIP_BUILD: "1",
         PLURNK_CLIENT_CHECKOUT: clientRoot,
-        PLURNK_SERVICE_POLICY: resolve(runDir, "candidate-policy.md"),
+        PLURNK_SERVICE_POLICY: "",
         PLURNK_CANDIDATE_CLIENT_ENV: JSON.stringify({
             PLURNK_EXECS_ONLY: "atlas",
         }),
