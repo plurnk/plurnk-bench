@@ -397,8 +397,8 @@ export const atlasClientArgs = (options: {
     `--files-items=${options.filesItems}`,
     "--max-turns",
     String(options.maxTurns),
-    "--timeout-sec",
-    String(options.timeoutSeconds),
+    "--timeout-ms",
+    String(options.timeoutSeconds * 1_000),
     options.prompt,
 ];
 

@@ -90,8 +90,8 @@ test("{§benchlet-diagnostic} Atlas candidate is rooted in the run's scratch wor
         "--files-items=-1",
         "--max-turns",
         "10",
-        "--timeout-sec",
-        "900",
+        "--timeout-ms",
+        "900000",
         "task",
     ]);
 });

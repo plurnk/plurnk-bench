@@ -68,7 +68,7 @@ LAN_IP="$(hostname -I | awk '{print $1}')"
 
 # Give the agent the BENCHMARK's own budget, not an arbitrary cap: read the task's
 # [agent] timeout_sec and use it minus headroom (daemon boot + commit + DB copy). A
-# shorter client --timeout-sec would starve the model below the benchmark's intended
+# shorter client --timeout-ms would starve the model below the benchmark's intended
 # allowance and understate every result (SPEC {§config-carry}). Override with PLURNK_BENCH_TIMEOUT_SEC for quick dev.
 if [ "$TASK" = all ]; then
   # One global client timeout is only honest if every task grants the same budget.

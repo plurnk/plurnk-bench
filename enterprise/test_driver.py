@@ -114,7 +114,7 @@ class DriverContractTest(unittest.TestCase):
 
         self.assertIn("plurnk --json --yolo --project-root '' ", environment.command)
         self.assertNotIn("--flags", environment.command)
-        self.assertIn("--timeout-sec 480 -- '- List the accounts.' ", environment.command)
+        self.assertIn("--timeout-ms 480000 -- '- List the accounts.' ", environment.command)
         self.assertNotIn("submit_agent_response", environment.command)
         self.assertNotIn("git ", environment.command)
         self.assertIn("cp /agent-logs/conversational/responses.jsonl /logs/agent/responses.jsonl", environment.command)

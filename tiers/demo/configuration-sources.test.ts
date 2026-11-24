@@ -40,8 +40,16 @@ test("demo: the model repairs a broken MCP file and uses its restored tool", asy
         assert.equal(effective?.origin, "service");
         assert.deepEqual(effective?.provenance, { kind: "file", source: config, reference: "/mcpServers/echo" });
         const log = await s.daemon.readLog({ workspaceId: s.workspaceId, sessionId: result.modelSessionId, limit: Number.MAX_SAFE_INTEGER });
-        assert.ok(log.some((row) => row.op === "read" && row.scheme === "echo" && row.statusRx === 200 && JSON.stringify(row.rx).includes(marker)),
-            "the model actually observes the restored tool output, not merely repeats the requested marker");
+        assert.ok(
+            log.some((row) =>
+                row.statusRx === 200
+                && JSON.stringify(row.rx).includes(marker)
+                && (
+                    row.op === "echo"
+                    || (row.op === "read" && row.scheme === "exec" && row.pathname?.startsWith("/echo/") === true)
+                )),
+            "the model actually observes the restored tool output, not merely repeats the requested marker",
+        );
         assert.ok(result.lastContent.includes(marker));
         assert.match(result.lastContent, /mcp\.json/u);
     } finally { await s.cleanup(); }
