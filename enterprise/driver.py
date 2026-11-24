@@ -179,7 +179,7 @@ for _ in $(seq 1 {DAEMON_READY_TIMEOUT_S}); do
   if plurnk models >/dev/null 2>&1; then break; fi
   sleep 1
 done
-plurnk --json --yolo --project-root '' --timeout-sec {self._client_timeout_sec} -- {escaped} \
+plurnk --json --yolo --project-root '' --timeout-ms {self._client_timeout_sec * 1000} -- {escaped} \
   > {shlex.quote(str(record))} 2> {shlex.quote(str(stderr))} || true
 [ -f /agent-logs/conversational/responses.jsonl ] && cp /agent-logs/conversational/responses.jsonl {shlex.quote(str(answer_copy))}
 snapshot_db "$DB" {shlex.quote(str(db_dest))}

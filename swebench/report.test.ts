@@ -482,7 +482,7 @@ test("{§swebench-evaluator} the candidate runs the ordinary client: --json, --y
         "--yolo",
         "--max-turns", "100",
         "--project-root", "/runs/run1/repo",
-        "--timeout-sec", "1680",
+        "--timeout-ms", "1680000",
         "--", "Fix the missing-data crash",
     ]);
 });
@@ -494,7 +494,7 @@ test("{§swebench-evaluator} the candidate approves locally without retired per-
     assert.ok(!argv.includes("--proposals"));
 });
 
-test("{§swebench-evaluator} -1 is the no-limit idiom: no --timeout-sec flag is emitted", () => {
+test("{§swebench-evaluator} -1 is the no-limit idiom: no --timeout-ms flag is emitted", () => {
     assert.deepEqual(candidateArgv("/r", -1, "p", 100), [
         "plurnk", "--json", "--yolo",
         "--max-turns", "100", "--project-root", "/r", "--", "p",
@@ -583,7 +583,7 @@ test("{§swebench-comparison} the study's turn cap is the bound, not our wall cl
     assert.equal(argv[argv.indexOf("--max-turns") + 1], "100", "HarnessTax capped each attempt at 100 model turns");
     // The wall clock is a runaway guard: it must sit far above any plausible 100-turn rollout, or
     // a slow route records a timeout where the study would have recorded a turn count.
-    assert.equal(argv[argv.indexOf("--timeout-sec") + 1], "14400");
+    assert.equal(argv[argv.indexOf("--timeout-ms") + 1], "14400000");
 });
 }
 

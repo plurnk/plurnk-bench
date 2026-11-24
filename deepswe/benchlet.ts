@@ -361,7 +361,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         "--yolo",
         "--project-root",
         repository,
-        ...(clientTimeout === -1 ? [] : ["--timeout-sec", String(clientTimeout)]),
+        ...(clientTimeout === -1 ? [] : ["--timeout-ms", String(clientTimeout * 1_000)]),
         instruction,
     ];
     // {§benchlet-diagnostic}
