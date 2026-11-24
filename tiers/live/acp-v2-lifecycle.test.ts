@@ -1,8 +1,12 @@
-// {§tier-corpus} — end-to-end ACPv2 lifecycle under `PLURNK_AUTH=1`: RFC 8414/9728 discovery,
-// OAuth 2.1 token exchange, `createHttpStream` + `createWebSocketStream`, `session/request_permission`
-// host-effect gate, and `session/resume` history replay without extra model inference.
+// {§tier-corpus} — end-to-end ACPv2 lifecycle under external OIDC resource-server auth
+// (`PLURNK_AUTH_ISSUER`): RFC 9728 protected-resource metadata, ES256 JWKS bearer verification,
+// `createHttpStream` + `createWebSocketStream`, `session/request_permission` host-effect gate,
+// and `session/resume` history replay without extra model inference.
 import assert from "node:assert/strict";
+import { generateKeyPairSync, sign as cryptoSign } from "node:crypto";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -29,6 +33,62 @@ import {
 
 const WsConstructor = WebSocket as unknown as WebSocketConstructor;
 
+const base64url = (input: string | Buffer): string =>
+    Buffer.from(input).toString("base64url");
+
+const startMockOidcProvider = async () => {
+    const { publicKey, privateKey } = generateKeyPairSync("ec", { namedCurve: "P-256" });
+    const publicJwk = {
+        ...publicKey.export({ format: "jwk" }),
+        kid: "tier-es256-1",
+        alg: "ES256",
+        use: "sig",
+    };
+    let origin = "";
+    const prefix = "/realms/plurnk";
+    const server = createServer((req, res) => {
+        const pathname = new URL(req.url ?? "/", "http://127.0.0.1").pathname;
+        const issuer = `${origin}${prefix}`;
+        const jwksUri = `${issuer}/jwks.json`;
+        if (pathname === `${prefix}/.well-known/openid-configuration`) {
+            res.writeHead(200, { "content-type": "application/json" });
+            res.end(JSON.stringify({ issuer, jwks_uri: jwksUri }));
+            return;
+        }
+        if (pathname === `${prefix}/jwks.json`) {
+            res.writeHead(200, { "content-type": "application/json" });
+            res.end(JSON.stringify({ keys: [publicJwk] }));
+            return;
+        }
+        res.writeHead(404).end();
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = server.address() as AddressInfo;
+    origin = `http://127.0.0.1:${port}`;
+    const issuer = `${origin}${prefix}`;
+    const signJwt = (claims: Record<string, unknown>): string => {
+        const nowSec = Math.floor(Date.now() / 1000);
+        const header = base64url(JSON.stringify({ alg: "ES256", kid: "tier-es256-1", typ: "JWT" }));
+        const payload = base64url(JSON.stringify({
+            iss: issuer,
+            iat: nowSec,
+            exp: nowSec + 300,
+            ...claims,
+        }));
+        const signingInput = `${header}.${payload}`;
+        const signature = cryptoSign("sha256", Buffer.from(signingInput), {
+            key: privateKey,
+            dsaEncoding: "ieee-p1363",
+        });
+        return `${signingInput}.${base64url(signature)}`;
+    };
+    return {
+        issuer,
+        signJwt,
+        close: () => new Promise<void>((resolve) => server.close(() => resolve())),
+    };
+};
+
 const makeClientApp = () =>
     createRawAcpClient().onConnect((conn) => {
         void conn.agent.request(methods.agent.initialize, {
@@ -43,17 +103,22 @@ const makeClientApp = () =>
         });
     });
 
-test("live: ACPv2 OAuth 2.1 token exchange, HTTP/WS streams, session/request_permission, and session/resume replay", async (t) => {
+test("live: ACPv2 external OIDC resource-server auth, HTTP/WS streams, session/request_permission, and session/resume replay", async (t) => {
+    const idp = await startMockOidcProvider();
+    t.after(() => idp.close());
+
     const savedEnv = {
-        PLURNK_AUTH: process.env.PLURNK_AUTH,
-        PLURNK_SECRET: process.env.PLURNK_SECRET,
-        PLURNK_PASS: process.env.PLURNK_PASS,
+        PLURNK_AUTH_ISSUER: process.env.PLURNK_AUTH_ISSUER,
+        PLURNK_AUTH_CLIENT_ID: process.env.PLURNK_AUTH_CLIENT_ID,
+        PLURNK_AUTH_AUDIENCE: process.env.PLURNK_AUTH_AUDIENCE,
+        PLURNK_AUTH_USERS: process.env.PLURNK_AUTH_USERS,
         PLURNK_SERVICE_EFFECT_HOST: process.env.PLURNK_SERVICE_EFFECT_HOST,
     };
-    const secret = `acp-live-secret-${crypto.randomUUID()}`;
-    process.env.PLURNK_AUTH = "1";
-    process.env.PLURNK_SECRET = secret;
-    process.env.PLURNK_PASS = "lovelace";
+    const clientId = "plurnk-tier-client";
+    process.env.PLURNK_AUTH_ISSUER = idp.issuer;
+    process.env.PLURNK_AUTH_CLIENT_ID = clientId;
+    process.env.PLURNK_AUTH_AUDIENCE = clientId;
+    process.env.PLURNK_AUTH_USERS = "operator";
     process.env.PLURNK_SERVICE_EFFECT_HOST = "review";
     serverProposals(t, "review");
     t.after(() => {
@@ -84,7 +149,7 @@ test("live: ACPv2 OAuth 2.1 token exchange, HTTP/WS streams, session/request_per
         const { port } = http.httpAddress();
         const baseUrl = `http://127.0.0.1:${port}`;
 
-        // 1. Unauthenticated `/acp` is refused 401 with Bearer challenge; RFC 8414 metadata is public.
+        // 1. Unauthenticated `/acp` is refused 401 with Bearer challenge; RFC 9728 metadata is public.
         const unauth = await fetch(`${baseUrl}/acp`, {
             method: "POST",
             headers: { "content-type": "application/json" },
@@ -93,23 +158,19 @@ test("live: ACPv2 OAuth 2.1 token exchange, HTTP/WS streams, session/request_per
         assert.equal(unauth.status, 401);
         assert.match(unauth.headers.get("www-authenticate") ?? "", /^Bearer\b/i);
 
-        const metaRes = await fetch(`${baseUrl}/.well-known/oauth-authorization-server`);
+        const metaRes = await fetch(`${baseUrl}/.well-known/oauth-protected-resource`);
         assert.equal(metaRes.status, 200);
-        const meta = (await metaRes.json()) as { token_endpoint: string; scopes_supported: string[] };
-        assert.ok(meta.scopes_supported.includes("acp"));
+        const meta = (await metaRes.json()) as {
+            resource: string;
+            authorization_servers: string[];
+            client_id?: string;
+        };
+        assert.equal(meta.resource, baseUrl);
+        assert.ok(meta.authorization_servers.includes(idp.issuer));
+        assert.equal(meta.client_id, clientId);
 
-        // 2. OAuth 2.1 `client_credentials` token exchange for `acp` scope.
-        const tokenRes = await fetch(meta.token_endpoint, {
-            method: "POST",
-            headers: {
-                "content-type": "application/x-www-form-urlencoded",
-                authorization: `Basic ${Buffer.from(`operator:${secret}`).toString("base64")}`,
-            },
-            body: new URLSearchParams({ grant_type: "client_credentials", scope: "acp" }).toString(),
-        });
-        assert.equal(tokenRes.status, 200);
-        const { access_token: accessToken } = (await tokenRes.json()) as { access_token: string };
-        assert.ok(typeof accessToken === "string" && accessToken.length > 0);
+        // 2. Signed ES256 OIDC bearer JWT issued by the configured authorization server.
+        const accessToken = idp.signJwt({ sub: "operator", aud: clientId, scope: "openid profile email" });
 
         // 3. Streamable HTTP transport (`createHttpStream`): initialize, list providers, create session.
         let acpSessionId = "";
