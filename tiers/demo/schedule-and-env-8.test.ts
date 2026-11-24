@@ -43,9 +43,9 @@ test("demo: deterministic _plurnk schedule runs with 0 model turns, followed by 
             alias: "bootstrap-env",
             rule: "+1s",
             run: [
-                'await plurnk.edit({ path: "env:///RELEASE_CHANNEL", text: "canary-8" });',
-                'await plurnk.edit({ path: "workspace:///scheduled-stamp.txt", text: "tick-ok\\n" });',
-            ].join("\n"),
+                { server: "plurnk", tool: "edit", arguments: { path: "env:///RELEASE_CHANNEL", text: "canary-8" } },
+                { server: "plurnk", tool: "edit", arguments: { path: "workspace:///scheduled-stamp.txt", text: "tick-ok\n" } },
+            ],
         }) as { status: number };
         assert.equal(added.status, 201);
 

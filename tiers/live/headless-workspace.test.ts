@@ -9,7 +9,7 @@ test("live: headless workspace operates with projectRoot=null over workspace:///
         const listed = await s.daemon.listWorkspaces();
         const created = listed.find((ws) => ws.id === s.workspaceId);
         assert.ok(created, "headless workspace is listed");
-        assert.equal(created.project_root, null, "project_root remains null in SQLite");
+        assert.equal(created.projectRoot, null, "projectRoot remains null in SQLite");
 
         await seedEntry(s.db, s.workspaceId, { pathname: "brief.md", content: "TOKEN=HEADLESS-804\n" });
         const result = await liveLoop(

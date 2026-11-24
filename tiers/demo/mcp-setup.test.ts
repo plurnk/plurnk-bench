@@ -64,7 +64,7 @@ test("demo: the model sets up an MCP from its URL, hands sign-in to the user, an
         const log = await s.daemon.readLog({ workspaceId: s.workspaceId, sessionId: result.modelSessionId, limit: Number.MAX_SAFE_INTEGER });
         assert.ok(
             log.some((row) =>
-                row.status_rx === 200
+                row.statusRx === 200
                 && JSON.stringify(row.rx).includes(marker)
                 && (
                     row.op === installed?.alias
