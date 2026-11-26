@@ -265,7 +265,14 @@ export async function runPiTrial({ instance, profilePath, preflight = false, sig
                 ...(credential === LOCAL_CREDENTIAL ? { [LOCAL_CREDENTIAL]: "local" } : {}),
                 PI_CODING_AGENT_DIR: "/var/lib/plurnk/config", PI_TELEMETRY: "0",
                 PLURNK_PI_PROFILE: "/var/lib/plurnk/profile.json", PLURNK_PI_AGENT_DIR: "/var/lib/plurnk" },
-        }, { signal, timeoutMs: profile.timeoutSeconds * 1000 });
+        }, {
+            signal,
+            timeoutMs: profile.timeoutSeconds * 1000,
+            onSlotAcquired: () => {
+                provenance.startedAt = new Date().toISOString();
+                json(join(trialDir, "provenance.json"), provenance);
+            },
+        });
         if (preflight) {
             if (result.status !== 0) throw new Error(`Pi preflight failed; see ${trialDir}/container.stderr.log`);
             json(join(trialDir, "preflight.json"), { version, config, argv,

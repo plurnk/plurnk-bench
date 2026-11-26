@@ -129,16 +129,9 @@ main() {
         [ "$halt" = 0 ] || { echo "campaign: halted at $id attempt $attempt — $verdict; see $log" >&2; exit 255; }
     }
     export -f run_one
-    # Every lane shares one frozen checkout and candidate.mjs builds per trial: concurrent
-    # `build:clean` steps wipe each other's dist. Build both lanes once here; the lanes skip it.
-    # An exported PLURNK_CANDIDATE_SKIP_BUILD says the lanes are built already (another campaign
-    # may be running from them): honor it, never rebuild beneath a live trial.
-    if [ "$preflight" = 0 ] && [ -z "${PLURNK_CANDIDATE_SKIP_BUILD:-}" ]; then
-        echo "campaign: building $service_root and $client_root once" >&2
-        (cd "$service_root" && npm run -s build > "$campaign/logs/build-service-$launch.log" 2>&1) || { echo "campaign: service build failed, see $campaign/logs/build-service-$launch.log" >&2; exit 1; }
-        node "$bench_root/src/candidate-client.ts" "$service_root" "$client_root" > "$campaign/logs/build-client-$launch.log" 2>&1 || { echo "campaign: client build failed, see $campaign/logs/build-client-$launch.log" >&2; exit 1; }
-        export PLURNK_CANDIDATE_SKIP_BUILD=1
-    fi
+    # swebench/runtime.ts builds once per (serviceHead, clientHead) inside a flock-serialized
+    # disposable git worktree into an immutable cached bundle, so parallel workers never mutate
+    # service_root or client_root and need no pre-build or PLURNK_CANDIDATE_SKIP_BUILD shim.
     echo "campaign: $campaign (${#pairs[@]} trials this launch, $jobs lane(s), model=${model:-preflight}, service=$(git -C "$service_root" rev-parse --short HEAD), client=$(git -C "$client_root" rev-parse --short HEAD))" >&2
     halted=0
     printf '%s\n' "${pairs[@]}" | xargs -P "$jobs" -n 2 bash -c 'run_one "$@"' _ || halted=$?

@@ -38,8 +38,11 @@ export PLURNK_SWEBENCH_HARBOR_PYTHON="$PWD/.cache/swebench/venv/bin/python"
 export PLURNK_SWEBENCH_MODEL_HOSTS='["your.model.endpoint"]'
 ```
 
-Credentials stay in the invoking environment. Do not edit or rebuild the
-candidate checkouts while a campaign uses them.
+Credentials stay in the invoking environment. `swebench/runtime.ts` builds and
+packs immutable runtime bundles from disposable detached `git worktree`s keyed
+by `(serviceHead, clientHead)` under `flock` in
+`~/benchmarks/cache/swebench-runtimes`, so active campaigns never mutate
+`../plurnk-service` or `../plurnk` checkouts.
 
 ## One task
 
@@ -118,9 +121,12 @@ again. `--skip <id>` records an intentional omission rather than replacing a fai
 `--limit`, `--only`, and `--jobs` bound the selected work and concurrency.
 A resume restores the corpus, model and attempts from `campaign.json`; `--only`,
 `--limit`, `--jobs`, `--halt-on` and the `PLURNK_SWEBENCH_*_ROOT` checkouts come from
-the resuming invocation, so repeat them. A launch builds its checkouts once; export
-`PLURNK_CANDIDATE_SKIP_BUILD=1` when launching beside a campaign that runs from the
-same checkouts, or the new launch rebuilds `dist` beneath its trials.
+the resuming invocation, so repeat them. Parallel workers share the immutable
+commit-addressed runtime bundle built once inside a disposable `git worktree`,
+and when targeting a local `llama-server` loopback endpoint, each trial acquires
+one of its probed `total_slots` OS-owned `flock` GPU slot leases around
+inference only (`PLURNK_BENCH_LOCAL_SLOTS` overrides; `0` disables) so `--jobs`
+overlaps container setup and `pytest` grading without KV-cache thrashing.
 
 Add `--json` to the report command for machine-readable results. Read failure
 and missing-telemetry sections alongside the aggregate scores. Friction separates

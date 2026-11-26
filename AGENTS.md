@@ -36,7 +36,7 @@ configuration cascade.
 
 ## SWE-bench & HarnessTax quickstart
 
-Use frozen lanes (`~/ptl/bench-lanes`) so editing `../plurnk-service` or `../plurnk` never mutates a live run:
+`swebench/runtime.ts` builds immutable runtime bundles from disposable detached `git worktree`s keyed by `(serviceHead, clientHead)`, so clean committed `../plurnk-service` and `../plurnk` checkouts can be targeted directly without mutating them (or use `deepswe/relock.sh <service-ref> <client-ref>` when pinning historical refs / host benchlets in `~/ptl/bench-lanes`):
 
 1. **Relock frozen lanes to the target service and client commits:**
 
