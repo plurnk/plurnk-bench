@@ -6,6 +6,7 @@ import { connect, createServer, type Server, type Socket } from "node:net";
 import { finished } from "node:stream/promises";
 import { join } from "node:path";
 import type { CandidateExit } from "./run.ts";
+import { acquireLoopbackSlotLeases, type SlotLeaseSet } from "./slot-lease.ts";
 
 export interface ContainerRequest {
     trial: string;
@@ -72,15 +73,29 @@ const defaultHarborPython = (): string => {
 export async function runContainer(request: ContainerRequest, {
     signal, timeoutMs, python = defaultHarborPython(),
     resolverConfig = process.env.PLURNK_SWEBENCH_RESOLV_CONF ?? "",
+    slotRoot,
+    disableSlotLease = false,
+    onSlotAcquired,
 }: {
-    signal?: AbortSignal; timeoutMs?: number; python?: string; resolverConfig?: string;
+    signal?: AbortSignal;
+    timeoutMs?: number;
+    python?: string;
+    resolverConfig?: string;
+    slotRoot?: string;
+    disableSlotLease?: boolean;
+    onSlotAcquired?: () => void;
 } = {}): Promise<CandidateExit> {
     signal?.throwIfAborted();
     const ports = request.preflight ? [] : (request.loopbackPorts ?? loopbackPorts(request.env));
     let agentFd: number | undefined;
+    let slotLeases: SlotLeaseSet | undefined;
     const bridges: Server[] = [];
     const sockets = new Set<Socket>();
     try {
+        if (ports.length > 0 && !disableSlotLease) {
+            slotLeases = await acquireLoopbackSlotLeases(ports, { signal, slotRoot });
+        }
+        onSlotAcquired?.();
         if (ports.length > 0) {
             // Address the trial's agent directory via /proc/self/fd so host path length never hits UNIX_PATH_MAX.
             agentFd = openSync(request.agent, constants.O_RDONLY | constants.O_DIRECTORY);
@@ -171,5 +186,6 @@ export async function runContainer(request: ContainerRequest, {
             rmSync(join(request.agent, "loopback.mjs"), { force: true });
             for (const port of ports) rmSync(join(request.agent, `loopback-${port}.sock`), { force: true });
         }
+        await slotLeases?.release();
     }
 }

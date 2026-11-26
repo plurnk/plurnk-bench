@@ -2,7 +2,7 @@
 import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { cp, copyFile, mkdir, mkdtemp, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { cp, copyFile, mkdir, mkdtemp, readdir, readFile, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -16,29 +16,104 @@ const run = async (command: string, args: string[], cwd: string) => (await execu
 const sha256 = (bytes: string | Buffer) => createHash("sha256").update(bytes).digest("hex");
 const json = (path: string, value: unknown) => writeFile(path, JSON.stringify(value, null, 2) + "\n");
 const adapterFiles = ["runner.mjs", "pi-extension.mjs", "pi-observer.mjs"];
+type SourceHeadRecord = { readonly head?: string };
 type Input = { kind: "plurnk"; serviceRoot: string; clientRoot: string; sources: unknown }
     | { kind: "pi"; piRoot: string; version: string };
-type Identity = Input & { node: string; nodeSha256: string; adapter: Record<string, string> };
+type ResolvedPlurnkIdentity = {
+    kind: "plurnk";
+    serviceHead: string;
+    clientHead: string;
+    node: string;
+    nodeSha256: string;
+    adapter: Record<string, string>;
+};
+type ResolvedPiIdentity = {
+    kind: "pi";
+    version: string;
+    node: string;
+    nodeSha256: string;
+    adapter: Record<string, string>;
+};
+type BuildSpec =
+    | { readonly kind: "plurnk"; readonly identity: ResolvedPlurnkIdentity; readonly serviceRoot: string; readonly clientRoot: string; readonly sources: unknown }
+    | { readonly kind: "pi"; readonly identity: ResolvedPiIdentity; readonly piRoot: string };
+
+const resolveHead = async (root: string, candidate?: string): Promise<string> =>
+    typeof candidate === "string" && candidate.trim().length > 0
+        ? candidate.trim()
+        : (await run("git", ["rev-parse", "HEAD"], root)).trim();
+
+/**
+ * {§swebench-evaluator} Materialize a disposable detached git worktree of `commitSha` beside `stageDir`,
+ * copying `node_modules` (root and nested workspaces) with symlinks intact so builds never mutate the live checkout.
+ */
+export async function withBuildWorktree<T>(
+    repositoryRoot: string,
+    commitSha: string,
+    worktreeDir: string,
+    work: (worktree: string) => Promise<T>,
+): Promise<T> {
+    await run("git", ["worktree", "add", "--detach", "--quiet", worktreeDir, commitSha], repositoryRoot);
+    try {
+        const rootModules = join(repositoryRoot, "node_modules");
+        if (existsSync(rootModules)) {
+            await run("cp", ["-a", rootModules, join(worktreeDir, "node_modules")], repositoryRoot);
+        }
+        const entries = await readdir(repositoryRoot, { withFileTypes: true });
+        for (const entry of entries) {
+            if (!entry.isDirectory() || entry.name === "node_modules" || entry.name.startsWith(".")) continue;
+            const nestedModules = join(repositoryRoot, entry.name, "node_modules");
+            const targetWorkspace = join(worktreeDir, entry.name);
+            if (existsSync(nestedModules) && existsSync(targetWorkspace)) {
+                await run("cp", ["-a", nestedModules, join(targetWorkspace, "node_modules")], repositoryRoot);
+            }
+        }
+        return await work(worktreeDir);
+    } finally {
+        await run("git", ["worktree", "remove", "--force", worktreeDir], repositoryRoot).catch(() => undefined);
+        await run("git", ["worktree", "prune"], repositoryRoot).catch(() => undefined);
+    }
+}
 
 export async function prepareRuntime(input: Input) {
     if (process.platform !== "linux" || process.arch !== "x64") {
         throw new Error("SWE-bench's pinned x86_64 Linux images require a matching Linux x64 Node/npm host runtime");
     }
-    const identity = {
-        ...input, node: process.version, nodeSha256: sha256(await readFile(process.execPath)),
+    const common = {
+        node: process.version,
+        nodeSha256: sha256(await readFile(process.execPath)),
         adapter: Object.fromEntries(await Promise.all(["runtime.ts", "../src/candidate-client.ts", "../src/npm-pack.ts", ...adapterFiles].map(async (name) =>
             [name, sha256(await readFile(join(import.meta.dirname, name)))]))),
     };
+    let spec: BuildSpec;
+    if (input.kind === "plurnk") {
+        const sources = input.sources as { service?: SourceHeadRecord; client?: SourceHeadRecord } | undefined;
+        const serviceHead = await resolveHead(input.serviceRoot, sources?.service?.head);
+        const clientHead = await resolveHead(input.clientRoot, sources?.client?.head);
+        spec = {
+            kind: "plurnk",
+            identity: { kind: "plurnk", serviceHead, clientHead, ...common },
+            serviceRoot: resolve(input.serviceRoot),
+            clientRoot: resolve(input.clientRoot),
+            sources: input.sources,
+        };
+    } else {
+        spec = {
+            kind: "pi",
+            identity: { kind: "pi", version: input.version, ...common },
+            piRoot: resolve(input.piRoot),
+        };
+    }
     const root = join(benchmarksHome(), "cache", "swebench-runtimes");
     await mkdir(root, { recursive: true });
-    const target = join(root, sha256(JSON.stringify(identity)));
+    const target = join(root, sha256(JSON.stringify(spec.identity)));
     // OS-owned lock releases on failure; parallel trials cannot observe a partial install.
     await run("flock", ["--exclusive", `${target}.lock`, process.execPath, import.meta.filename,
-        "--build", target, JSON.stringify(identity)], import.meta.dirname);
+        "--build", target, JSON.stringify(spec)], import.meta.dirname);
     return { path: target, provenance: JSON.parse(await readFile(join(target, "runtime.json"), "utf8")) };
 }
 
-async function build(target: string, identity: Identity) {
+async function build(target: string, spec: BuildSpec) {
     try {
         await readFile(join(target, "runtime.json"));
         return;
@@ -52,22 +127,25 @@ async function build(target: string, identity: Identity) {
             const results = packRecords(await run("npm", ["pack", ...args, "--ignore-scripts", "--json", "--pack-destination", archives], cwd));
             packages.push(...results.map(({ name, version, filename }) => ({ name, version, file: join(archives, filename) })));
         };
-        if (identity.kind === "plurnk") {
-            if (process.env.PLURNK_CANDIDATE_SKIP_BUILD !== "1") {
-                await run("npm", ["run", "build"], identity.serviceRoot);
-                await buildCandidateClient(identity.serviceRoot, identity.clientRoot);
-            }
-            await pack(identity.serviceRoot, ["--workspaces"]);
-            const projectionScript = existsSync(join(identity.serviceRoot, "scripts/lib/package-projection.mjs"))
-                ? join(identity.serviceRoot, "scripts/lib/package-projection.mjs")
-                : join(identity.serviceRoot, "scripts/package-projection.mjs");
-            const { projectTarball } = await import(pathToFileURL(projectionScript).href);
-            for (const { file } of packages) await projectTarball(file);
-            await pack(identity.clientRoot);
-            await copyFile(join(identity.serviceRoot, "plurnk-core/.env.test"), join(stage, ".env.test"));
+        if (spec.kind === "plurnk") {
+            const { serviceHead, clientHead } = spec.identity;
+            await withBuildWorktree(spec.serviceRoot, serviceHead, join(stage, "service-wt"), async (serviceWt) => {
+                await run("npm", ["run", "build"], serviceWt);
+                await withBuildWorktree(spec.clientRoot, clientHead, join(stage, "client-wt"), async (clientWt) => {
+                    await buildCandidateClient(serviceWt, clientWt);
+                    await pack(serviceWt, ["--workspaces"]);
+                    const projectionScript = existsSync(join(serviceWt, "scripts/lib/package-projection.mjs"))
+                        ? join(serviceWt, "scripts/lib/package-projection.mjs")
+                        : join(serviceWt, "scripts/package-projection.mjs");
+                    const { projectTarball } = await import(pathToFileURL(projectionScript).href);
+                    for (const { file } of packages) await projectTarball(file);
+                    await pack(clientWt);
+                });
+                await copyFile(join(serviceWt, "plurnk-core/.env.test"), join(stage, ".env.test"));
+            });
         } else {
             // Pack the exact installed stock Pi; the profile's version is checked by its caller.
-            await pack(identity.piRoot);
+            await pack(spec.piRoot);
         }
         await json(join(stage, "package.json"), { name: "benchmark-runtime", private: true, type: "module" });
         await run("npm", ["install", "--ignore-scripts", "--no-audit", "--no-fund", ...packages.map(({ file }) => file)], stage);
@@ -80,7 +158,10 @@ async function build(target: string, identity: Identity) {
         await symlink("../npm/bin/npm-cli.js", join(stage, "bin/npm"));
         await symlink("../npm/bin/npx-cli.js", join(stage, "bin/npx"));
         for (const name of adapterFiles) await copyFile(join(import.meta.dirname, name), join(stage, name));
-        await json(join(stage, "runtime.json"), { ...identity, artifacts,
+        await json(join(stage, "runtime.json"), {
+            ...spec.identity,
+            ...(spec.kind === "plurnk" ? { serviceRoot: spec.serviceRoot, clientRoot: spec.clientRoot, sources: spec.sources } : { piRoot: spec.piRoot }),
+            artifacts,
             lockSha256: sha256(await readFile(join(stage, "package-lock.json"))),
         });
         await rm(archives, { recursive: true });

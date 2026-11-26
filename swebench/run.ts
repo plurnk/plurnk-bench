@@ -333,7 +333,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
             ...isolation.overrides,
         };
         const stdoutPath = join(agentDir, "plurnk.stdout.log");
-        const startedAt = new Date();
+        let startedAt = new Date();
         const result = await runContainer({
             trial: trialDir, runtime: runtime.path, repository, agent: agentDir,
             image: imageId, cpus: manifest.environment.cpus, memoryMb: manifest.environment.memoryMb,
@@ -342,6 +342,7 @@ const main = async (signal?: AbortSignal): Promise<void> => {
         }, {
             ...(timeout === -1 ? {} : { timeoutMs: (timeout + overhead) * 1000 }),
             signal,
+            onSlotAcquired: () => { startedAt = new Date(); },
         });
         const finishedAt = new Date();
         writeJson(join(trialDir, "runtime.json"), runtime.provenance);
