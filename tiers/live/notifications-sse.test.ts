@@ -1,10 +1,10 @@
-// {§tier-corpus} — `GET /notifications` SSE live stream, schema validation, session-scoped filtering,
-// and `Last-Event-ID` cursor replay across a real model loop while disconnected.
+// {§tier-corpus} — `GET /notifications` Watch SSE stream, unified envelope schema validation,
+// session-scoped filtering, and `Last-Event-ID` cursor replay across a real model loop while disconnected.
 import assert from "node:assert/strict";
 import {
     APPLICATION_RUNTIME_STREAM_EVENTS,
     Validator,
-    type DaemonNotification,
+    type DaemonNotificationStreamEnvelope,
 } from "@plurnk/plurnk-contracts";
 import {
     bindListener,
@@ -19,7 +19,7 @@ import {
 interface ParsedFrame {
     readonly id: string | null;
     readonly event: string;
-    readonly notification?: DaemonNotification;
+    readonly envelope: DaemonNotificationStreamEnvelope;
 }
 
 const connectSse = async (url: string, headers: Readonly<Record<string, string>> = {}) => {
@@ -54,10 +54,11 @@ const connectSse = async (url: string, headers: Readonly<Record<string, string>>
                     }
                     if (dataText === null) continue;
                     const parsed: unknown = JSON.parse(dataText);
-                    const notification = event === "notifications/resync"
-                        ? undefined
-                        : Validator.assertDaemonNotification(parsed);
-                    frames.push({ id, event, ...(notification !== undefined ? { notification } : {}) });
+                    const envelope = Validator.assertDaemonNotification(
+                        parsed,
+                    ) as DaemonNotificationStreamEnvelope;
+                    assert.equal(envelope.event, event);
+                    frames.push({ id, event, envelope });
                     opened.resolve();
                 }
             }
@@ -75,7 +76,7 @@ const connectSse = async (url: string, headers: Readonly<Record<string, string>>
     };
 };
 
-test("live: GET /notifications streams discrete loop events and replays missed model-loop events via Last-Event-ID", async (t) => {
+test("live: GET /notifications hydrates Watch snapshots and replays missed model-loop transitions via Last-Event-ID", async (t) => {
     const run = await liveRun("live-notifications-sse");
     const db = await openMigrated(run.dbPath);
     const http = await bindListener();
@@ -96,6 +97,12 @@ test("live: GET /notifications streams discrete loop events and replays missed m
         const firstStream = await connectSse(baseUrl);
         t.after(() => firstStream.close());
 
+        await waitFor(
+            () => firstStream.frames.filter((f) => f.event === "notifications/snapshot"),
+            (items) => items.length === 1,
+            { timeoutMs: 5_000 },
+        );
+
         const { workspaceId } = await daemon.createWorkspace({ name: "sse-live-ws" });
         const { sessionId } = await daemon.createSession({ workspaceId, name: "worker" });
         await waitFor(
@@ -108,6 +115,12 @@ test("live: GET /notifications streams discrete loop events and replays missed m
 
         // Disconnect SSE client BEFORE running the real model loop!
         await firstStream.close();
+
+        const runtimeEvents = new Set<string>();
+        const offRuntime = daemon.subscribeToRuntimeStream((_wsId, method) => {
+            runtimeEvents.add(method);
+        });
+        t.after(offRuntime);
 
         const terminated = Promise.withResolvers<{ status: number }>();
         const off = daemon.subscribeToEvents((wsId, method, params) => {
@@ -138,10 +151,12 @@ test("live: GET /notifications streams discrete loop events and replays missed m
         );
 
         const replayedEvents = new Set(replayStream.frames.map((f) => f.event));
+        assert.equal(replayedEvents.has("notifications/snapshot"), false, "in-window cursor replays without snapshot");
         assert.equal(replayedEvents.has("notifications/resync"), false, "in-window cursor replays without resync");
         assert.equal(replayedEvents.has("loop/started"), true, "replayed loop/started");
-        assert.equal(replayedEvents.has("log/entry"), true, "replayed log/entry");
+        assert.equal(replayedEvents.has("session/replied"), true, "replayed compact session/replied");
         assert.equal(replayedEvents.has("loop/terminated"), true, "replayed loop/terminated");
+        assert.equal(runtimeEvents.has("log/entry"), true, "log/entry stays on subscribeToRuntimeStream");
         for (const runtimeEvent of APPLICATION_RUNTIME_STREAM_EVENTS) {
             assert.equal(replayedEvents.has(runtimeEvent), false, `${runtimeEvent} never leaks onto /notifications`);
         }
