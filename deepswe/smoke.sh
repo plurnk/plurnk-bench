@@ -88,12 +88,12 @@ CLIENT_TIMEOUT_SEC="${PLURNK_BENCH_TIMEOUT_SEC:-$(( ${AGENT_BUDGET:-1920} - 120 
 # provider registry — a cloud provider (deepseek) has no *_BASE_URL to inspect. Emits
 # `DOMAINS=...` then one `KEY=VALUE` per provider credential that is set.
 MANIFEST="$(MODEL="$MODEL" node -e '
-  const providers = require("./node_modules/@plurnk/plurnk-models/dist/providers.json");
+  const { lookupProvider } = require("@plurnk/plurnk-models");
   const hosts = new Set(); const keys = new Set();
   for (const alias of [process.env.MODEL, process.env.PLURNK_MODEL_CHILD].filter(Boolean)) {
     const def = process.env["PLURNK_MODEL_" + alias] ?? (alias.includes("/") ? alias : null);
     if (!def) throw new Error("alias " + alias + " has no PLURNK_MODEL_" + alias + " definition");
-    const provider = providers[def.split("/")[0]];
+    const provider = lookupProvider(def.split("/")[0]);
     if (!provider) throw new Error("unknown provider in " + def);
     for (const key of provider.env ?? []) keys.add(key);
     if (!provider.api) continue;   // SDK-native provider: driver fails loudly unless PLURNK_BASEURL_<alias> names the host

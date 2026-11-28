@@ -40,7 +40,8 @@ test("{§config-carry} the runner pins resolved service and client publications"
 });
 
 test("{§config-carry} the minimal manifest carries the alias layer and its credentials only", () => {
-    assert.match(smoke, /providers\.json/);
+    assert.match(smoke, /lookupProvider/);
+    assert.match(smoke, /@plurnk\/plurnk-models/);
     assert.match(smoke, /flags=\(--agent-env "PLURNK_MODEL=\$MODEL"\)/);
     // Server approval is benchmark configuration, not a per-message grant.
     assert.match(smoke, /flags\+=\(--agent-env "PLURNK_SERVICE_PROPOSALS=\$PLURNK_SERVICE_PROPOSALS"\)/);
