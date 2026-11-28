@@ -37,7 +37,7 @@ test("demo: the model repairs a broken MCP file and uses its restored tool", asy
         const listed = await s.invokeWorkspaceAction("workspace.mcp.list", {}) as FunctionalityListResult;
         const effective = listed.definitions.find(({ alias }) => alias === "echo");
         assert.equal(effective?.state, "active");
-        assert.equal(effective?.origin, "service");
+        assert.equal(effective?.origin, "host");
         assert.deepEqual(effective?.provenance, { kind: "file", source: config, reference: "/mcpServers/echo" });
         const log = await s.daemon.readLog({ workspaceId: s.workspaceId, sessionId: result.modelSessionId, limit: Number.MAX_SAFE_INTEGER });
         assert.ok(
@@ -94,14 +94,14 @@ test("demo: configured skill sources survive a model's workspace override and re
         };
         await run(`An available skill named ${name} is disabled. Enable it for this workspace, follow its instructions, and report its verification marker.`, markers[0]);
         assert.equal((await effective())?.state, "active");
-        assert.equal((await effective())?.origin, "service");
+        assert.equal((await effective())?.origin, "host");
         await run(`For this workspace, replace ${name} with the local skill at ${replacement}. Follow the replacement and report its verification marker. Leave the replacement active until I ask you to remove it. Do not change either source folder.`, markers[1]);
         assert.equal((await effective())?.origin, "workspace");
         assert.deepEqual((await effective())?.definition, { source: replacement });
         const answer = await run(`Remove that workspace override so ${name} inherits its original configuration again. Leave the original skill enabled, follow it, and report both its verification marker and the configuration key supplying it. Do not modify configuration files or either source folder.`, markers[0]);
         assert.ok(answer.includes(key), "the model locates the winning input through ordinary inspection");
         assert.deepEqual(await effective(), {
-            alias: name, origin: "service", state: "active", definition: { source: baseline },
+            alias: name, origin: "host", state: "active", definition: { source: baseline },
             provenance: { kind: "environment", source: key },
             detail: { description: "Report this review skill's verification marker.", path: baseline },
         });
