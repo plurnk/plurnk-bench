@@ -22,9 +22,10 @@
     "dependencies": {
         "@modelcontextprotocol/client": "2.4.0",
         "@modelcontextprotocol/server": "2.4.0",
-        "@plurnk/plurnk-contracts": "^10.0.0",
-        "@plurnk/plurnk-digest": "^4.0.2",
-        "@plurnk/plurnk-service": "^9.0.0",
+        "@plurnk/plurnk-contracts": "^11.0.0",
+        "@plurnk/plurnk-digest": "^4.0.3",
+        "@plurnk/plurnk-models": "^4.1.0",
+        "@plurnk/plurnk-service": "^10.0.0",
         "@streamparser/json": "^0.0.26"
     },
     "devDependencies": {
@@ -33,7 +34,7 @@
     },
     "allowScripts": {
         "@google/genai@2.32.0": false,
-        "exifreader@4.55.1": false,
+        "exifreader@4.56.0": false,
         "protobufjs@7.6.6": false
     }
 }

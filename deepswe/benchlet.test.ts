@@ -715,7 +715,8 @@ test("{§config-carry} smoke forwards provider base URLs and credentials in sing
 });
 
 test("{§config-carry} smoke derives the allowlist from the run's aliases and forwards it to the driver", () => {
-    assert.match(smoke, /providers\.json/);
+    assert.match(smoke, /lookupProvider/);
+    assert.match(smoke, /@plurnk\/plurnk-models/);
     assert.match(smoke, /--agent-kwarg "egress_domains=\$EGRESS_DOMAINS"/);
 });
 

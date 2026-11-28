@@ -42,15 +42,28 @@ DAEMON_READY_TIMEOUT_S = 60
 # install/boot/snapshot. Bounded specimens override via the client_timeout_sec kwarg.
 DEFAULT_CLIENT_TIMEOUT_S = 28_200
 
-_PROVIDERS_JSON = (
-    Path(__file__).resolve().parent.parent
-    / "node_modules" / "@plurnk" / "plurnk-models" / "dist" / "providers.json"
-)
+_BENCH_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _prefix(provider_id: str) -> str:
     """Provider id -> env prefix, the catalog-id sanitization rule (#459)."""
     return re.sub(r"[^A-Za-z0-9]", "_", provider_id).upper()
+
+
+@functools.cache
+def _provider_env_keys(provider_id: str) -> tuple[str, ...] | None:
+    """Resolve registered credential env names from @plurnk/plurnk-models."""
+    out = subprocess.run(
+        ["node", "-e",
+         'const { lookupProvider } = require("@plurnk/plurnk-models");'
+         'const p = lookupProvider(process.argv[1]);'
+         'process.stdout.write(JSON.stringify(p ? p.env : null));',
+         provider_id],
+        cwd=_BENCH_ROOT,
+        capture_output=True, text=True, check=True,
+    )
+    env = json.loads(out.stdout)
+    return None if env is None else tuple(env)
 
 
 @functools.cache
@@ -182,11 +195,10 @@ class PlurnkAgent(BaseInstalledAgent):
         env.update(self._host_env_by_pattern(
             lambda k: k.startswith(f"PLURNK_PROVIDERS_PROVIDER_{prefix}_")))
 
-        providers = json.loads(_PROVIDERS_JSON.read_text())
-        provider = providers.get(provider_id)
-        if provider is None:
+        provider_env = _provider_env_keys(provider_id)
+        if provider_env is None:
             raise ValueError(f"unknown provider {provider_id!r} in route {route!r}")
-        for credential in provider.get("env", []):
+        for credential in provider_env:
             value = self._host_env(credential)
             if value:
                 env[credential] = value
